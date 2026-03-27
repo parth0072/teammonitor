@@ -16,31 +16,15 @@ class ScreenshotService: ObservableObject {
 
     // MARK: - Permission
 
-    /// Two-step check. CGPreflightScreenCaptureAccess() is unreliable in debug/
-    /// Xcode builds — it can return false even after the user grants access.
-    /// We fall back to inspecting whether the window list contains windows from
-    /// other processes, which only works when Screen Recording is granted.
+    /// Returns true when Screen Recording permission has been granted.
+    /// Uses CGPreflightScreenCaptureAccess() — the only reliable API.
+    /// Note: on first grant macOS sometimes requires an app restart before
+    /// this returns true; the banner's "Restart App" button handles that.
     static func hasPermission() -> Bool {
-        // Step 1: official API (fast, often correct in release builds)
         if #available(macOS 10.15, *) {
-            if CGPreflightScreenCaptureAccess() { return true }
-        } else {
-            return true // macOS < 10.15 never needed permission
+            return CGPreflightScreenCaptureAccess()
         }
-
-        // Step 2: attempt to enumerate on-screen windows.
-        // Without Screen Recording, CGWindowListCopyWindowInfo only returns
-        // windows owned by the current process.
-        let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        guard let list = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[CFString: Any]] else {
-            return false
-        }
-        let myPID = Int(ProcessInfo.processInfo.processIdentifier)
-        let canSeeOtherApps = list.contains { info in
-            let pid = info[kCGWindowOwnerPID as CFString] as? Int ?? 0
-            return pid != myPID && pid != 0
-        }
-        return canSeeOtherApps
+        return true  // macOS < 10.15 never needed permission
     }
 
     /// Opens the Screen Recording pane in System Settings so the user can

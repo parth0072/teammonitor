@@ -344,7 +344,7 @@ struct TrackingDashboardView: View {
                     Text("Screen Recording permission required")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(hex: "92400e"))
-                    Text("System Settings → Privacy & Security → Screen Recording → enable TeamMonitorAgent.")
+                    Text("Go to System Settings → Privacy & Security → Screen Recording → enable TeamMonitorAgent. Then restart the app.")
                         .font(.system(size: 11))
                         .foregroundColor(Color(hex: "b45309"))
                         .fixedSize(horizontal: false, vertical: true)
@@ -358,7 +358,7 @@ struct TrackingDashboardView: View {
                 .padding(.horizontal, 10).padding(.vertical, 5)
                 .background(Color(hex: "fde68a")).cornerRadius(5).buttonStyle(.plain)
 
-                Button("Re-check") { manager.recheckScreenPermission() }
+                Button("Restart App") { relaunchApp() }
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 10).padding(.vertical, 5)
@@ -373,6 +373,17 @@ struct TrackingDashboardView: View {
             .background(Color(hex: "fef3c7"))
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "fde68a")), alignment: .bottom)
         }
+    }
+
+    /// Relaunches the app via `open` so the fresh process gets the updated
+    /// Screen Recording permission from macOS.
+    private func relaunchApp() {
+        let url  = Bundle.main.bundleURL
+        let task = Process()
+        task.launchPath = "/usr/bin/open"
+        task.arguments  = [url.path]
+        try? task.run()
+        NSApp.terminate(nil)
     }
 
     // MARK: – Start Timer Reminder Banner
