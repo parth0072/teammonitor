@@ -14,7 +14,7 @@ struct ToastMessage: Equatable {
 
 struct TrackingDashboardView: View {
     @EnvironmentObject var auth: AuthState
-    @StateObject private var manager = TrackingManager.shared
+    @ObservedObject private var manager = TrackingManager.shared
 
     @State private var selectedTab:    DashTab = .tasks
     @State private var searchText             = ""

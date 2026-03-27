@@ -399,25 +399,31 @@ class TrackingManager: ObservableObject {
 
     private func startMinuteTimer(sessionId: Int) {
         sessionTimer?.invalidate()
-        sessionTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        // Use .common run-loop mode so the timer fires even during UI interactions
+        // (.default mode is paused while menus/drags/events are active).
+        let t = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 self.trackedMinutes += 1
-                self.saveSessionState()   // ← persist every minute
+                self.saveSessionState()
                 try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: self.trackedMinutes)
             }
         }
+        RunLoop.main.add(t, forMode: .common)
+        sessionTimer = t
     }
 
     private func startResumeTimer() {
         resumeTimer?.invalidate()
-        resumeTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 guard let resume = self.lastResumeTime else { return }
                 self.minutesSinceResume = Int(Date().timeIntervalSince(resume)) / 60
             }
         }
+        RunLoop.main.add(t, forMode: .common)
+        resumeTimer = t
     }
 
     private func stopAllServices() {
