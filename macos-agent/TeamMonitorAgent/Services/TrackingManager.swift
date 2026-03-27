@@ -55,9 +55,8 @@ class TrackingManager: ObservableObject {
     // Break state
     @Published var isOnBreak:           Bool     = false
 
-    // Offline state
+    // Offline state (banner only — no queuing)
     @Published var isOffline:           Bool     = false
-    @Published var pendingUploadCount:  Int      = 0   // queued screenshots
 
     // MARK: - Private
 
@@ -66,12 +65,11 @@ class TrackingManager: ObservableObject {
     private let appTracker   = AppTrackingService.shared
     private let idleDetector = IdleDetectionService.shared
     private let network      = NetworkMonitor.shared
-    private let offlineQueue = OfflineQueue.shared
 
     private var sessionTimer:    Timer?
     private var resumeTimer:     Timer?
     private var permissionTimer: Timer?   // polls until screen-recording is granted
-    private var lastResumeTime:  Date?
+    var lastResumeTime:  Date?   // internal – read by view for live display
     private var pendingIdleStart: Date?
     private var cancellables = Set<AnyCancellable>()
 
@@ -100,13 +98,11 @@ class TrackingManager: ObservableObject {
             .sink { [weak self] in self?.isIdle = $0 }
             .store(in: &cancellables)
 
-        // Network monitor → sync queued items when we come back online
+        // Network monitor → update isOffline flag (used for offline banner in UI)
         network.$isOnline
             .receive(on: RunLoop.main)
             .sink { [weak self] (online: Bool) in
-                guard let self else { return }
-                self.isOffline = !online
-                if online { Task { await self.syncOfflineQueue() } }
+                self?.isOffline = !online
             }
             .store(in: &cancellables)
 
@@ -120,8 +116,6 @@ class TrackingManager: ObservableObject {
             startPermissionPolling()
         }
 
-        // Update offline-queue badge count
-        pendingUploadCount = offlineQueue.pendingScreenshotCount()
 
         // Restore a session that was active when the app was last closed
         restoreSessionIfNeeded()
@@ -179,6 +173,8 @@ class TrackingManager: ObservableObject {
             trackedMinutes   = 0
             screenshotCount  = 0
             isTracking       = true
+            isOnBreak        = false
+            showIdleAlert    = false   // clear any stale idle alert from previous session
             statusMessage    = "Tracking active"
             saveSessionState()
             startAllServices(sessionId: sessionId)
@@ -196,21 +192,14 @@ class TrackingManager: ObservableObject {
         showIdleAlert = false
         stopAllServices()
 
-        if network.isOnline {
-            do {
-                try await api.punchOut(sessionId: sessionId, totalMinutes: trackedMinutes)
-                statusMessage = "Session saved. Have a great day!"
-            } catch {
-                // Server unreachable even though monitor said online – queue it
-                offlineQueue.enqueuePunchOut(QueuedPunchOut(
-                    sessionId: sessionId, totalMinutes: trackedMinutes, punchedOutAt: Date()))
-                statusMessage = "Saved offline. Will sync when connected."
-            }
-        } else {
-            offlineQueue.enqueuePunchOut(QueuedPunchOut(
-                sessionId: sessionId, totalMinutes: trackedMinutes, punchedOutAt: Date()))
-            statusMessage = "Saved offline. Will sync when connected."
+        // Always attempt punch-out; if it fails (no internet etc.) silently skip.
+        // No offline queue — keeps the app simple and avoids stale-token replays.
+        do {
+            try await api.punchOut(sessionId: sessionId, totalMinutes: trackedMinutes)
+        } catch {
+            // ignore – session will be auto-closed server-side on next heartbeat timeout
         }
+        statusMessage = "Session ended. Have a great day!"
 
         clearSessionState()
         currentSessionId   = nil
@@ -332,43 +321,6 @@ class TrackingManager: ObservableObject {
         print("[TrackingManager] Restored session \(state.sessionId) with \(state.trackedMinutes) min")
     }
 
-    // MARK: - Offline Sync
-
-    /// Called whenever network comes back online. Drains queued screenshots and punch-outs.
-    private func syncOfflineQueue() async {
-        // 1. Pending punch-out
-        if let pendingOut = offlineQueue.pendingPunchOut() {
-            do {
-                try await api.punchOut(sessionId: pendingOut.sessionId, totalMinutes: pendingOut.totalMinutes)
-                offlineQueue.dequeuePunchOut()
-                print("[OfflineSync] Punch-out synced for session \(pendingOut.sessionId)")
-            } catch {
-                print("[OfflineSync] Punch-out failed: \(error)")
-            }
-        }
-
-        // 2. Queued screenshots
-        let pending = offlineQueue.pendingScreenshots()
-        for (item, data) in pending {
-            do {
-                _ = try await api.uploadScreenshot(data, sessionId: item.sessionId,
-                                                   activityLevel: item.activityLevel)
-                offlineQueue.dequeueScreenshot(filename: item.filename)
-                await MainActor.run {
-                    self.screenshotCount    += 1
-                    self.pendingUploadCount  = self.offlineQueue.pendingScreenshotCount()
-                }
-            } catch {
-                print("[OfflineSync] Screenshot upload failed: \(error)")
-                break  // stop on first failure – will retry next time
-            }
-        }
-
-        await MainActor.run {
-            self.pendingUploadCount = self.offlineQueue.pendingScreenshotCount()
-        }
-    }
-
     // MARK: - Services
 
     private func startAllServices(sessionId: Int) {
@@ -379,31 +331,18 @@ class TrackingManager: ObservableObject {
         let screenshotInterval = TimeInterval(api.employee?.screenshotInterval ?? 300)
         screenshots.start(interval: screenshotInterval) { [weak self] imageData in
             guard let self else { return }
+            // Fire-and-forget: try to upload; silently skip on any failure.
+            // No offline queue — avoids stale-token replays and "queued" messages.
             Task {
-                if self.network.isOnline {
-                    do {
-                        _ = try await self.api.uploadScreenshot(
-                            imageData,
-                            sessionId: sessionId,
-                            activityLevel: self.idleDetector.activityPercent
-                        )
-                        await MainActor.run { self.screenshotCount += 1 }
-                    } catch {
-                        // Upload failed – save to offline queue
-                        self.offlineQueue.enqueueScreenshot(imageData, sessionId: sessionId,
-                                                            activityLevel: self.idleDetector.activityPercent)
-                        await MainActor.run {
-                            self.pendingUploadCount = self.offlineQueue.pendingScreenshotCount()
-                        }
-                        print("Screenshot queued offline: \(error)")
-                    }
-                } else {
-                    // No internet – queue immediately
-                    self.offlineQueue.enqueueScreenshot(imageData, sessionId: sessionId,
-                                                        activityLevel: self.idleDetector.activityPercent)
-                    await MainActor.run {
-                        self.pendingUploadCount = self.offlineQueue.pendingScreenshotCount()
-                    }
+                do {
+                    _ = try await self.api.uploadScreenshot(
+                        imageData,
+                        sessionId: sessionId,
+                        activityLevel: self.idleDetector.activityPercent
+                    )
+                    await MainActor.run { self.screenshotCount += 1 }
+                } catch {
+                    // Upload failed (no internet / auth error) — silently skip
                 }
             }
         }

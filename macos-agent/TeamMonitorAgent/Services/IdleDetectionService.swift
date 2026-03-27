@@ -27,9 +27,15 @@ class IdleDetectionService: ObservableObject {
 
     func start() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            self?.check()
-        }
+        // Reset state WITHOUT firing callbacks — prevents pre-session idle time
+        // from immediately triggering onIdleEnd and killing the minute timer.
+        isIdle             = false
+        idleStart          = nil
+        totalActiveSeconds = 0
+        totalIdleSeconds   = 0
+        let t = Timer(timeInterval: 5, repeats: true) { [weak self] _ in self?.check() }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
 
     func stop() {

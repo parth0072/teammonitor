@@ -16,6 +16,10 @@ struct TrackingDashboardView: View {
     @EnvironmentObject var auth: AuthState
     @ObservedObject private var manager = TrackingManager.shared
 
+    // Live 1-second display timer — independent of the 60s background timer
+    private let liveClock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @State private var liveMinutes: Int = 0
+
     @State private var selectedTab:    DashTab = .tasks
     @State private var searchText             = ""
     @State private var workStatus             = "WFO"
@@ -92,7 +96,20 @@ struct TrackingDashboardView: View {
             showTaskPicker = false
             Task { await manager.punchIn(task: task) }
         })}
+        .onReceive(liveClock) { _ in
+            // Compute live minutes: accumulated minutes + seconds since last resume
+            guard manager.isTracking, !manager.isOnBreak else {
+                liveMinutes = manager.trackedMinutes
+                return
+            }
+            if let resume = manager.lastResumeTime {
+                liveMinutes = manager.trackedMinutes + Int(Date().timeIntervalSince(resume)) / 60
+            } else {
+                liveMinutes = manager.trackedMinutes
+            }
+        }
         .onAppear {
+            liveMinutes = manager.trackedMinutes
             loadTasks()
             requestNotificationPermission()
             // If app opens and user is already not tracking, start the reminder
@@ -287,7 +304,7 @@ struct TrackingDashboardView: View {
             .frame(maxWidth: .infinity)
             Divider().frame(height: 42)
             VStack(spacing: 3) {
-                Text(formatHoursMinutes(manager.trackedMinutes))
+                Text(formatHoursMinutes(liveMinutes))
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(Color(hex: "111827"))
                 Text("total current working day")
@@ -434,36 +451,17 @@ struct TrackingDashboardView: View {
     @ViewBuilder
     var offlineBanner: some View {
         if manager.isOffline {
-            HStack(spacing: 10) {
-                Image(systemName: "wifi.slash")
-                    .font(.system(size: 13))
+            HStack(spacing: 8) {
+                Image(systemName: "wifi.slash").font(.system(size: 12))
                     .foregroundColor(Color(hex: "92400e"))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("No internet connection")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color(hex: "92400e"))
-                    Text(manager.pendingUploadCount > 0
-                         ? "\(manager.pendingUploadCount) screenshot(s) queued — will upload when connected."
-                         : "Screenshots will be saved locally until connected.")
-                        .font(.system(size: 11))
-                        .foregroundColor(Color(hex: "b45309"))
-                }
+                Text("No internet — screenshots and sync paused")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Color(hex: "92400e"))
                 Spacer()
             }
-            .padding(.horizontal, 16).padding(.vertical, 8)
+            .padding(.horizontal, 16).padding(.vertical, 6)
             .background(Color(hex: "fef3c7"))
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "fde68a")), alignment: .bottom)
-        } else if manager.pendingUploadCount > 0 {
-            HStack(spacing: 10) {
-                ProgressView().scaleEffect(0.7)
-                Text("Uploading \(manager.pendingUploadCount) queued screenshot(s)…")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "1d4ed8"))
-                Spacer()
-            }
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .background(Color(hex: "eff6ff"))
-            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "bfdbfe")), alignment: .bottom)
         }
     }
 
