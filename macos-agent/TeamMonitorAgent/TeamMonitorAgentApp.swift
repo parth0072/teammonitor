@@ -98,7 +98,12 @@ struct MenuBarLabel: View {
     var body: some View {
         if manager.isTracking {
             HStack(spacing: 4) {
-                Circle().fill(.green).frame(width: 7, height: 7)
+                if manager.isOnBreak {
+                    // Amber pause dot
+                    Circle().fill(Color.orange).frame(width: 7, height: 7)
+                } else {
+                    Circle().fill(.green).frame(width: 7, height: 7)
+                }
                 Text(formatHM(manager.trackedMinutes))
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
             }
@@ -119,23 +124,30 @@ struct MenuBarView: View {
 
     var body: some View {
         // Status line
-        Text(manager.isTracking
-             ? "● Tracking – \(formatHM(manager.trackedMinutes))"
-             : "○ Not tracking")
-            .font(.system(size: 12, weight: .medium))
-            .foregroundColor(manager.isTracking ? .green : .secondary)
+        if manager.isTracking {
+            Text(manager.isOnBreak
+                 ? "⏸ On Break – \(formatHM(manager.trackedMinutes))"
+                 : "● Tracking – \(formatHM(manager.trackedMinutes))")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(manager.isOnBreak ? .orange : .green)
+        } else {
+            Text("○ Not tracking")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+        }
 
         Divider()
 
-        // Quick punch in / out
+        // Quick punch in / out / break / resume
         if manager.isTracking {
-            Button("Punch Out") {
-                Task { await manager.punchOut() }
+            if manager.isOnBreak {
+                Button("▶  Resume") { manager.resumeFromBreak() }
+            } else {
+                Button("⏸  Take a Break") { Task { await manager.takeBreak() } }
             }
+            Button("Punch Out") { Task { await manager.punchOut() } }
         } else {
-            Button("Punch In") {
-                Task { await manager.punchIn() }
-            }
+            Button("Punch In") { Task { await manager.punchIn() } }
         }
 
         Divider()

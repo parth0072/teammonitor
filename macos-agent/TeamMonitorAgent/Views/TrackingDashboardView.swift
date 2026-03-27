@@ -484,7 +484,17 @@ struct TrackingDashboardView: View {
         } label: {
             VStack(spacing: 5) {
                 if manager.isTracking {
-                    if let task = manager.currentTask {
+                    if manager.isOnBreak {
+                        // On break state
+                        HStack(spacing: 6) {
+                            Image(systemName: "pause.circle.fill").font(.system(size: 13))
+                            Text("On Break — Timer Paused")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(.white.opacity(0.9))
+                        Text("Tap Resume to continue tracking")
+                            .font(.system(size: 15)).foregroundColor(.white.opacity(0.75))
+                    } else if let task = manager.currentTask {
                         HStack(spacing: 6) {
                             Circle()
                                 .fill(Color(hex: task.projectColor))
@@ -504,7 +514,7 @@ struct TrackingDashboardView: View {
                             Image(systemName: "play.fill").font(.system(size: 10))
                         }
                         .foregroundColor(.white.opacity(0.85))
-                        Text(manager.currentApp.isEmpty ? "App activity monitored" : manager.currentApp)
+                        Text("Timer running")
                             .font(.system(size: 17)).foregroundColor(.white)
                     }
                 } else {
@@ -518,7 +528,10 @@ struct TrackingDashboardView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 22)
-            .background(manager.isTracking ? Color(hex: "16a34a") : Color(hex: "3b82f6"))
+            .background(
+                manager.isOnBreak ? Color(hex: "f59e0b") :
+                manager.isTracking ? Color(hex: "16a34a") : Color(hex: "3b82f6")
+            )
         }
         .buttonStyle(.plain)
     }
@@ -560,14 +573,27 @@ struct TrackingDashboardView: View {
             Spacer()
 
             if manager.isTracking {
-                Button { Task { await manager.takeBreak() } } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "pause.fill").font(.system(size: 9))
-                        Text("Take a break").font(.system(size: 12))
-                    }
-                    .foregroundColor(.white).padding(.horizontal, 12).frame(height: 30)
-                    .background(Color(hex: "f59e0b")).cornerRadius(4)
-                }.buttonStyle(.plain)
+                if manager.isOnBreak {
+                    // On break — show Resume
+                    Button { manager.resumeFromBreak() } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "play.fill").font(.system(size: 9))
+                            Text("Resume").font(.system(size: 12))
+                        }
+                        .foregroundColor(.white).padding(.horizontal, 12).frame(height: 30)
+                        .background(Color(hex: "22c55e")).cornerRadius(4)
+                    }.buttonStyle(.plain)
+                } else {
+                    // Active — show Take a break
+                    Button { Task { await manager.takeBreak() } } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "pause.fill").font(.system(size: 9))
+                            Text("Take a break").font(.system(size: 12))
+                        }
+                        .foregroundColor(.white).padding(.horizontal, 12).frame(height: 30)
+                        .background(Color(hex: "f59e0b")).cornerRadius(4)
+                    }.buttonStyle(.plain)
+                }
 
                 Button { Task { await manager.punchOut() } } label: {
                     HStack(spacing: 5) {

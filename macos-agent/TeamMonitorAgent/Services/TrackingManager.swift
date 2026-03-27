@@ -52,6 +52,9 @@ class TrackingManager: ObservableObject {
         didSet { UserDefaults.standard.set(permissionBannerDismissed, forKey: "tm_permBannerDismissed") }
     }
 
+    // Break state
+    @Published var isOnBreak:           Bool     = false
+
     // Offline state
     @Published var isOffline:           Bool     = false
     @Published var pendingUploadCount:  Int      = 0   // queued screenshots
@@ -218,16 +221,38 @@ class TrackingManager: ObservableObject {
         minutesSinceResume = 0
     }
 
-    // MARK: - Take a Break (manual pause – shows idle alert)
+    // MARK: - Take a Break / Resume
 
+    /// Pauses the minute timer, stops screenshots, syncs current minutes to server.
     func takeBreak() async {
-        guard isTracking else { return }
+        guard isTracking, !isOnBreak else { return }
+
+        // Stop local timers
         sessionTimer?.invalidate(); sessionTimer = nil
         resumeTimer?.invalidate();  resumeTimer  = nil
-        pendingIdleStart = Date()
-        idleAlertMinutes = 0
-        statusMessage    = "On break…"
-        showIdleAlert    = true
+        screenshots.stop()
+        idleDetector.stop()
+
+        isOnBreak     = true
+        statusMessage = "On break"
+        saveSessionState()
+
+        // Sync current time to server
+        if let sessionId = currentSessionId {
+            try? await api.heartbeat(sessionId: sessionId, totalMinutes: trackedMinutes)
+        }
+    }
+
+    /// Resumes from a manual break – restarts the timers and screenshot service.
+    func resumeFromBreak() {
+        guard isTracking, isOnBreak, let sessionId = currentSessionId else { return }
+
+        isOnBreak      = false
+        lastResumeTime = Date()
+        statusMessage  = "Tracking active"
+        saveSessionState()
+
+        startAllServices(sessionId: sessionId)
     }
 
     // MARK: - Resume after idle / break
