@@ -25,7 +25,7 @@ router.post('/punch-in', auth, async (req, res) => {
     }
 
     const [result] = await db.query(
-      "INSERT INTO sessions (employee_id, task_id, punch_in, status, date) VALUES (?,?,'active',?)",
+      "INSERT INTO sessions (employee_id, task_id, punch_in, status, date) VALUES (?,?,?,'active',?)",
       [req.user.id, taskId, now, date]
     );
 
