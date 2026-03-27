@@ -92,17 +92,15 @@ class ScreenshotService: ObservableObject {
     }
 
     private func captureScreen() async -> Data? {
-        guard let screen = NSScreen.main else { return nil }
-        let rect = screen.frame
+        // CGDisplayCreateImage reads the raw display framebuffer — captures ALL
+        // on-screen content (every app, menu bar, dock) regardless of window
+        // compositing restrictions. CGWindowListCreateImage only shows the
+        // calling app's own windows when Screen Recording trust is partial.
+        let displayID = CGMainDisplayID()
+        guard let cgImage = CGDisplayCreateImage(displayID) else { return nil }
 
-        guard let image = CGWindowListCreateImage(
-            rect,
-            .optionOnScreenOnly,
-            kCGNullWindowID,
-            [.bestResolution]
-        ) else { return nil }
-
-        let nsImage = NSImage(cgImage: image, size: rect.size)
+        let size = CGSize(width: cgImage.width, height: cgImage.height)
+        let nsImage = NSImage(cgImage: cgImage, size: size)
         // Resize to max 1280px wide then compress — keeps files small (~80-150 KB)
         let compressed = nsImage.resized(toMaxWidth: 1280)
         return compressed.jpegData(compressionFactor: 0.5)
