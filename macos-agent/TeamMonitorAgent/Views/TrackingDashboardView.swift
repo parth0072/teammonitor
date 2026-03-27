@@ -471,7 +471,9 @@ struct TrackingDashboardView: View {
 
     var taskButton: some View {
         Button {
-            if manager.isTracking {
+            if manager.isOnBreak {
+                manager.resumeFromBreak()   // amber bar = tap to resume
+            } else if manager.isTracking {
                 // already tracking — do nothing (punch out is in action buttons)
             } else {
                 // If tasks available, show picker; otherwise punch in without task
@@ -539,73 +541,79 @@ struct TrackingDashboardView: View {
     // MARK: – Action buttons
 
     var actionButtons: some View {
-        HStack(spacing: 8) {
-            Button { } label: {
-                Image(systemName: "info.circle").font(.system(size: 13))
-                    .foregroundColor(Color(hex: "374151"))
-                    .frame(width: 34, height: 30)
-                    .background(Color.white)
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(hex: "d1d5db"), lineWidth: 1))
-            }.buttonStyle(.plain)
-
-            Button { showReports = true } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "doc.text").font(.system(size: 11))
-                    Text("Report").font(.system(size: 12))
-                }
-                .foregroundColor(Color(hex: "374151"))
-                .padding(.horizontal, 10).frame(height: 30)
-                .background(Color.white)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(hex: "d1d5db"), lineWidth: 1))
-            }.buttonStyle(.plain)
-
-            if manager.isTracking {
-                HStack(spacing: 4) {
-                    Image(systemName: "camera.fill").font(.system(size: 10))
-                        .foregroundColor(manager.hasScreenPermission ? Color(hex: "3b82f6") : Color(hex: "9ca3af"))
-                    Text("\(manager.screenshotCount) screenshots").font(.system(size: 11))
-                        .foregroundColor(manager.hasScreenPermission ? Color(hex: "374151") : Color(hex: "9ca3af"))
-                }
-                .padding(.horizontal, 8).frame(height: 30)
-                .background(Color(hex: "f1f5f9")).cornerRadius(4)
-            }
-
-            Spacer()
-
-            if manager.isTracking {
-                if manager.isOnBreak {
-                    // On break — show Resume
-                    Button { manager.resumeFromBreak() } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "play.fill").font(.system(size: 9))
-                            Text("Resume").font(.system(size: 12))
-                        }
-                        .foregroundColor(.white).padding(.horizontal, 12).frame(height: 30)
-                        .background(Color(hex: "22c55e")).cornerRadius(4)
-                    }.buttonStyle(.plain)
-                } else {
-                    // Active — show Take a break
-                    Button { Task { await manager.takeBreak() } } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "pause.fill").font(.system(size: 9))
-                            Text("Take a break").font(.system(size: 12))
-                        }
-                        .foregroundColor(.white).padding(.horizontal, 12).frame(height: 30)
-                        .background(Color(hex: "f59e0b")).cornerRadius(4)
-                    }.buttonStyle(.plain)
-                }
-
-                Button { Task { await manager.punchOut() } } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "stop.fill").font(.system(size: 9))
-                        Text("Punch Out").font(.system(size: 12))
+        Group {
+            if manager.isOnBreak {
+                // ── ON BREAK: full-width Resume button ──────────────────────
+                Button { manager.resumeFromBreak() } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill").font(.system(size: 12))
+                        Text("Resume Tracking")
+                            .font(.system(size: 14, weight: .semibold))
                     }
-                    .foregroundColor(.white).padding(.horizontal, 12).frame(height: 30)
-                    .background(Color(hex: "ef4444")).cornerRadius(4)
-                }.buttonStyle(.plain)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color(hex: "22c55e"))
+                }
+                .buttonStyle(.plain)
+            } else {
+                // ── NORMAL: info / report / screenshots / take-a-break / punch-out ──
+                HStack(spacing: 8) {
+                    Button { } label: {
+                        Image(systemName: "info.circle").font(.system(size: 13))
+                            .foregroundColor(Color(hex: "374151"))
+                            .frame(width: 34, height: 30)
+                            .background(Color.white)
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(hex: "d1d5db"), lineWidth: 1))
+                    }.buttonStyle(.plain)
+
+                    Button { showReports = true } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "doc.text").font(.system(size: 11))
+                            Text("Report").font(.system(size: 12))
+                        }
+                        .foregroundColor(Color(hex: "374151"))
+                        .padding(.horizontal, 10).frame(height: 30)
+                        .background(Color.white)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(hex: "d1d5db"), lineWidth: 1))
+                    }.buttonStyle(.plain)
+
+                    if manager.isTracking {
+                        HStack(spacing: 4) {
+                            Image(systemName: "camera.fill").font(.system(size: 10))
+                                .foregroundColor(manager.hasScreenPermission ? Color(hex: "3b82f6") : Color(hex: "9ca3af"))
+                            Text("\(manager.screenshotCount) screenshots").font(.system(size: 11))
+                                .foregroundColor(manager.hasScreenPermission ? Color(hex: "374151") : Color(hex: "9ca3af"))
+                        }
+                        .padding(.horizontal, 8).frame(height: 30)
+                        .background(Color(hex: "f1f5f9")).cornerRadius(4)
+                    }
+
+                    Spacer()
+
+                    if manager.isTracking {
+                        Button { Task { await manager.takeBreak() } } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "pause.fill").font(.system(size: 9))
+                                Text("Take a break").font(.system(size: 12))
+                            }
+                            .foregroundColor(.white).padding(.horizontal, 12).frame(height: 30)
+                            .background(Color(hex: "f59e0b")).cornerRadius(4)
+                        }.buttonStyle(.plain)
+
+                        Button { Task { await manager.punchOut() } } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "stop.fill").font(.system(size: 9))
+                                Text("Punch Out").font(.system(size: 12))
+                            }
+                            .foregroundColor(.white).padding(.horizontal, 12).frame(height: 30)
+                            .background(Color(hex: "ef4444")).cornerRadius(4)
+                        }.buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16).padding(.vertical, 10)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
         .background(Color.white)
         .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "e5e7eb")), alignment: .bottom)
     }

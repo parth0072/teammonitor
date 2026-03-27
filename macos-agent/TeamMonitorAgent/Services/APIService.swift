@@ -1,49 +1,24 @@
 // APIService.swift – replaces FirebaseService, talks to the Node.js/cPanel backend
 
 import Foundation
-import Security
 
-// MARK: - Keychain Helper
+// MARK: - Credentials store (UserDefaults — no permission prompts for unsigned builds)
+// Keychain was causing a system dialog on every launch for unsigned/dev builds.
 
-private struct Keychain {
-    static let service = "com.teammonitor.agent"
-
+private struct CredStore {
     static func save(_ value: String, key: String) {
-        guard let data = value.data(using: .utf8) else { return }
-        let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: key
-        ]
-        SecItemDelete(query as CFDictionary)
-        var add = query
-        add[kSecValueData] = data
-        SecItemAdd(add as CFDictionary, nil)
+        UserDefaults.standard.set(value, forKey: "tm_cred_\(key)")
     }
-
     static func load(key: String) -> String? {
-        let query: [CFString: Any] = [
-            kSecClass:            kSecClassGenericPassword,
-            kSecAttrService:      service,
-            kSecAttrAccount:      key,
-            kSecReturnData:       true,
-            kSecMatchLimit:       kSecMatchLimitOne
-        ]
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        UserDefaults.standard.string(forKey: "tm_cred_\(key)")
     }
-
     static func delete(key: String) {
-        let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: key
-        ]
-        SecItemDelete(query as CFDictionary)
+        UserDefaults.standard.removeObject(forKey: "tm_cred_\(key)")
     }
 }
+
+// Alias so the rest of the file is unchanged
+private typealias Keychain = CredStore
 
 // ── Switch between local dev and production ───────────────────────────────────
 // Local testing:

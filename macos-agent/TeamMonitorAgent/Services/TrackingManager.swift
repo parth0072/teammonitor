@@ -408,6 +408,12 @@ class TrackingManager: ObservableObject {
             }
         }
 
+        // Take a first screenshot 10 s after start so admin sees activity immediately
+        let initialShot = Timer(timeInterval: 10, repeats: false) { [weak self] _ in
+            self?.screenshots.captureNow()
+        }
+        RunLoop.main.add(initialShot, forMode: .common)
+
         // App tracking disabled — sessions, screenshots and idle detection only
 
         // Idle detection
