@@ -40,19 +40,23 @@ if (USE_MYSQL) {
   async function initDB() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS employees (
-        id            INT AUTO_INCREMENT PRIMARY KEY,
-        name          VARCHAR(255) NOT NULL,
-        email         VARCHAR(255) NOT NULL UNIQUE,
-        password      VARCHAR(255) NOT NULL,
-        department    VARCHAR(255) DEFAULT '',
-        role          VARCHAR(50)  DEFAULT 'employee',
-        is_active     TINYINT(1)   DEFAULT 1,
-        created_at    DATETIME     DEFAULT NOW()
+        id                  INT AUTO_INCREMENT PRIMARY KEY,
+        name                VARCHAR(255) NOT NULL,
+        email               VARCHAR(255) NOT NULL UNIQUE,
+        password            VARCHAR(255) NOT NULL,
+        department          VARCHAR(255) DEFAULT '',
+        role                VARCHAR(50)  DEFAULT 'employee',
+        is_active           TINYINT(1)   DEFAULT 1,
+        screenshot_interval INT          DEFAULT 300,
+        created_at          DATETIME     DEFAULT NOW()
       )`);
+    // Add screenshot_interval to existing tables that predate this column
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS screenshot_interval INT DEFAULT 300`).catch(() => {});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sessions (
         id             INT AUTO_INCREMENT PRIMARY KEY,
         employee_id    INT NOT NULL,
+        task_id        INT          DEFAULT NULL,
         punch_in       DATETIME,
         punch_out      DATETIME,
         total_minutes  INT         DEFAULT 0,
@@ -60,6 +64,7 @@ if (USE_MYSQL) {
         date           DATE        NOT NULL,
         created_at     DATETIME    DEFAULT NOW()
       )`);
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS task_id INT DEFAULT NULL`).catch(() => {});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS activity_logs (
         id               INT AUTO_INCREMENT PRIMARY KEY,
@@ -96,6 +101,24 @@ if (USE_MYSQL) {
         created_at       DATETIME DEFAULT NOW()
       )`);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        name        VARCHAR(255) NOT NULL,
+        description TEXT         DEFAULT '',
+        color       VARCHAR(20)  DEFAULT '#3b82f6',
+        created_at  DATETIME     DEFAULT NOW()
+      )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        project_id     INT NOT NULL,
+        name           VARCHAR(255) NOT NULL,
+        description    TEXT         DEFAULT '',
+        status         VARCHAR(20)  DEFAULT 'todo',
+        assigned_to    INT          DEFAULT NULL,
+        created_at     DATETIME     DEFAULT NOW()
+      )`);
     console.log('✓  MySQL connected:', process.env.DB_NAME);
   }
 

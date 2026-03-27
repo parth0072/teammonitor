@@ -170,7 +170,12 @@ class APIService: ObservableObject {
 
     func login(email: String, password: String) async throws -> EmployeeInfo {
         let body = ["email": email, "password": password]
-        let resp: LoginResponse = try await post("/auth/login", body: body, auth: false)
+        let resp: LoginResponse
+        do {
+            resp = try await post("/auth/login", body: body, auth: false)
+        } catch APIError.unauthorized {
+            throw APIError.loginFailed
+        }
         self.token    = resp.token
         self.employee = resp.employee
         // Persist so next launch auto-restores
@@ -403,12 +408,13 @@ class APIService: ObservableObject {
 }
 
 enum APIError: LocalizedError {
-    case badURL, noResponse, unauthorized, server(String)
+    case badURL, noResponse, unauthorized, loginFailed, server(String)
     var errorDescription: String? {
         switch self {
         case .badURL:           return "Invalid API URL"
         case .noResponse:       return "No response from server"
         case .unauthorized:     return "Session expired. Please log in again."
+        case .loginFailed:      return "Invalid email or password. Please try again."
         case .server(let msg):  return msg
         }
     }
