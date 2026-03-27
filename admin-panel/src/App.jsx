@@ -11,6 +11,7 @@ import Attendance from "./pages/Attendance";
 import Activity from "./pages/Activity";
 import Reports from "./pages/Reports";
 import Projects from "./pages/Projects";
+import Timelines from "./pages/Timelines";
 
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { path: "/employees",  label: "Employees",    icon: "👥" },
   { path: "/screenshots",label: "Screenshots",  icon: "🖼" },
   { path: "/attendance", label: "Attendance",   icon: "📅" },
+  { path: "/timelines",  label: "Timelines",    icon: "⏱" },
 ];
 
 function Sidebar() {
@@ -101,6 +103,7 @@ export default function App() {
           <Route path="/activity"     element={<ProtectedRoute><Activity /></ProtectedRoute>} />
           <Route path="/reports"      element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/projects"     element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+          <Route path="/timelines"    element={<ProtectedRoute><Timelines /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>

@@ -27,6 +27,7 @@ router.use('/api/sessions',    require('./routes/sessions'));
 router.use('/api/activity',    require('./routes/activity'));
 router.use('/api/screenshots', require('./routes/screenshots'));
 router.use('/api/projects',    require('./routes/projects'));
+router.use('/api/timeline',    require('./routes/timeline'));
 
 // Health check
 router.get('/api/health', async (req, res) => {

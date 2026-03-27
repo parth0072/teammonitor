@@ -68,6 +68,10 @@ export const api = {
   updateTask:     (taskId, data)           => request('PUT',    `/projects/tasks/${taskId}`, data),
   deleteTask:     (taskId)                 => request('DELETE', `/projects/tasks/${taskId}`),
 
+  // Timeline
+  getTimeline: (startDate, endDate, empId) =>
+    request('GET', `/timeline?startDate=${startDate}&endDate=${endDate}${empId ? `&employeeId=${empId}` : ''}`),
+
   // Manual entry (admin)
   createManualEntry: (data) => request('POST', '/sessions/manual/admin', data),
 

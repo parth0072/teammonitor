@@ -212,23 +212,7 @@ class TrackingManager: ObservableObject {
             }
         }
 
-        // App tracking every 30s
-        appTracker.onAppChange = { [weak self] appName, windowTitle, start, end in
-            guard let self else { return }
-            let secs = Int(end.timeIntervalSince(start))
-            guard secs > 5 else { return }
-            Task {
-                try? await self.api.logActivity(
-                    sessionId: sessionId,
-                    appName: appName,
-                    windowTitle: windowTitle,
-                    startTime: start,
-                    endTime: end,
-                    durationSeconds: secs
-                )
-            }
-        }
-        appTracker.start(pollInterval: 30)
+        // App tracking disabled — sessions, screenshots and idle detection only
 
         // Idle detection
         idleDetector.onIdleStart = { [weak self] idleStart in
