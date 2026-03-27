@@ -68,7 +68,10 @@ class ScreenshotService: ObservableObject {
 
     private func scheduleNext() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: captureIntervalSeconds, repeats: false) { [weak self] _ in
+        // Random jitter: ±20% of interval so screenshots aren't predictable
+        let jitter  = captureIntervalSeconds * 0.2
+        let delay   = captureIntervalSeconds + Double.random(in: -jitter...jitter)
+        timer = Timer.scheduledTimer(withTimeInterval: max(30, delay), repeats: false) { [weak self] _ in
             self?.captureNow()
             self?.scheduleNext()
         }
@@ -98,14 +101,32 @@ class ScreenshotService: ObservableObject {
         ) else { return nil }
 
         let nsImage = NSImage(cgImage: image, size: rect.size)
-        return nsImage.jpegData(compressionFactor: 0.6)
+        // Resize to max 1280px wide then compress — keeps files small (~80-150 KB)
+        let compressed = nsImage.resized(toMaxWidth: 1280)
+        return compressed.jpegData(compressionFactor: 0.5)
     }
 }
 
 extension NSImage {
-    func jpegData(compressionFactor: CGFloat = 0.7) -> Data? {
+    func jpegData(compressionFactor: CGFloat = 0.5) -> Data? {
         guard let tiff = self.tiffRepresentation,
               let bitmapRep = NSBitmapImageRep(data: tiff) else { return nil }
         return bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: compressionFactor])
+    }
+
+    /// Scales the image down proportionally so its width is at most maxWidth.
+    /// Returns self unchanged if already smaller.
+    func resized(toMaxWidth maxWidth: CGFloat) -> NSImage {
+        guard size.width > maxWidth else { return self }
+        let scale   = maxWidth / size.width
+        let newSize = NSSize(width: maxWidth, height: (size.height * scale).rounded())
+        let result  = NSImage(size: newSize)
+        result.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        draw(in: NSRect(origin: .zero, size: newSize),
+             from: NSRect(origin: .zero, size: size),
+             operation: .copy, fraction: 1.0)
+        result.unlockFocus()
+        return result
     }
 }
