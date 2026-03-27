@@ -46,8 +46,11 @@ class TrackingManager: ObservableObject {
 
     // Screen recording permission – updated at launch and every 3s until granted
     @Published var hasScreenPermission:      Bool = true
-    // Set to true when the user manually dismisses the banner this session
-    @Published var permissionBannerDismissed: Bool = false
+    // Persisted: user said "I know, stop showing this". Reset if permission
+    // is later revoked (so the banner can reappear if needed).
+    @Published var permissionBannerDismissed: Bool = UserDefaults.standard.bool(forKey: "tm_permBannerDismissed") {
+        didSet { UserDefaults.standard.set(permissionBannerDismissed, forKey: "tm_permBannerDismissed") }
+    }
 
     // Offline state
     @Published var isOffline:           Bool     = false
@@ -106,7 +109,13 @@ class TrackingManager: ObservableObject {
 
         // Check screen-recording permission immediately at launch.
         hasScreenPermission = ScreenshotService.hasPermission()
-        if !hasScreenPermission { startPermissionPolling() }
+        if hasScreenPermission {
+            // Permission confirmed — clear any stale dismiss flag
+            permissionBannerDismissed = false
+            UserDefaults.standard.removeObject(forKey: "tm_permBannerDismissed")
+        } else {
+            startPermissionPolling()
+        }
 
         // Update offline-queue badge count
         pendingUploadCount = offlineQueue.pendingScreenshotCount()
