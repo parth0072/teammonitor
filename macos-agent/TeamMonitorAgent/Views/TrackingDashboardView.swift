@@ -52,6 +52,7 @@ struct TrackingDashboardView: View {
                 statusBanner
                 screenPermissionBanner
                 startTimerReminderBanner
+                offlineBanner
                 taskButton
                 actionButtons
                 idleWarning
@@ -414,6 +415,44 @@ struct TrackingDashboardView: View {
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(Color(hex: "ede9fe"))
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "ddd6fe")), alignment: .bottom)
+        }
+    }
+
+    // MARK: – Offline / pending-upload banner
+
+    @ViewBuilder
+    var offlineBanner: some View {
+        if manager.isOffline {
+            HStack(spacing: 10) {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(hex: "92400e"))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("No internet connection")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "92400e"))
+                    Text(manager.pendingUploadCount > 0
+                         ? "\(manager.pendingUploadCount) screenshot(s) queued — will upload when connected."
+                         : "Screenshots will be saved locally until connected.")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "b45309"))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(Color(hex: "fef3c7"))
+            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "fde68a")), alignment: .bottom)
+        } else if manager.pendingUploadCount > 0 {
+            HStack(spacing: 10) {
+                ProgressView().scaleEffect(0.7)
+                Text("Uploading \(manager.pendingUploadCount) queued screenshot(s)…")
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(hex: "1d4ed8"))
+                Spacer()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(Color(hex: "eff6ff"))
+            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "bfdbfe")), alignment: .bottom)
         }
     }
 

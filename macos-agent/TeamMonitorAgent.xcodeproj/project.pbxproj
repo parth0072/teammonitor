@@ -20,6 +20,8 @@
 		AA000012 /* Assets.xcassets in Resources */           = {isa = PBXBuildFile; fileRef = AB000012; };
 		AA000013 /* ManualEntryView.swift in Sources */       = {isa = PBXBuildFile; fileRef = AB000013; };
 		AA000014 /* ReportsView.swift in Sources */           = {isa = PBXBuildFile; fileRef = AB000014; };
+		AA000015 /* NetworkMonitor.swift in Sources */        = {isa = PBXBuildFile; fileRef = AB000015; };
+		AA000016 /* OfflineQueue.swift in Sources */          = {isa = PBXBuildFile; fileRef = AB000016; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +38,8 @@
 		AB000012 /* Assets.xcassets */             = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AB000013 /* ManualEntryView.swift */       = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ManualEntryView.swift; sourceTree = "<group>"; };
 		AB000014 /* ReportsView.swift */           = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ReportsView.swift; sourceTree = "<group>"; };
+		AB000015 /* NetworkMonitor.swift */        = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/NetworkMonitor.swift; sourceTree = "<group>"; };
+		AB000016 /* OfflineQueue.swift */          = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/OfflineQueue.swift; sourceTree = "<group>"; };
 		AB000099 /* TeamMonitorAgent.app */        = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeamMonitorAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -89,6 +93,8 @@
 				AB000007 /* AppTrackingService.swift */,
 				AB000008 /* IdleDetectionService.swift */,
 				AB000009 /* TrackingManager.swift */,
+			AB000015 /* NetworkMonitor.swift */,
+			AB000016 /* OfflineQueue.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -188,6 +194,8 @@
 				AA000010 /* TrackingModels.swift in Sources */,
 				AA000013 /* ManualEntryView.swift in Sources */,
 				AA000014 /* ReportsView.swift in Sources */,
+			AA000015 /* NetworkMonitor.swift in Sources */,
+			AA000016 /* OfflineQueue.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
