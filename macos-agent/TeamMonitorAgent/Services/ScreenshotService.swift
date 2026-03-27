@@ -92,18 +92,32 @@ class ScreenshotService: ObservableObject {
     }
 
     private func captureScreen() async -> Data? {
-        // CGDisplayCreateImage reads the raw display framebuffer — captures ALL
-        // on-screen content (every app, menu bar, dock) regardless of window
-        // compositing restrictions. CGWindowListCreateImage only shows the
-        // calling app's own windows when Screen Recording trust is partial.
-        let displayID = CGMainDisplayID()
-        guard let cgImage = CGDisplayCreateImage(displayID) else { return nil }
+        // Use /usr/sbin/screencapture (Apple-signed system tool) so we get the
+        // full desktop regardless of our own app's code-signing state.
+        // CGWindowListCreateImage / CGDisplayCreateImage both restrict output
+        // for unsigned builds even after the user grants Screen Recording.
+        return await withCheckedContinuation { continuation in
+            let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("tm_ss_\(Int(Date().timeIntervalSince1970)).png")
 
-        let size = CGSize(width: cgImage.width, height: cgImage.height)
-        let nsImage = NSImage(cgImage: cgImage, size: size)
-        // Resize to max 1280px wide then compress — keeps files small (~80-150 KB)
-        let compressed = nsImage.resized(toMaxWidth: 1280)
-        return compressed.jpegData(compressionFactor: 0.5)
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            // -x  = silent (no shutter sound)
+            // -t png = PNG (best quality before our JPEG recompression)
+            task.arguments = ["-x", "-t", "png", tmpURL.path]
+
+            task.terminationHandler = { _ in
+                defer { try? FileManager.default.removeItem(at: tmpURL) }
+                guard let image = NSImage(contentsOf: tmpURL) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let compressed = image.resized(toMaxWidth: 1280)
+                continuation.resume(returning: compressed.jpegData(compressionFactor: 0.5))
+            }
+
+            do { try task.run() } catch { continuation.resume(returning: nil) }
+        }
     }
 }
 
