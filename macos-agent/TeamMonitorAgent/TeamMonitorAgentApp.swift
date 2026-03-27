@@ -22,7 +22,7 @@ struct TeamMonitorAgentApp: App {
         MenuBarExtra {
             MenuBarView()
         } label: {
-            Image(systemName: "clock.fill")
+            MenuBarLabel()
         }
         .menuBarExtraStyle(.menu)
     }
@@ -87,6 +87,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         try? FileManager.default.createDirectory(atPath: plistDir, withIntermediateDirectories: true)
         try? content.write(toFile: plistPath, atomically: true, encoding: .utf8)
         print("✓ LaunchAgent plist written to \(plistPath)")
+    }
+}
+
+// MARK: - Menu Bar Label (live time display)
+
+struct MenuBarLabel: View {
+    @ObservedObject private var manager = TrackingManager.shared
+
+    var body: some View {
+        if manager.isTracking {
+            HStack(spacing: 4) {
+                Circle().fill(.green).frame(width: 7, height: 7)
+                Text(formatHM(manager.trackedMinutes))
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            }
+        } else {
+            Image(systemName: "clock")
+        }
+    }
+
+    private func formatHM(_ mins: Int) -> String {
+        String(format: "%d:%02d", mins / 60, mins % 60)
     }
 }
 

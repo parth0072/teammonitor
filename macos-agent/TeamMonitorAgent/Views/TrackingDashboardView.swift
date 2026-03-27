@@ -37,6 +37,11 @@ struct TrackingDashboardView: View {
     @State private var notTrackingTimer:  Timer?        = nil
     @State private var showStartReminder: Bool          = false   // sticky banner
 
+    // Break reminder
+    @AppStorage("breakIntervalMinutes") private var breakIntervalMinutes: Int = 60
+    @State private var breakTimer:        Timer?        = nil
+    @State private var showBreakReminder: Bool          = false
+
     enum DashTab: String { case tasks = "My Tasks", activity = "App Activity", notes = "Work Notes" }
 
     var body: some View {
@@ -68,6 +73,19 @@ struct TrackingDashboardView: View {
         .sheet(isPresented: $manager.showIdleAlert) { IdleAlertView(manager: manager) }
         .sheet(isPresented: $showManualEntry)       { ManualEntryView() }
         .sheet(isPresented: $showReports)           { ReportsView() }
+        .sheet(isPresented: $showBreakReminder)     {
+            BreakReminderView(
+                minutesWorked: manager.trackedMinutes,
+                onSnooze: {
+                    showBreakReminder = false
+                    scheduleBreakReminder(interval: 15 * 60)
+                },
+                onDismiss: {
+                    showBreakReminder = false
+                    scheduleBreakReminder()
+                }
+            )
+        }
         .sheet(isPresented: $showNewTask)           { NewTaskView(projects: projects, onCreated: { loadTasks() }) }
         .sheet(isPresented: $showTaskPicker)        { TaskPickerView(tasks: myTasks, onPick: { task in
             showTaskPicker = false
@@ -85,7 +103,9 @@ struct TrackingDashboardView: View {
             if tracking {
                 cancelNotTrackingReminder()
                 showStartReminder = false
+                scheduleBreakReminder()
             } else {
+                cancelBreakTimer()
                 scheduleNotTrackingReminder()
             }
         }
@@ -160,6 +180,25 @@ struct TrackingDashboardView: View {
     func cancelNotTrackingReminder() {
         notTrackingTimer?.invalidate()
         notTrackingTimer = nil
+    }
+
+    // MARK: – Break Reminder
+
+    func scheduleBreakReminder(interval: TimeInterval? = nil) {
+        cancelBreakTimer()
+        let secs = interval ?? TimeInterval(breakIntervalMinutes * 60)
+        breakTimer = Timer.scheduledTimer(withTimeInterval: secs, repeats: false) { _ in
+            Task { @MainActor in
+                guard manager.isTracking else { return }
+                showBreakReminder = true
+                sendNotification("Time for a break! You've been working \(manager.trackedMinutes / 60)h \(manager.trackedMinutes % 60)m", isWarning: false)
+            }
+        }
+    }
+
+    func cancelBreakTimer() {
+        breakTimer?.invalidate()
+        breakTimer = nil
     }
 
     // MARK: – Toast view
@@ -978,6 +1017,66 @@ struct IdleAlertView: View {
             }
         }
         .padding(36).frame(width: 380).background(Color.white)
+    }
+}
+
+// MARK: - Break Reminder Sheet
+
+struct BreakReminderView: View {
+    let minutesWorked: Int
+    let onSnooze:  () -> Void
+    let onDismiss: () -> Void
+
+    private var workedText: String {
+        let h = minutesWorked / 60, m = minutesWorked % 60
+        return h > 0 ? "\(h)h \(m)m" : "\(m) min"
+    }
+
+    var body: some View {
+        VStack(spacing: 28) {
+            // Icon
+            ZStack {
+                Circle().fill(Color(hex: "fef3c7")).frame(width: 72, height: 72)
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.system(size: 32)).foregroundColor(Color(hex: "f59e0b"))
+            }
+
+            // Text
+            VStack(spacing: 8) {
+                Text("Time for a Break!")
+                    .font(.system(size: 22, weight: .bold)).foregroundColor(Color(hex: "111827"))
+                Text("You've been working for \(workedText).\nStep away for 5–10 minutes to recharge.")
+                    .font(.system(size: 14)).foregroundColor(Color(hex: "6b7280"))
+                    .multilineTextAlignment(.center).lineSpacing(3)
+            }
+
+            // Tip
+            HStack(spacing: 8) {
+                Image(systemName: "lightbulb.fill").foregroundColor(Color(hex: "10b981")).font(.system(size: 12))
+                Text("Short breaks improve focus and reduce eye strain.")
+                    .font(.system(size: 12)).foregroundColor(Color(hex: "059669"))
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(Color(hex: "ecfdf5")).cornerRadius(8)
+
+            // Buttons
+            VStack(spacing: 10) {
+                Button(action: onDismiss) {
+                    Text("I'll take a break now")
+                        .font(.system(size: 14, weight: .semibold)).foregroundColor(.white)
+                        .frame(maxWidth: .infinity).frame(height: 42)
+                        .background(Color(hex: "10b981")).cornerRadius(10)
+                }.buttonStyle(.plain)
+
+                Button(action: onSnooze) {
+                    Text("Snooze 15 min")
+                        .font(.system(size: 13, weight: .medium)).foregroundColor(Color(hex: "6b7280"))
+                        .frame(maxWidth: .infinity).frame(height: 38)
+                        .background(Color(hex: "f1f5f9")).cornerRadius(10)
+                }.buttonStyle(.plain)
+            }
+        }
+        .padding(32).frame(width: 360).background(Color.white)
     }
 }
 

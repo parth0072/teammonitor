@@ -36,8 +36,9 @@ async function request(method, path, body, isForm = false) {
 
 export const api = {
   // Auth
-  login:   (email, password) => request('POST', '/auth/login', { email, password }),
-  me:      ()                => request('GET',  '/auth/me'),
+  login:     (email, password)           => request('POST', '/auth/login',     { email, password }),
+  me:        ()                          => request('GET',  '/auth/me'),
+  bootstrap: (name, email, password)     => request('POST', '/auth/bootstrap', { name, email, password }),
 
   // Employees
   getEmployees:    ()       => request('GET',  '/employees'),

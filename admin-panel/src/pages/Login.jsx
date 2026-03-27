@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { api, saveToken } from "../api";
 import { useAuth } from "../App";
 
@@ -57,6 +57,12 @@ export default function Login() {
             {loading ? "Signing in…" : "Sign In →"}
           </button>
         </form>
+        <div style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
+          First time?{" "}
+          <Link to="/setup" style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none", fontWeight: 600 }}>
+            Create admin account →
+          </Link>
+        </div>
       </div>
     </div>
   );

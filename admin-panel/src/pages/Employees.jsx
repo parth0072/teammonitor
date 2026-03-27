@@ -40,13 +40,16 @@ const fmtInterval = s => {
   return `${Math.round(secs/60)} min`;
 };
 
+const BLANK_FORM = { name:"", email:"", department:"", password:"", role:"employee", screenshot_interval: 300 };
+
 export default function Employees() {
   const [employees, setEmployees] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm]           = useState({ name:"", email:"", department:"", password:"", role:"employee", screenshot_interval: 300 });
+  const [form, setForm]           = useState(BLANK_FORM);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState("");
-  const [editEmp, setEditEmp]     = useState(null);  // employee being edited
+  const [created, setCreated]     = useState(null);  // holds {name, email, password} after creation
+  const [editEmp, setEditEmp]     = useState(null);
   const [editForm, setEditForm]   = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError]   = useState("");
@@ -73,11 +76,13 @@ export default function Employees() {
 
   const handleAdd = async () => {
     if (!form.name || !form.email || !form.password) { setError("Name, email and password are required."); return; }
+    if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     setSaving(true); setError("");
     try {
       await api.createEmployee(form);
       setShowModal(false);
-      setForm({ name:"", email:"", department:"", password:"", role:"employee", screenshot_interval: 300 });
+      setCreated({ name: form.name, email: form.email, password: form.password, role: form.role });
+      setForm(BLANK_FORM);
       load();
     } catch (err) { setError(err.message); }
     setSaving(false);
@@ -155,30 +160,99 @@ export default function Employees() {
 
       {showModal && (
         <div style={S.modal}>
-          <div style={S.modalBox}>
+          <div style={{ ...S.modalBox, width: 480, maxHeight: "90vh", overflowY: "auto" }}>
             <div style={S.modalTitle}>Add New Employee</div>
             {error && <div style={S.error}>{error}</div>}
-            <label style={S.label}>Full Name</label>
-            <input style={S.input} placeholder="Jane Smith" value={form.name} onChange={e => setForm({...form, name:e.target.value})} />
-            <label style={S.label}>Email</label>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <div>
+                <label style={S.label}>Full Name</label>
+                <input style={S.input} placeholder="Jane Smith" value={form.name} onChange={e => setForm({...form, name:e.target.value})} />
+              </div>
+              <div>
+                <label style={S.label}>Department</label>
+                <input style={S.input} placeholder="Engineering" value={form.department} onChange={e => setForm({...form, department:e.target.value})} />
+              </div>
+            </div>
+
+            <label style={S.label}>Email Address</label>
             <input style={S.input} type="email" placeholder="jane@company.com" value={form.email} onChange={e => setForm({...form, email:e.target.value})} />
-            <label style={S.label}>Department</label>
-            <input style={S.input} placeholder="Engineering" value={form.department} onChange={e => setForm({...form, department:e.target.value})} />
+
             <label style={S.label}>Password</label>
-            <input style={S.input} type="password" placeholder="Min 6 characters" value={form.password} onChange={e => setForm({...form, password:e.target.value})} />
-            <label style={S.label}>Screenshot Interval</label>
-            <select style={S.select} value={form.screenshot_interval} onChange={e => setForm({...form, screenshot_interval: Number(e.target.value)})}>
-              <option value={60}>Every 1 minute</option>
-              <option value={120}>Every 2 minutes</option>
-              <option value={300}>Every 5 minutes (default)</option>
-              <option value={600}>Every 10 minutes</option>
-              <option value={900}>Every 15 minutes</option>
-              <option value={1800}>Every 30 minutes</option>
-            </select>
+            <input style={S.input} type="text" placeholder="Min 6 characters" value={form.password} onChange={e => setForm({...form, password:e.target.value})} />
+            <p style={{ fontSize:11, color:"#94a3b8", marginTop:-12, marginBottom:16 }}>
+              Share this password with the employee so they can log in on the macOS agent.
+            </p>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              <div>
+                <label style={S.label}>Role</label>
+                <select style={S.select} value={form.role} onChange={e => setForm({...form, role:e.target.value})}>
+                  <option value="employee">Employee</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>Screenshot Interval</label>
+                <select style={S.select} value={form.screenshot_interval} onChange={e => setForm({...form, screenshot_interval: Number(e.target.value)})}>
+                  {INTERVAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+
             <div style={S.row}>
-              <button style={S.cancelBtn} onClick={() => { setShowModal(false); setError(""); }}>Cancel</button>
+              <button style={S.cancelBtn} onClick={() => { setShowModal(false); setError(""); setForm(BLANK_FORM); }}>Cancel</button>
               <button style={{ ...S.btn, opacity: saving ? 0.7:1 }} onClick={handleAdd} disabled={saving}>{saving ? "Creating…":"Create Employee"}</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credential card shown after successful creation */}
+      {created && (
+        <div style={S.modal}>
+          <div style={{ ...S.modalBox, width: 440 }}>
+            <div style={{ fontSize:40, textAlign:"center", marginBottom:12 }}>✅</div>
+            <div style={{ fontSize:18, fontWeight:700, color:"#1e293b", textAlign:"center", marginBottom:4 }}>
+              Account Created!
+            </div>
+            <div style={{ color:"#64748b", fontSize:13, textAlign:"center", marginBottom:24 }}>
+              Share these credentials with <strong>{created.name}</strong> so they can log in on the macOS agent.
+            </div>
+
+            <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:10, padding:16, marginBottom:20 }}>
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Name</div>
+                <div style={{ fontSize:14, fontWeight:600, color:"#1e293b" }}>{created.name}</div>
+              </div>
+              <div style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Email</div>
+                <div style={{ fontSize:14, fontWeight:600, color:"#1e293b", fontFamily:"monospace" }}>{created.email}</div>
+              </div>
+              <div style={{ marginBottom:4 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Password</div>
+                <div style={{ fontSize:14, fontWeight:700, color:"#6366f1", fontFamily:"monospace", letterSpacing:"0.05em" }}>{created.password}</div>
+              </div>
+              <div style={{ marginTop:10, fontSize:11, color:"#94a3b8" }}>
+                Role: <span style={{ fontWeight:600, color: created.role==="admin"?"#ef4444":"#16a34a" }}>{created.role}</span>
+              </div>
+            </div>
+
+            <button
+              style={{ width:"100%", padding:"10px 0", background:"#f1f5f9", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:10 }}
+              onClick={() => {
+                const text = `TeamMonitor Login\nEmail: ${created.email}\nPassword: ${created.password}`;
+                navigator.clipboard.writeText(text);
+              }}
+            >
+              📋 Copy Credentials
+            </button>
+            <button
+              style={{ width:"100%", padding:"10px 0", background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer" }}
+              onClick={() => setCreated(null)}
+            >
+              Done
+            </button>
           </div>
         </div>
       )}

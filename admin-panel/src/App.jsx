@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useContext } from "react";
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
 import { hasToken, clearToken, api } from "./api";
 import Login from "./pages/Login";
+import Setup from "./pages/Setup";
 import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
 import EmployeeDetail from "./pages/EmployeeDetail";
@@ -91,6 +92,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/setup" element={<Setup />} />
           <Route path="/dashboard"    element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/employees"    element={<ProtectedRoute><Employees /></ProtectedRoute>} />
           <Route path="/employees/:id"element={<ProtectedRoute><EmployeeDetail /></ProtectedRoute>} />

@@ -75,7 +75,7 @@ struct PunchInResponse: Decodable {
 
 // MARK: - Project / Task Models
 
-struct ProjectItem: Decodable, Identifiable {
+struct ProjectItem: Decodable, Identifiable, Hashable {
     let id:            Int
     let name:          String
     let description:   String
@@ -87,7 +87,7 @@ struct ProjectItem: Decodable, Identifiable {
     }
 }
 
-struct TaskItem: Decodable, Identifiable {
+struct TaskItem: Decodable, Identifiable, Hashable {
     let id:              Int
     let projectId:       Int
     let name:            String

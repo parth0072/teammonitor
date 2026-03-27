@@ -10,10 +10,10 @@ npm-debug.log*
 # server/.env.cpanel is a template (safe), but block any real .env variants
 server/.env.production
 
-# Build output
+# Build output  (dist stays local; server/public is committed so cPanel Git pulls the built panel)
 admin-panel/dist/
 admin-panel/.vite/
-server/public/
+# server/public/ is intentionally tracked — rebuilt locally then committed
 
 # macOS
 .DS_Store

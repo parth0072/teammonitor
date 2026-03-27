@@ -116,8 +116,10 @@ router.get('/', auth, adminOnly, async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const [rows] = await db.query(
-      `SELECT s.*, e.name AS employee_name, e.department
-       FROM sessions s JOIN employees e ON s.employee_id = e.id
+      `SELECT s.*, e.name AS employee_name, e.department, t.name AS task_name
+       FROM sessions s
+       JOIN employees e ON s.employee_id = e.id
+       LEFT JOIN tasks t ON s.task_id = t.id
        WHERE s.date = ? ORDER BY s.punch_in DESC`,
       [date]
     );
