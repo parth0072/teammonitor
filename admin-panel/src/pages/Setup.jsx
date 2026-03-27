@@ -56,11 +56,7 @@ export default function Setup() {
       setUser(data.employee);
       setStep("done");
     } catch (err) {
-      if (err.message?.includes("disabled") || err.message?.includes("already")) {
-        setError("An admin account already exists. Please sign in instead.");
-      } else {
-        setError(err.message || "Something went wrong. Please try again.");
-      }
+      setError(err.message || "Something went wrong. Please try again.");
     }
     setLoading(false);
   };
@@ -82,10 +78,10 @@ export default function Setup() {
           <div style={{ fontSize: 22, fontWeight: 700, color: "#1e293b", marginTop: 6 }}>TeamMonitor</div>
         </div>
 
-        <div style={S.step}>Initial Setup · Step 1 of 1</div>
+        <div style={S.step}>Admin Setup</div>
         <div style={S.title}>Create Admin Account</div>
         <div style={S.sub}>
-          This is a one-time setup. Once created, this endpoint is permanently disabled and no one else can use it.
+          Create an admin account to manage your team. You can also add more admins later from the Employees page.
         </div>
 
         <div style={S.info}>
