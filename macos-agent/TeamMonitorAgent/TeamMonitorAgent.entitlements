@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Hardened runtime entitlements required for Firebase + screen capture -->
+	<key>com.apple.security.network.client</key>       <true/>
+	<key>com.apple.security.files.user-selected.read-write</key><true/>
+	<!-- Allows reading active app info via Accessibility API -->
+	<key>com.apple.security.automation.apple-events</key><true/>
+	<!-- Required for CGWindowListCreateImage (screen recording) -->
+	<!-- User must grant Screen Recording permission in System Settings → Privacy -->
+</dict>
+</plist>

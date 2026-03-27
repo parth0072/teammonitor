@@ -1,0 +1,311 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000001 /* TeamMonitorAgentApp.swift in Sources */  = {isa = PBXBuildFile; fileRef = AB000001; };
+		AA000002 /* ContentView.swift in Sources */           = {isa = PBXBuildFile; fileRef = AB000002; };
+		AA000003 /* LoginView.swift in Sources */             = {isa = PBXBuildFile; fileRef = AB000003; };
+		AA000004 /* TrackingDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000004; };
+		AA000005 /* APIService.swift in Sources */            = {isa = PBXBuildFile; fileRef = AB000005; };
+		AA000006 /* ScreenshotService.swift in Sources */     = {isa = PBXBuildFile; fileRef = AB000006; };
+		AA000007 /* AppTrackingService.swift in Sources */    = {isa = PBXBuildFile; fileRef = AB000007; };
+		AA000008 /* IdleDetectionService.swift in Sources */  = {isa = PBXBuildFile; fileRef = AB000008; };
+		AA000009 /* TrackingManager.swift in Sources */       = {isa = PBXBuildFile; fileRef = AB000009; };
+		AA000010 /* TrackingModels.swift in Sources */        = {isa = PBXBuildFile; fileRef = AB000010; };
+		AA000012 /* Assets.xcassets in Resources */           = {isa = PBXBuildFile; fileRef = AB000012; };
+		AA000013 /* ManualEntryView.swift in Sources */       = {isa = PBXBuildFile; fileRef = AB000013; };
+		AA000014 /* ReportsView.swift in Sources */           = {isa = PBXBuildFile; fileRef = AB000014; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AB000001 /* TeamMonitorAgentApp.swift */  = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamMonitorAgentApp.swift; sourceTree = "<group>"; };
+		AB000002 /* ContentView.swift */           = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		AB000003 /* LoginView.swift */             = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LoginView.swift; sourceTree = "<group>"; };
+		AB000004 /* TrackingDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/TrackingDashboardView.swift; sourceTree = "<group>"; };
+		AB000005 /* APIService.swift */            = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/APIService.swift; sourceTree = "<group>"; };
+		AB000006 /* ScreenshotService.swift */     = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ScreenshotService.swift; sourceTree = "<group>"; };
+		AB000007 /* AppTrackingService.swift */    = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppTrackingService.swift; sourceTree = "<group>"; };
+		AB000008 /* IdleDetectionService.swift */  = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/IdleDetectionService.swift; sourceTree = "<group>"; };
+		AB000009 /* TrackingManager.swift */       = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/TrackingManager.swift; sourceTree = "<group>"; };
+		AB000010 /* TrackingModels.swift */        = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/TrackingModels.swift; sourceTree = "<group>"; };
+		AB000012 /* Assets.xcassets */             = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AB000013 /* ManualEntryView.swift */       = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ManualEntryView.swift; sourceTree = "<group>"; };
+		AB000014 /* ReportsView.swift */           = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ReportsView.swift; sourceTree = "<group>"; };
+		AB000099 /* TeamMonitorAgent.app */        = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeamMonitorAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AAAAAAAAAAAAAAAAAAAAAAAB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		ACROOT /* = */ = {
+			isa = PBXGroup;
+			children = (
+				ACTEAM /* TeamMonitorAgent */,
+				ACPROD /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		ACTEAM /* TeamMonitorAgent */ = {
+			isa = PBXGroup;
+			children = (
+				AB000001 /* TeamMonitorAgentApp.swift */,
+				AB000002 /* ContentView.swift */,
+				ACVIEWS /* Views */,
+				ACSERVICES /* Services */,
+				ACMODELS /* Models */,
+				AB000012 /* Assets.xcassets */,
+			);
+			path = TeamMonitorAgent;
+			sourceTree = "<group>";
+		};
+		ACVIEWS /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AB000003 /* LoginView.swift */,
+				AB000004 /* TrackingDashboardView.swift */,
+				AB000013 /* ManualEntryView.swift */,
+				AB000014 /* ReportsView.swift */,
+			);
+			name = Views;
+			sourceTree = "<group>";
+		};
+		ACSERVICES /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AB000005 /* APIService.swift */,
+				AB000006 /* ScreenshotService.swift */,
+				AB000007 /* AppTrackingService.swift */,
+				AB000008 /* IdleDetectionService.swift */,
+				AB000009 /* TrackingManager.swift */,
+			);
+			name = Services;
+			sourceTree = "<group>";
+		};
+		ACMODELS /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AB000010 /* TrackingModels.swift */,
+			);
+			name = Models;
+			sourceTree = "<group>";
+		};
+		ACPROD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AB000099 /* TeamMonitorAgent.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AAAAAAAAAAAAAAAAAAAAAAAA /* TeamMonitorAgent */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ACBUILDCONFIG;
+			buildPhases = (
+				AAAAAAAAAAAAAAAAAAAAAAAC /* Sources */,
+				AAAAAAAAAAAAAAAAAAAAAAAB /* Frameworks */,
+				AAAAAAAAAAAAAAAAAAAAAAAD /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = TeamMonitorAgent;
+			productName = TeamMonitorAgent;
+			productReference = AB000099 /* TeamMonitorAgent.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		ACPROJECT /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					AAAAAAAAAAAAAAAAAAAAAAAA = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = ACPROJECTCONFIG;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = ACROOT;
+			productRefGroup = ACPROD;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AAAAAAAAAAAAAAAAAAAAAAAA /* TeamMonitorAgent */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AAAAAAAAAAAAAAAAAAAAAAAD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000012 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AAAAAAAAAAAAAAAAAAAAAAAC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000001 /* TeamMonitorAgentApp.swift in Sources */,
+				AA000002 /* ContentView.swift in Sources */,
+				AA000003 /* LoginView.swift in Sources */,
+				AA000004 /* TrackingDashboardView.swift in Sources */,
+				AA000005 /* APIService.swift in Sources */,
+				AA000006 /* ScreenshotService.swift in Sources */,
+				AA000007 /* AppTrackingService.swift in Sources */,
+				AA000008 /* IdleDetectionService.swift in Sources */,
+				AA000009 /* TrackingManager.swift in Sources */,
+				AA000010 /* TrackingModels.swift in Sources */,
+				AA000013 /* ManualEntryView.swift in Sources */,
+				AA000014 /* ReportsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		ACCONFIGDEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				INFOPLIST_FILE = "TeamMonitorAgent/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yourcompany.TeamMonitorAgent";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		ACCONFIGRELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "TeamMonitorAgent/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.yourcompany.TeamMonitorAgent";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		ACPROJECTCONFIGDEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+			};
+			name = Debug;
+		};
+		ACPROJECTCONFIGRELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		ACBUILDCONFIG /* Build configuration list for PBXNativeTarget "TeamMonitorAgent" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ACCONFIGDEBUG /* Debug */,
+				ACCONFIGRELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		ACPROJECTCONFIG /* Build configuration list for PBXProject "TeamMonitorAgent" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ACPROJECTCONFIGDEBUG /* Debug */,
+				ACPROJECTCONFIGRELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = ACPROJECT /* Project object */;
+}

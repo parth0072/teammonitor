@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>        <string>TeamMonitor</string>
+	<key>CFBundleExecutable</key>         <string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>         <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+	<key>CFBundleName</key>               <string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>        <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key> <string>1.0</string>
+	<key>CFBundleVersion</key>            <string>1</string>
+	<key>LSMinimumSystemVersion</key>     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSPrincipalClass</key>           <string>NSApplication</string>
+	<key>NSMainStoryboardFile</key>       <string></string>
+
+	<!-- Screen recording permission -->
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>TeamMonitor captures periodic screenshots to verify work activity during tracked sessions.</string>
+
+	<!-- Accessibility API for window title tracking -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>TeamMonitor reads the active window title to log which applications are being used.</string>
+
+	<!-- Keeps app running in background when window is closed -->
+	<!-- App shows in Dock AND menu bar. Set to true to hide Dock icon (menu bar only). -->
+	<key>LSUIElement</key>
+	<false/>
+
+	<!-- Prevents macOS from killing the app when it's backgrounded -->
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
+</dict>
+</plist>

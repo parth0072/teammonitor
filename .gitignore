@@ -1,0 +1,39 @@
+# Node
+node_modules/
+npm-debug.log*
+.npm
+
+# Env / secrets — never commit real credentials
+.env
+.env.local
+.env.production
+# server/.env.cpanel is a template (safe), but block any real .env variants
+server/.env.production
+
+# Build output
+admin-panel/dist/
+admin-panel/.vite/
+server/public/
+
+# macOS
+.DS_Store
+*.xcuserstate
+*.xcworkspace/xcuserdata
+macos-agent/**/*.xcodeproj/xcuserdata
+macos-agent/**/DerivedData
+
+# Zip archives
+*.zip
+
+# SQLite (local dev only)
+*.db
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Local runtime flags
+server/.local_admin_created
+
+# Logs
+*.log
+logs/
