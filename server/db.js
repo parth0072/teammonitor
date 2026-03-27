@@ -96,16 +96,6 @@ if (USE_MYSQL) {
         created_at       DATETIME DEFAULT NOW()
       )`);
 
-    // Seed admin user
-    const [rows] = await pool.query("SELECT id FROM employees WHERE role='admin' LIMIT 1");
-    if (!rows.length) {
-      const hash = bcrypt.hashSync('Admin1234', 10);
-      await pool.query(
-        "INSERT INTO employees (name, email, password, role) VALUES ('Admin','admin@teammonitor.local',?,?)",
-        [hash, 'admin']
-      );
-      console.log('✓  Admin created: admin@teammonitor.local / Admin1234');
-    }
     console.log('✓  MySQL connected:', process.env.DB_NAME);
   }
 
