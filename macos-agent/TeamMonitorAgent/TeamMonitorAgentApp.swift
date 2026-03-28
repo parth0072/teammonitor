@@ -56,6 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        print("[Notifications] willPresent fired — showing banner")
         completionHandler([.banner, .sound])
     }
 

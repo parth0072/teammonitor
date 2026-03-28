@@ -131,13 +131,29 @@ class TrackingManager: ObservableObject {
     // MARK: - Notifications
 
     /// Sends a local notification. Fires immediately (trigger: nil).
+    /// Uses .default sound only — .defaultCritical requires a special entitlement
+    /// that unsigned dev builds don't have, causing silent rejection.
     func sendNotification(_ text: String, isWarning: Bool) {
-        let content         = UNMutableNotificationContent()
-        content.title       = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
-        content.body        = text
-        content.sound       = isWarning ? .defaultCritical : .default
-        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized ||
+                  settings.authorizationStatus == .provisional else {
+                print("[Notifications] Not authorized (\(settings.authorizationStatus.rawValue)) — requesting…")
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, err in
+                    if granted { self.sendNotification(text, isWarning: isWarning) }
+                    else { print("[Notifications] Permission denied: \(err?.localizedDescription ?? "unknown")") }
+                }
+                return
+            }
+            let content   = UNMutableNotificationContent()
+            content.title = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
+            content.body  = text
+            content.sound = .default   // .defaultCritical requires entitlement — don't use it
+            let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            UNUserNotificationCenter.current().add(req) { err in
+                if let err { print("[Notifications] Delivery failed: \(err)") }
+                else { print("[Notifications] Sent: \(text)") }
+            }
+        }
     }
 
     /// Schedules a repeating 5-minute reminder when the user is not tracking.
@@ -154,6 +170,7 @@ class TrackingManager: ObservableObject {
         }
         RunLoop.main.add(t, forMode: .common)
         notTrackingTimer = t
+        print("[Notifications] Not-tracking reminder scheduled (fires every 5 min)")
     }
 
     func cancelNotTrackingReminder() {
