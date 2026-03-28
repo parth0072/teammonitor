@@ -117,18 +117,6 @@ extension TrackingDashboardView {
                         .padding(.horizontal, 8).frame(height: 30)
                         .background(Color(hex: "f1f5f9")).cornerRadius(4)
 
-                        Button {
-                            manager.captureScreenshotNow()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "camera.viewfinder").font(.system(size: 10))
-                                Text("Capture").font(.system(size: 11))
-                            }
-                            .foregroundColor(Color(hex: "3b82f6"))
-                            .padding(.horizontal, 8).frame(height: 30)
-                            .background(Color.white)
-                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(hex: "3b82f6"), lineWidth: 1))
-                        }.buttonStyle(.plain)
                     }
 
                     Spacer()

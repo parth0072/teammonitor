@@ -120,15 +120,6 @@ class TrackingManager: ObservableObject {
         ScreenshotService.requestPermission()
     }
 
-    /// Triggers an immediate screenshot capture + upload. Used for manual testing.
-    func captureScreenshotNow() {
-        guard let sessionId = currentSessionId else { return }
-        screenshots.captureNow { [weak self] imageData in
-            guard let self else { return }
-            Task { await self.uploadScreenshot(imageData, sessionId: sessionId) }
-        }
-    }
-
     /// Uploads screenshot data, increments the counter, and confirms screen
     /// permission on first success (auto-dismisses the permission banner).
     private func uploadScreenshot(_ imageData: Data, sessionId: Int) async {
