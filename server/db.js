@@ -154,18 +154,20 @@ if (USE_MYSQL) {
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS employees (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      name          TEXT NOT NULL,
-      email         TEXT NOT NULL UNIQUE,
-      password      TEXT NOT NULL,
-      department    TEXT DEFAULT '',
-      role          TEXT DEFAULT 'employee',
-      is_active     INTEGER DEFAULT 1,
-      created_at    TEXT DEFAULT (datetime('now'))
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                TEXT NOT NULL,
+      email               TEXT NOT NULL UNIQUE,
+      password            TEXT NOT NULL,
+      department          TEXT DEFAULT '',
+      role                TEXT DEFAULT 'employee',
+      is_active           INTEGER DEFAULT 1,
+      screenshot_interval INTEGER DEFAULT 300,
+      created_at          TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS sessions (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       employee_id    INTEGER NOT NULL,
+      task_id        INTEGER DEFAULT NULL,
       punch_in       TEXT,
       punch_out      TEXT,
       total_minutes  INTEGER DEFAULT 0,
@@ -205,7 +207,32 @@ if (USE_MYSQL) {
       date             TEXT,
       created_at       TEXT DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS projects (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      color       TEXT DEFAULT '#3b82f6',
+      created_at  TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tasks (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id  INTEGER NOT NULL,
+      name        TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      status      TEXT DEFAULT 'todo',
+      assigned_to INTEGER DEFAULT NULL,
+      created_at  TEXT DEFAULT (datetime('now'))
+    );
   `);
+
+  // Migrate existing databases that predate new columns
+  const migrations = [
+    `ALTER TABLE employees ADD COLUMN screenshot_interval INTEGER DEFAULT 300`,
+    `ALTER TABLE sessions  ADD COLUMN task_id INTEGER DEFAULT NULL`,
+  ];
+  for (const m of migrations) {
+    try { db.exec(m); } catch (_) { /* column already exists */ }
+  }
 
   const existingAdmin = db.prepare("SELECT id FROM employees WHERE role='admin' LIMIT 1").get();
   if (!existingAdmin) {
@@ -223,6 +250,9 @@ if (USE_MYSQL) {
         const d = new Date(); d.setDate(d.getDate() - parseInt(n));
         return `'${d.toISOString().slice(0, 10)}'`;
       })
+      // TIMESTAMPDIFF(MINUTE, col, NOW()) → SQLite julianday math
+      .replace(/TIMESTAMPDIFF\s*\(\s*MINUTE\s*,\s*([^,]+?)\s*,\s*([^)]+?)\s*\)/gi, (_, t1, t2) =>
+        `CAST((julianday(${t2.trim()}) - julianday(${t1.trim()})) * 24 * 60 AS INTEGER)`)
       .replace(/CURDATE\(\s*\)/gi, `'${new Date().toISOString().slice(0, 10)}'`)
       .replace(/NOW\(\s*\)/gi,     `'${new Date().toISOString()}'`);
   }
