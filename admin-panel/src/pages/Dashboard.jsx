@@ -1,13 +1,34 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../api";
 import { format } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, Cell,
+} from "recharts";
 
-// ── Palette for employee avatars ─────────────────────────────────────────────
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+const C = {
+  blue:    "#4F6EF7",
+  green:   "#12B76A",
+  amber:   "#F79009",
+  red:     "#F04438",
+  purple:  "#8B5CF6",
+  indigo:  "#6366F1",
+  bg:      "#F7F8FA",
+  card:    "#FFFFFF",
+  border:  "#E2E8F0",
+  text:    "#101828",
+  sub:     "#344054",
+  muted:   "#667085",
+  light:   "#F9FAFB",
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
-  "#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444",
-  "#ec4899","#06b6d4","#84cc16","#f97316","#6366f1",
+  C.blue, C.purple, C.green, C.amber, C.red,
+  "#EC4899","#06B6D4","#84CC16","#F97316", C.indigo,
 ];
 
 function avatarColor(name = "") {
@@ -25,91 +46,328 @@ function fmtHM(mins) {
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-// ── Status Board Card ─────────────────────────────────────────────────────────
+function fmtHMdec(mins) {
+  return (mins / 60).toFixed(1) + "h";
+}
 
-function EmployeeCard({ employee, session, lastScreenshot }) {
-  const active   = session?.status === "active";
-  const done     = session && !active;
-  const absent   = !session;
-  const color    = avatarColor(employee.name);
-  const timeToday = fmtHM(session?.total_minutes || 0);
-  const punchInStr = session?.punch_in ? format(new Date(session.punch_in), "h:mm a") : null;
+// ── Skeleton loader ───────────────────────────────────────────────────────────
+
+const pulse = `
+  @keyframes tm-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+  @keyframes tm-ring {
+    0%   { box-shadow: 0 0 0 0   rgba(18,182,106,0.5); }
+    70%  { box-shadow: 0 0 0 8px rgba(18,182,106,0);   }
+    100% { box-shadow: 0 0 0 0   rgba(18,182,106,0);   }
+  }
+`;
+
+function SkeletonBlock({ w = "100%", h = 16, r = 6, mb = 0 }) {
+  return (
+    <div style={{
+      width: w, height: h, borderRadius: r,
+      background: "#E2E8F0", marginBottom: mb,
+      animation: "tm-pulse 1.5s ease-in-out infinite",
+    }} />
+  );
+}
+
+function SkeletonDashboard() {
+  return (
+    <div>
+      <style>{pulse}</style>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 16, marginBottom: 24 }}>
+        {[...Array(5)].map((_, i) => (
+          <div key={i} style={{ background: C.card, borderRadius: 12, padding: 20, border: `1px solid ${C.border}` }}>
+            <SkeletonBlock w={80} h={12} mb={12} />
+            <SkeletonBlock w={60} h={28} mb={8} />
+            <SkeletonBlock w={100} h={10} />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, marginBottom: 20 }}>
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, height: 240 }}>
+          <SkeletonBlock w={180} h={14} mb={20} />
+          <SkeletonBlock h={160} r={8} />
+        </div>
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}` }}>
+          <SkeletonBlock w={120} h={14} mb={20} />
+          {[...Array(3)].map((_, i) => <SkeletonBlock key={i} h={40} r={8} mb={10} />)}
+        </div>
+      </div>
+      <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}` }}>
+        <SkeletonBlock w={140} h={14} mb={20} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>
+          {[...Array(4)].map((_, i) => <SkeletonBlock key={i} h={160} r={12} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── KPI Stat Card ─────────────────────────────────────────────────────────────
+
+function StatCard({ label, value, sub, color, icon }) {
+  return (
+    <div style={{
+      background: C.card, borderRadius: 12, padding: "20px 22px",
+      border: `1px solid ${C.border}`,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+      display: "flex", alignItems: "flex-start", gap: 14,
+    }}>
+      <div style={{
+        width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+        background: color + "1A",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 20,
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 4, whiteSpace: "nowrap" }}>
+          {label}
+        </div>
+        <div style={{ fontSize: 28, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>
+          {value}
+        </div>
+        {sub && (
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{sub}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Team split widget ─────────────────────────────────────────────────────────
+
+function TeamSplitWidget({ active, done, absent, total }) {
+  const rows = [
+    { label: "Active",  count: active,  color: C.green,  dot: "●" },
+    { label: "Done",    count: done,    color: C.muted,  dot: "✓" },
+    { label: "Absent",  count: absent,  color: C.amber,  dot: "○" },
+  ];
+  return (
+    <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>Team Overview</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>{total} employees total</div>
+
+      {rows.map(({ label, count, color, dot }) => (
+        <div key={label} style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ width: 28, fontSize: 14, color, fontWeight: 700 }}>{dot}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 13, color: C.sub, fontWeight: 500 }}>{label}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{count}</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 4, background: C.border, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 4, background: color,
+                width: total ? `${(count / total) * 100}%` : "0%",
+                transition: "width 0.6s ease",
+              }} />
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Activity score ring placeholder */}
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Tracking rate</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            background: `conic-gradient(${C.green} ${total ? (active / total) * 360 : 0}deg, ${C.border} 0deg)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.card,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 11, fontWeight: 700, color: C.text }}>
+              {total ? Math.round((active / total) * 100) : 0}%
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{total ? Math.round((active / total) * 100) : 0}% online</div>
+            <div style={{ fontSize: 11, color: C.muted }}>right now</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Top Apps Widget ───────────────────────────────────────────────────────────
+
+function TopAppsWidget({ apps }) {
+  if (!apps || apps.length === 0) return null;
+  const maxSecs = apps[0]?.total_seconds || 1;
+
+  const APP_COLORS = [C.blue, C.purple, C.green, C.amber, C.indigo];
 
   return (
     <div style={{
-      background: "#fff",
-      borderRadius: 14,
-      border: `1px solid ${active ? "#bbf7d0" : "#e2e8f0"}`,
-      boxShadow: active ? "0 0 0 2px #86efac" : "0 1px 3px rgba(0,0,0,0.07)",
-      overflow: "hidden",
-      transition: "box-shadow 0.2s",
+      background: C.card, borderRadius: 12, padding: 24,
+      border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
     }}>
-      {/* Screenshot strip */}
-      {lastScreenshot?.file_path ? (
-        <div style={{ height: 80, overflow: "hidden", background: "#f1f5f9" }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Top Apps Today</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>Most used across the team</div>
+      {apps.slice(0, 5).map((app, i) => {
+        const mins = Math.round((app.total_seconds || app.duration_seconds || 0) / 60);
+        const pct  = ((app.total_seconds || app.duration_seconds || 0) / maxSecs) * 100;
+        return (
+          <div key={app.app_name} style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{
+                  width: 24, height: 24, borderRadius: 6,
+                  background: APP_COLORS[i % APP_COLORS.length] + "20",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12,
+                }}>
+                  💻
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 500, color: C.sub,
+                               maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {app.app_name}
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>
+                {fmtHM(mins)}
+              </span>
+            </div>
+            <div style={{ height: 6, borderRadius: 4, background: C.border }}>
+              <div style={{
+                height: "100%", borderRadius: 4,
+                background: APP_COLORS[i % APP_COLORS.length],
+                width: `${pct}%`, transition: "width 0.8s ease",
+              }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Custom chart tooltip ──────────────────────────────────────────────────────
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: C.text, color: "#fff", borderRadius: 8, padding: "8px 14px",
+      fontSize: 12, fontWeight: 500, boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    }}>
+      <div style={{ color: "#9CA3AF", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 700 }}>{payload[0].value}h</div>
+    </div>
+  );
+}
+
+// ── Enhanced Employee Card ────────────────────────────────────────────────────
+
+function EmployeeCard({ employee, session, lastScreenshot }) {
+  const active  = session?.status === "active";
+  const done    = session && !active;
+  const color   = avatarColor(employee.name);
+  const timeToday   = fmtHM(session?.total_minutes || 0);
+  const punchInStr  = session?.punch_in ? format(new Date(session.punch_in), "h:mm a") : null;
+
+  const statusColor = active ? C.green : done ? C.muted : C.amber;
+  const statusLabel = active ? "Active" : done ? "Done" : "Absent";
+  const statusBg    = active ? "#ECFDF5" : done ? "#F8FAFC" : "#FFFBEB";
+
+  return (
+    <div style={{
+      background: C.card,
+      borderRadius: 14,
+      border: `1.5px solid ${active ? "#A7F3D0" : C.border}`,
+      boxShadow: active
+        ? "0 0 0 3px rgba(18,182,106,0.12), 0 2px 8px rgba(0,0,0,0.06)"
+        : "0 1px 4px rgba(0,0,0,0.06)",
+      overflow: "hidden",
+      transition: "box-shadow 0.2s, transform 0.2s",
+    }}
+      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = active ? "0 0 0 3px rgba(18,182,106,0.12),0 2px 8px rgba(0,0,0,0.06)" : "0 1px 4px rgba(0,0,0,0.06)"; }}
+    >
+      {/* Screenshot / Avatar strip */}
+      <div style={{ position: "relative", height: 90, background: active ? "#F0FDF4" : C.light, overflow: "hidden" }}>
+        {lastScreenshot?.file_path ? (
           <img
             src={lastScreenshot.file_path}
-            alt="last screenshot"
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: active ? 1 : 0.5 }}
+            alt="screenshot"
+            style={{ width: "100%", height: "100%", objectFit: "cover", opacity: active ? 1 : 0.55 }}
           />
-        </div>
-      ) : (
-        <div style={{ height: 80, background: active ? "#f0fdf4" : "#f8fafc",
-                      display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: "50%",
-            background: color, display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 17, fontWeight: 700, color: "#fff",
-          }}>
-            {initials(employee.name)}
+        ) : (
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: "50%", background: color,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, fontWeight: 700, color: "#fff",
+              animation: active ? "tm-ring 2s infinite" : "none",
+            }}>
+              {initials(employee.name)}
+            </div>
           </div>
+        )}
+
+        {/* Status badge overlay */}
+        <div style={{
+          position: "absolute", top: 8, right: 8,
+          background: statusBg, color: statusColor,
+          fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
+          backdropFilter: "blur(4px)",
+        }}>
+          {active ? "● " : done ? "✓ " : "○ "}{statusLabel}
         </div>
-      )}
+      </div>
 
       <div style={{ padding: "12px 14px" }}>
-        {/* Name + status dot */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b",
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>
-            {employee.name}
-          </div>
-          <span style={{
-            fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
-            background: active ? "#dcfce7" : done ? "#f1f5f9" : "#fef9c3",
-            color:      active ? "#16a34a" : done ? "#64748b" : "#92400e",
-          }}>
-            {active ? "● Active" : done ? "✓ Done" : "○ Absent"}
-          </span>
+        {/* Name */}
+        <div style={{
+          fontWeight: 700, fontSize: 13, color: C.text,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          marginBottom: 2,
+        }}>
+          {employee.name}
         </div>
 
         {/* Department */}
         {employee.department && (
-          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>{employee.department}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>{employee.department}</div>
         )}
 
-        {/* Time + punch-in */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: active ? "#16a34a" : "#64748b" }}>
+        {/* Time tracked */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{
+            fontSize: 15, fontWeight: 700,
+            color: active ? C.green : C.muted,
+          }}>
             {timeToday}
           </span>
           {punchInStr && (
-            <span style={{ fontSize: 11, color: "#94a3b8" }}>since {punchInStr}</span>
+            <span style={{ fontSize: 10, color: C.muted }}>since {punchInStr}</span>
           )}
         </div>
 
-        {/* Current task */}
+        {/* Task chip */}
         {session?.task_name && (
-          <div style={{ marginTop: 6, fontSize: 11, color: "#6366f1", fontWeight: 500,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        background: "#ede9fe", borderRadius: 6, padding: "2px 7px", display: "inline-block" }}>
-            {session.task_name}
+          <div style={{
+            fontSize: 11, color: C.indigo, fontWeight: 500,
+            background: "#EEF2FF", borderRadius: 6, padding: "3px 8px",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            marginBottom: 4,
+          }}>
+            📌 {session.task_name}
           </div>
         )}
 
-        {/* Last screenshot time */}
+        {/* Screenshot time */}
         {lastScreenshot?.captured_at && (
-          <div style={{ fontSize: 10, color: "#cbd5e1", marginTop: 4 }}>
-            Screenshot {format(new Date(lastScreenshot.captured_at), "h:mm a")}
+          <div style={{ fontSize: 10, color: "#CBD5E1", marginTop: 4 }}>
+            📷 {format(new Date(lastScreenshot.captured_at), "h:mm a")}
           </div>
         )}
       </div>
@@ -119,69 +377,65 @@ function EmployeeCard({ employee, session, lastScreenshot }) {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-const S = {
-  title:    { fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 },
-  sub:      { color: "#64748b", marginTop: 4, fontSize: 14, marginBottom: 28 },
-  statGrid: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, marginBottom: 28 },
-  statCard: { background: "#fff", borderRadius: 12, padding: "20px 24px", boxShadow: "0 1px 3px rgba(0,0,0,0.07)", border: "1px solid #e2e8f0" },
-  card:     { background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.07)", border: "1px solid #e2e8f0" },
-  cardTitle:{ fontSize: 16, fontWeight: 600, color: "#1e293b", marginBottom: 20 },
-};
-
-function StatCard({ label, value, color, icon }) {
-  return (
-    <div style={S.statCard}>
-      <div style={{ fontSize: 13, color: "#64748b", fontWeight: 500, marginBottom: 8 }}>{icon} {label}</div>
-      <div style={{ fontSize: 32, fontWeight: 700, color }}>{value}</div>
-    </div>
-  );
-}
-
 export default function Dashboard() {
   const today = format(new Date(), "yyyy-MM-dd");
-  const [sessions,     setSessions]     = useState([]);
-  const [employees,    setEmployees]    = useState([]);
-  const [screenshots,  setScreenshots]  = useState([]);
-  const [chartData,    setChartData]    = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [lastRefresh,  setLastRefresh]  = useState(new Date());
+
+  const [sessions,    setSessions]    = useState([]);
+  const [employees,   setEmployees]   = useState([]);
+  const [screenshots, setScreenshots] = useState([]);
+  const [chartData,   setChartData]   = useState([]);
+  const [topApps,     setTopApps]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
   const autoRef = useRef(null);
 
   const load = useCallback(async () => {
     try {
-      const [sess, stats, ss, emps] = await Promise.all([
+      const [sess, stats, ss, emps, apps] = await Promise.all([
         api.getSessions(today),
         api.getSessionStats(7),
         api.getScreenshots(today),
         api.getEmployees(),
+        api.getActivitySummary(today).catch(() => []),
       ]);
+
       setSessions(sess);
       setScreenshots(ss);
       setEmployees(emps);
       setChartData(stats.map(r => ({
-        day: format(new Date(r.date + "T00:00:00"), "EEE"),
+        day:   format(new Date(r.date + "T00:00:00"), "EEE"),
         hours: +(r.total_minutes / 60).toFixed(1),
       })));
+
+      // Normalise app summary — different backends use different field names
+      const appList = Array.isArray(apps) ? apps : (apps?.apps || apps?.data || []);
+      const sorted  = [...appList].sort((a, b) =>
+        (b.total_seconds || b.duration_seconds || 0) - (a.total_seconds || a.duration_seconds || 0)
+      );
+      setTopApps(sorted);
       setLastRefresh(new Date());
     } catch (e) { console.error(e); }
     setLoading(false);
   }, [today]);
 
   useEffect(() => { load(); }, [load]);
-
-  // Auto-refresh every 30s
   useEffect(() => {
     autoRef.current = setInterval(load, 30_000);
     return () => clearInterval(autoRef.current);
   }, [load]);
 
-  if (loading) return <div style={{ color: "#64748b", padding: 40 }}>Loading…</div>;
+  if (loading) return <SkeletonDashboard />;
 
-  const activeCount = sessions.filter(s => s.status === "active").length;
-  const totalMins   = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
-  const avgHrs      = sessions.length ? (totalMins / sessions.length / 60).toFixed(1) : 0;
+  // ── Derived metrics ──────────────────────────────────────────────────────
 
-  // Latest session per employee (prefer active, else latest by punch_in)
+  const activeCount  = sessions.filter(s => s.status === "active").length;
+  const doneCount    = sessions.filter(s => s.status !== "active").length;
+  const absentCount  = Math.max(0, employees.length - sessions.length);
+
+  const totalMins = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
+  const avgMins   = sessions.length ? totalMins / sessions.length : 0;
+
+  // Latest session per employee
   const sessionByEmp = {};
   sessions.forEach(s => {
     const prev = sessionByEmp[s.employee_id];
@@ -190,64 +444,119 @@ export default function Dashboard() {
     }
   });
 
-  // Latest screenshot per employee (array already sorted DESC)
+  // Latest screenshot per employee
   const screenshotByEmp = {};
   screenshots.forEach(ss => {
     if (!screenshotByEmp[ss.employee_id]) screenshotByEmp[ss.employee_id] = ss;
   });
 
-  // Sort employees: active first, then done, then absent
   const sortedEmployees = [...employees].sort((a, b) => {
     const sa = sessionByEmp[a.id], sb = sessionByEmp[b.id];
     const rank = s => s?.status === "active" ? 0 : s ? 1 : 2;
     return rank(sa) - rank(sb) || a.name.localeCompare(b.name);
   });
 
+  // Bar chart color: today's bar highlighted
+  const todayLabel = format(new Date(), "EEE");
+
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 0 }}>
-        <h1 style={S.title}>Dashboard</h1>
-        <div style={{ fontSize: 12, color: "#94a3b8" }}>
-          Auto-refreshing · last {format(lastRefresh, "h:mm:ss a")}
+    <div style={{ maxWidth: 1280 }}>
+      <style>{pulse}</style>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: 0 }}>Dashboard</h1>
+          <div style={{ color: C.muted, fontSize: 14, marginTop: 4 }}>
+            {format(new Date(), "EEEE, MMMM d yyyy")}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.green,
+                        animation: "tm-ring 2s infinite" }} />
+          <span style={{ fontSize: 12, color: C.muted }}>
+            Live · refreshed {format(lastRefresh, "h:mm:ss a")}
+          </span>
         </div>
       </div>
-      <p style={S.sub}>{format(new Date(), "EEEE, MMMM d yyyy")}</p>
 
-      {/* Stats */}
-      <div style={S.statGrid}>
-        <StatCard label="Active Now"        value={activeCount}        color="#10b981" icon="🟢" />
-        <StatCard label="Total Employees"   value={employees.length}   color="#3b82f6" icon="👥" />
-        <StatCard label="Screenshots Today" value={screenshots.length} color="#8b5cf6" icon="🖼" />
-        <StatCard label="Avg Hours Today"   value={`${avgHrs}h`}       color="#f59e0b" icon="⏱" />
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 16, marginBottom: 20 }}>
+        <StatCard label="Active Now"         value={activeCount}             color={C.green}  icon="🟢" sub={`of ${employees.length} employees`} />
+        <StatCard label="Total Employees"    value={employees.length}        color={C.blue}   icon="👥" sub="registered" />
+        <StatCard label="Screenshots Today"  value={screenshots.length}      color={C.purple} icon="📷" sub="captured today" />
+        <StatCard label="Avg Hours Today"    value={fmtHMdec(avgMins)}       color={C.amber}  icon="⏱" sub="per active employee" />
+        <StatCard label="Total Hours Today"  value={fmtHMdec(totalMins)}     color={C.indigo} icon="📊" sub="across team" />
       </div>
 
-      {/* Chart */}
-      <div style={{ ...S.card, marginBottom: 24 }}>
-        <div style={S.cardTitle}>Hours Tracked – Last 7 Days</div>
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={v => `${v}h`} />
-            <Bar dataKey="hours" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+      {/* Chart row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 16 }}>
+
+        {/* Hours bar chart */}
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Hours Tracked</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Last 7 days</div>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, background: C.light, padding: "4px 10px", borderRadius: 6 }}>
+              Total: {fmtHMdec(chartData.reduce((a, d) => a + d.hours * 60, 0))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={170}>
+            <BarChart data={chartData} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F1F5F9", radius: 6 }} />
+              <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={entry.day === todayLabel ? C.blue : "#BFDBFE"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Team split */}
+        <TeamSplitWidget
+          active={activeCount}
+          done={doneCount}
+          absent={absentCount}
+          total={employees.length}
+        />
       </div>
+
+      {/* Top apps + second row */}
+      {topApps.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <TopAppsWidget apps={topApps} />
+        </div>
+      )}
 
       {/* Live Status Board */}
-      <div style={S.card}>
+      <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-          <div style={S.cardTitle}>Live Status Board</div>
-          <span style={{ fontSize: 12, color: "#94a3b8" }}>
-            {activeCount} active · {employees.length - activeCount} offline
-          </span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Live Status Board</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Real-time employee activity</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, background: "#ECFDF5", color: C.green, fontWeight: 600 }}>
+              ● {activeCount} active
+            </span>
+            <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, background: C.light, color: C.muted, fontWeight: 500 }}>
+              ○ {absentCount} absent
+            </span>
+          </div>
         </div>
 
         {employees.length === 0 ? (
-          <div style={{ color: "#94a3b8", fontSize: 14 }}>No employees yet.</div>
+          <div style={{ color: C.muted, fontSize: 14, textAlign: "center", padding: "40px 0" }}>
+            No employees yet. Add employees to see them here.
+          </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>
             {sortedEmployees.map(emp => (
               <EmployeeCard
                 key={emp.id}
