@@ -22,6 +22,18 @@
 		AA000014 /* Views/ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000014 /* Views/ReportsView.swift */; };
 		AA000015 /* Services/NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000015 /* Services/NetworkMonitor.swift */; };
 		AA000016 /* Services/OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000016 /* Services/OfflineQueue.swift */; };
+		AA000020 /* Views/Styles.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000020 /* Views/Styles.swift */; };
+		AA000021 /* Views/TaskRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000021 /* Views/TaskRow.swift */; };
+		AA000022 /* Views/AppActivityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022 /* Views/AppActivityRow.swift */; };
+		AA000023 /* Views/TaskPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023 /* Views/TaskPickerView.swift */; };
+		AA000024 /* Views/NewTaskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000024 /* Views/NewTaskView.swift */; };
+		AA000025 /* Views/IdleAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000025 /* Views/IdleAlertView.swift */; };
+		AA000026 /* Views/BreakReminderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000026 /* Views/BreakReminderView.swift */; };
+		AA000027 /* Views/TrackingDashboardView+Logic.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000027 /* Views/TrackingDashboardView+Logic.swift */; };
+		AA000028 /* Views/TrackingDashboardView+Banners.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000028 /* Views/TrackingDashboardView+Banners.swift */; };
+		AA000029 /* Views/TrackingDashboardView+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000029 /* Views/TrackingDashboardView+Header.swift */; };
+		AA000030 /* Views/TrackingDashboardView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000030 /* Views/TrackingDashboardView+Actions.swift */; };
+		AA000031 /* Views/TrackingDashboardView+Tabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000031 /* Views/TrackingDashboardView+Tabs.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +52,18 @@
 		AB000014 /* Views/ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ReportsView.swift; sourceTree = "<group>"; };
 		AB000015 /* Services/NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/NetworkMonitor.swift; sourceTree = "<group>"; };
 		AB000016 /* Services/OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/OfflineQueue.swift; sourceTree = "<group>"; };
+		AB000020 /* Views/Styles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Styles.swift; sourceTree = "<group>"; };
+		AB000021 /* Views/TaskRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/TaskRow.swift; sourceTree = "<group>"; };
+		AB000022 /* Views/AppActivityRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AppActivityRow.swift; sourceTree = "<group>"; };
+		AB000023 /* Views/TaskPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/TaskPickerView.swift; sourceTree = "<group>"; };
+		AB000024 /* Views/NewTaskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/NewTaskView.swift; sourceTree = "<group>"; };
+		AB000025 /* Views/IdleAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/IdleAlertView.swift; sourceTree = "<group>"; };
+		AB000026 /* Views/BreakReminderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/BreakReminderView.swift; sourceTree = "<group>"; };
+		AB000027 /* Views/TrackingDashboardView+Logic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Logic.swift"; sourceTree = "<group>"; };
+		AB000028 /* Views/TrackingDashboardView+Banners.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Banners.swift"; sourceTree = "<group>"; };
+		AB000029 /* Views/TrackingDashboardView+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Header.swift"; sourceTree = "<group>"; };
+		AB000030 /* Views/TrackingDashboardView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Actions.swift"; sourceTree = "<group>"; };
+		AB000031 /* Views/TrackingDashboardView+Tabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Tabs.swift"; sourceTree = "<group>"; };
 		AB000099 /* TeamMonitorAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeamMonitorAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -110,8 +134,20 @@
 			children = (
 				AB000003 /* Views/LoginView.swift */,
 				AB000004 /* Views/TrackingDashboardView.swift */,
+				AB000027 /* Views/TrackingDashboardView+Logic.swift */,
+				AB000028 /* Views/TrackingDashboardView+Banners.swift */,
+				AB000029 /* Views/TrackingDashboardView+Header.swift */,
+				AB000030 /* Views/TrackingDashboardView+Actions.swift */,
+				AB000031 /* Views/TrackingDashboardView+Tabs.swift */,
 				AB000013 /* Views/ManualEntryView.swift */,
 				AB000014 /* Views/ReportsView.swift */,
+				AB000020 /* Views/Styles.swift */,
+				AB000021 /* Views/TaskRow.swift */,
+				AB000022 /* Views/AppActivityRow.swift */,
+				AB000023 /* Views/TaskPickerView.swift */,
+				AB000024 /* Views/NewTaskView.swift */,
+				AB000025 /* Views/IdleAlertView.swift */,
+				AB000026 /* Views/BreakReminderView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -199,6 +235,18 @@
 				AA000014 /* Views/ReportsView.swift in Sources */,
 				AA000015 /* Services/NetworkMonitor.swift in Sources */,
 				AA000016 /* Services/OfflineQueue.swift in Sources */,
+				AA000020 /* Views/Styles.swift in Sources */,
+				AA000021 /* Views/TaskRow.swift in Sources */,
+				AA000022 /* Views/AppActivityRow.swift in Sources */,
+				AA000023 /* Views/TaskPickerView.swift in Sources */,
+				AA000024 /* Views/NewTaskView.swift in Sources */,
+				AA000025 /* Views/IdleAlertView.swift in Sources */,
+				AA000026 /* Views/BreakReminderView.swift in Sources */,
+				AA000027 /* Views/TrackingDashboardView+Logic.swift in Sources */,
+				AA000028 /* Views/TrackingDashboardView+Banners.swift in Sources */,
+				AA000029 /* Views/TrackingDashboardView+Header.swift in Sources */,
+				AA000030 /* Views/TrackingDashboardView+Actions.swift in Sources */,
+				AA000031 /* Views/TrackingDashboardView+Tabs.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

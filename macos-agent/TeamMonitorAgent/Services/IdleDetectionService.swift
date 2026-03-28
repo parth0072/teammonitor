@@ -41,14 +41,12 @@ class IdleDetectionService: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
-        // Close any open idle period
-        if let start = idleStart {
-            onIdleEnd?(start, Date())
-            idleStart = nil
-        }
-        // Reset counters
+        // Discard any open idle period silently — caller is stopping the session
+        // intentionally (punch out / break), so no idle alert should fire.
+        isIdle    = false
+        idleStart = nil
         totalActiveSeconds = 0
-        totalIdleSeconds = 0
+        totalIdleSeconds   = 0
     }
 
     func resetActivityCounters() {

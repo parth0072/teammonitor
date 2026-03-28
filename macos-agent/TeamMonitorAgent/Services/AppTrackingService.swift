@@ -21,9 +21,10 @@ class AppTrackingService: ObservableObject {
 
     func start(pollInterval: TimeInterval = 30) {
         pollTimer?.invalidate()
-        pollTimer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
-            self?.poll()
-        }
+        // Use .common run-loop mode so polling continues during UI interactions
+        let t = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in self?.poll() }
+        RunLoop.main.add(t, forMode: .common)
+        pollTimer = t
         poll()  // immediate first check
     }
 

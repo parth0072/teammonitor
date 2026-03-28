@@ -1,5 +1,5 @@
 // ScreenshotService.swift
-// Captures screenshots at configurable intervals using CGWindowListCreateImage
+// Captures screenshots at configurable intervals
 // Requires "Screen Recording" permission in System Settings → Privacy & Security
 
 import Foundation
@@ -17,41 +17,21 @@ class ScreenshotService: ObservableObject {
     // MARK: - Permission
 
     /// Returns true when Screen Recording permission has been granted.
-    ///
-    /// Uses two complementary checks because neither is 100% reliable alone:
-    /// 1. CGPreflightScreenCaptureAccess() — fast; may return false for a
-    ///    running process immediately after the user grants in System Settings
-    ///    (macOS updates it after a relaunch in some OS versions).
-    /// 2. CGWindowListCopyWindowInfo — if we can enumerate windows owned by
-    ///    other processes (Dock, Finder, etc.), Screen Recording is active.
-    ///    The Dock / menubar are always on-screen, so this works even on a
-    ///    clean desktop.
+    /// Safe to call at any frequency — CGPreflightScreenCaptureAccess() never
+    /// triggers a system dialog.
     static func hasPermission() -> Bool {
         if #available(macOS 10.15, *) {
-            if CGPreflightScreenCaptureAccess() { return true }
-
-            // Fallback: try to see other processes' windows.
-            // Without Screen Recording only the calling process's windows appear.
-            let opts: CGWindowListOption = [.optionOnScreenOnly]
-            if let list = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[CFString: Any]] {
-                let myPID = Int(ProcessInfo.processInfo.processIdentifier)
-                if list.contains(where: {
-                    let pid = $0[kCGWindowOwnerPID as CFString] as? Int ?? 0
-                    return pid != myPID && pid > 0
-                }) { return true }
-            }
-            return false
+            return CGPreflightScreenCaptureAccess()
         }
-        return true  // macOS < 10.15 never needed permission
+        return true
     }
 
     /// Opens the Screen Recording pane in System Settings so the user can
-    /// enable access there. Does NOT block.
+    /// enable access there. Does NOT block. Never calls CGRequestScreenCaptureAccess()
+    /// because that triggers the system popup (which fires repeatedly for unsigned builds).
     static func requestPermission() {
         if #available(macOS 10.15, *) {
-            // CGRequestScreenCaptureAccess() shows a one-time dialog then opens
-            // System Settings. On subsequent calls it just opens System Settings.
-            CGRequestScreenCaptureAccess()
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
         }
     }
 
@@ -73,51 +53,40 @@ class ScreenshotService: ObservableObject {
         // Random jitter: ±20% of interval so screenshots aren't predictable
         let jitter  = captureIntervalSeconds * 0.2
         let delay   = captureIntervalSeconds + Double.random(in: -jitter...jitter)
-        timer = Timer.scheduledTimer(withTimeInterval: max(30, delay), repeats: false) { [weak self] _ in
+        let t = Timer(timeInterval: max(30, delay), repeats: false) { [weak self] _ in
             self?.captureNow()
             self?.scheduleNext()
         }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
 
     // MARK: - Capture
 
+    /// Captures using the stored interval callback (called by the scheduler).
     func captureNow() {
-        // Always attempt the capture; the OS will silently return a blank or
-        // partial image if permission was revoked mid-session.
+        captureNow(completion: onCapture)
+    }
+
+    /// Captures and delivers the result to an explicit callback.
+    /// Does NOT gate on CGPreflightScreenCaptureAccess — that API returns false
+    /// for unsigned/dev builds even when permission is granted. Instead we let
+    /// CGDisplayCreateImage be the real gate: it returns nil when blocked.
+    func captureNow(completion: ((Data) -> Void)?) {
         Task {
             if let data = await captureScreen() {
-                await MainActor.run { self.onCapture?(data) }
+                await MainActor.run { completion?(data) }
             }
         }
     }
 
     private func captureScreen() async -> Data? {
-        // Use /usr/sbin/screencapture (Apple-signed system tool) so we get the
-        // full desktop regardless of our own app's code-signing state.
-        // CGWindowListCreateImage / CGDisplayCreateImage both restrict output
-        // for unsigned builds even after the user grants Screen Recording.
-        return await withCheckedContinuation { continuation in
-            let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("tm_ss_\(Int(Date().timeIntervalSince1970)).png")
-
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-            // -x  = silent (no shutter sound)
-            // -t png = PNG (best quality before our JPEG recompression)
-            task.arguments = ["-x", "-t", "png", tmpURL.path]
-
-            task.terminationHandler = { _ in
-                defer { try? FileManager.default.removeItem(at: tmpURL) }
-                guard let image = NSImage(contentsOf: tmpURL) else {
-                    continuation.resume(returning: nil)
-                    return
-                }
-                let compressed = image.resized(toMaxWidth: 1280)
-                continuation.resume(returning: compressed.jpegData(compressionFactor: 0.5))
-            }
-
-            do { try task.run() } catch { continuation.resume(returning: nil) }
-        }
+        let displayID = CGMainDisplayID()
+        guard let cgImage = CGDisplayCreateImage(displayID) else { return nil }
+        let size    = NSSize(width: cgImage.width, height: cgImage.height)
+        let nsImage = NSImage(cgImage: cgImage, size: size)
+        let compressed = nsImage.resized(toMaxWidth: 1280)
+        return compressed.jpegData(compressionFactor: 0.5)
     }
 }
 

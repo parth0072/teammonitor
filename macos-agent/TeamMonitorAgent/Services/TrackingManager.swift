@@ -44,13 +44,8 @@ class TrackingManager: ObservableObject {
     @Published var showIdleAlert:       Bool     = false
     @Published var idleAlertMinutes:    Int      = 0
 
-    // Screen recording permission – updated at launch and every 3s until granted
-    @Published var hasScreenPermission:      Bool = true
-    // Persisted: user said "I know, stop showing this". Reset if permission
-    // is later revoked (so the banner can reappear if needed).
-    @Published var permissionBannerDismissed: Bool = UserDefaults.standard.bool(forKey: "tm_permBannerDismissed") {
-        didSet { UserDefaults.standard.set(permissionBannerDismissed, forKey: "tm_permBannerDismissed") }
-    }
+    // Screen recording permission — checked once at launch, re-checked on demand.
+    @Published var hasScreenPermission: Bool = true
 
     // Break state
     @Published var isOnBreak:           Bool     = false
@@ -68,7 +63,6 @@ class TrackingManager: ObservableObject {
 
     private var sessionTimer:    Timer?
     private var resumeTimer:     Timer?
-    private var permissionTimer: Timer?   // polls until screen-recording is granted
     var lastResumeTime:  Date?   // internal – read by view for live display
     private var pendingIdleStart: Date?
     private var cancellables = Set<AnyCancellable>()
@@ -106,16 +100,8 @@ class TrackingManager: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // Check screen-recording permission immediately at launch.
+        // Check screen-recording permission once at launch — no polling.
         hasScreenPermission = ScreenshotService.hasPermission()
-        if hasScreenPermission {
-            // Permission confirmed — clear any stale dismiss flag
-            permissionBannerDismissed = false
-            UserDefaults.standard.removeObject(forKey: "tm_permBannerDismissed")
-        } else {
-            startPermissionPolling()
-        }
-
 
         // Restore a session that was active when the app was last closed
         restoreSessionIfNeeded()
@@ -123,31 +109,42 @@ class TrackingManager: ObservableObject {
 
     // MARK: - Screen-Recording Permission
 
-    /// Call this when the user taps "Re-check" or "Open Settings" in the banner.
+    /// One-shot re-check — call when user taps "Re-check" in the banner.
+    /// Never polls; never triggers a system dialog.
     func recheckScreenPermission() {
         hasScreenPermission = ScreenshotService.hasPermission()
-        if hasScreenPermission {
-            permissionTimer?.invalidate()
-            permissionTimer = nil
-        } else {
-            ScreenshotService.requestPermission()   // opens System Settings
-            startPermissionPolling()
+    }
+
+    /// Opens System Settings to the Screen Recording pane.
+    func openScreenRecordingSettings() {
+        ScreenshotService.requestPermission()
+    }
+
+    /// Triggers an immediate screenshot capture + upload. Used for manual testing.
+    func captureScreenshotNow() {
+        guard let sessionId = currentSessionId else { return }
+        screenshots.captureNow { [weak self] imageData in
+            guard let self else { return }
+            Task { await self.uploadScreenshot(imageData, sessionId: sessionId) }
         }
     }
 
-    /// Polls every 3 seconds. Stops as soon as the user grants access.
-    private func startPermissionPolling() {
-        permissionTimer?.invalidate()
-        permissionTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let granted = ScreenshotService.hasPermission()
-                self.hasScreenPermission = granted
-                if granted {
-                    self.permissionTimer?.invalidate()
-                    self.permissionTimer = nil
-                }
+    /// Uploads screenshot data, increments the counter, and confirms screen
+    /// permission on first success (auto-dismisses the permission banner).
+    private func uploadScreenshot(_ imageData: Data, sessionId: Int) async {
+        do {
+            _ = try await api.uploadScreenshot(
+                imageData,
+                sessionId: sessionId,
+                activityLevel: idleDetector.activityPercent
+            )
+            await MainActor.run {
+                screenshotCount += 1
+                // Successful capture proves screen recording works — clear the banner.
+                if !hasScreenPermission { hasScreenPermission = true }
             }
+        } catch {
+            // Upload failed (no internet / auth error) — silently skip
         }
     }
 
@@ -160,9 +157,6 @@ class TrackingManager: ObservableObject {
             return
         }
         statusMessage = "Starting session…"
-
-        hasScreenPermission = ScreenshotService.hasPermission()
-        if !hasScreenPermission { startPermissionPolling() }
 
         do {
             let sessionId  = try await api.punchIn(taskId: task?.id)
@@ -331,19 +325,8 @@ class TrackingManager: ObservableObject {
         let screenshotInterval = TimeInterval(api.employee?.screenshotInterval ?? 300)
         screenshots.start(interval: screenshotInterval) { [weak self] imageData in
             guard let self else { return }
-            // Fire-and-forget: try to upload; silently skip on any failure.
-            // No offline queue — avoids stale-token replays and "queued" messages.
             Task {
-                do {
-                    _ = try await self.api.uploadScreenshot(
-                        imageData,
-                        sessionId: sessionId,
-                        activityLevel: self.idleDetector.activityPercent
-                    )
-                    await MainActor.run { self.screenshotCount += 1 }
-                } catch {
-                    // Upload failed (no internet / auth error) — silently skip
-                }
+                await self.uploadScreenshot(imageData, sessionId: sessionId)
             }
         }
 
@@ -353,7 +336,22 @@ class TrackingManager: ObservableObject {
         }
         RunLoop.main.add(initialShot, forMode: .common)
 
-        // App tracking disabled — sessions, screenshots and idle detection only
+        // App / window tracking — logs which app + window title is active
+        appTracker.onAppChange = { [weak self] appName, windowTitle, startTime, endTime in
+            guard let self else { return }
+            let duration = Int(endTime.timeIntervalSince(startTime))
+            Task {
+                try? await self.api.logActivity(
+                    sessionId:       sessionId,
+                    appName:         appName,
+                    windowTitle:     windowTitle,
+                    startTime:       startTime,
+                    endTime:         endTime,
+                    durationSeconds: duration
+                )
+            }
+        }
+        appTracker.start(pollInterval: 30)
 
         // Idle detection
         idleDetector.onIdleStart = { [weak self] idleStart in
@@ -368,7 +366,10 @@ class TrackingManager: ObservableObject {
                 self.sessionTimer?.invalidate(); self.sessionTimer = nil
                 self.resumeTimer?.invalidate();  self.resumeTimer  = nil
                 self.idleAlertMinutes = idleMinutes
-                self.showIdleAlert    = true
+                // Force false → true so onChange always fires even if a previous
+                // alert was dismissed via Esc without calling resumeAfterIdle.
+                self.showIdleAlert = false
+                self.showIdleAlert = true
             }
         }
         idleDetector.start()

@@ -33,6 +33,13 @@ struct TeamMonitorAgentApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Do NOT call CGRequestScreenCaptureAccess() here.
+        // That API shows the system popup — even if permission is already granted in
+        // System Settings — whenever CGPreflightScreenCaptureAccess() returns false
+        // (which happens for unsigned/dev builds on every launch).
+        // Permission is handled passively: the in-app banner shows "Open Settings"
+        // so the user can grant it manually, then restarts the app.
+
         // Register to launch automatically at login
         registerLaunchAtLogin()
     }
