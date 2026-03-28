@@ -1,7 +1,6 @@
-// TrackingDashboardView+Logic.swift — data loading, toasts, timers, notifications
+// TrackingDashboardView+Logic.swift — data loading, toasts, timers
 
 import SwiftUI
-import UserNotifications
 
 extension TrackingDashboardView {
 
@@ -26,38 +25,7 @@ extension TrackingDashboardView {
         toastTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { _ in
             Task { @MainActor in withAnimation { toast = nil } }
         }
-        sendNotification(text, isWarning: warning)
-    }
-
-    func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
-    }
-
-    func sendNotification(_ text: String, isWarning: Bool) {
-        let content         = UNMutableNotificationContent()
-        content.title       = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
-        content.body        = text
-        content.sound       = isWarning ? .defaultCritical : .default
-        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
-    }
-
-    // MARK: – Not-Tracking Reminder
-
-    func scheduleNotTrackingReminder() {
-        cancelNotTrackingReminder()
-        notTrackingTimer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { _ in
-            Task { @MainActor in
-                guard !manager.isTracking else { cancelNotTrackingReminder(); return }
-                showStartReminder = true
-                showToast("⏱ Timer is not running — tap Start to begin tracking", warning: true, duration: 15)
-            }
-        }
-    }
-
-    func cancelNotTrackingReminder() {
-        notTrackingTimer?.invalidate()
-        notTrackingTimer = nil
+        manager.sendNotification(text, isWarning: warning)
     }
 
     // MARK: – Break Reminder
@@ -69,7 +37,7 @@ extension TrackingDashboardView {
             Task { @MainActor in
                 guard manager.isTracking else { return }
                 activeSheet = .breakReminder
-                sendNotification(
+                manager.sendNotification(
                     "Time for a break! You've been working \(manager.trackedMinutes / 60)h \(manager.trackedMinutes % 60)m",
                     isWarning: false
                 )

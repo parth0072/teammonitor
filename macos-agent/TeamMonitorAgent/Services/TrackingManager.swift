@@ -2,6 +2,7 @@
 
 import Foundation
 import Combine
+import UserNotifications
 
 // MARK: - Persisted session state (survives app restart within the same day)
 
@@ -53,6 +54,9 @@ class TrackingManager: ObservableObject {
     // Offline state (banner only — no queuing)
     @Published var isOffline:           Bool     = false
 
+    // Not-tracking reminder banner
+    @Published var showStartReminder:   Bool     = false
+
     // MARK: - Private
 
     private let api          = APIService.shared
@@ -61,8 +65,9 @@ class TrackingManager: ObservableObject {
     private let idleDetector = IdleDetectionService.shared
     private let network      = NetworkMonitor.shared
 
-    private var sessionTimer:    Timer?
-    private var resumeTimer:     Timer?
+    private var sessionTimer:         Timer?
+    private var resumeTimer:          Timer?
+    private var notTrackingTimer:     Timer?
     var lastResumeTime:  Date?   // internal – read by view for live display
     private var pendingIdleStart: Date?
     private var cancellables = Set<AnyCancellable>()
@@ -105,6 +110,9 @@ class TrackingManager: ObservableObject {
 
         // Restore a session that was active when the app was last closed
         restoreSessionIfNeeded()
+
+        // Start the not-tracking reminder if we launched without an active session
+        if !isTracking { scheduleNotTrackingReminder() }
     }
 
     // MARK: - Screen-Recording Permission
@@ -118,6 +126,39 @@ class TrackingManager: ObservableObject {
     /// Opens System Settings to the Screen Recording pane.
     func openScreenRecordingSettings() {
         ScreenshotService.requestPermission()
+    }
+
+    // MARK: - Notifications
+
+    /// Sends a local notification. Fires immediately (trigger: nil).
+    func sendNotification(_ text: String, isWarning: Bool) {
+        let content         = UNMutableNotificationContent()
+        content.title       = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
+        content.body        = text
+        content.sound       = isWarning ? .defaultCritical : .default
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+    }
+
+    /// Schedules a repeating 5-minute reminder when the user is not tracking.
+    /// Lives in TrackingManager (not the view) so it survives window close.
+    func scheduleNotTrackingReminder() {
+        cancelNotTrackingReminder()
+        let t = Timer(timeInterval: 5 * 60, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                guard !self.isTracking else { self.cancelNotTrackingReminder(); return }
+                self.showStartReminder = true
+                self.sendNotification("⏱ Timer is not running — tap Start to begin tracking", isWarning: true)
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        notTrackingTimer = t
+    }
+
+    func cancelNotTrackingReminder() {
+        notTrackingTimer?.invalidate()
+        notTrackingTimer = nil
     }
 
     /// Uploads screenshot data, increments the counter, and confirms screen
@@ -142,6 +183,8 @@ class TrackingManager: ObservableObject {
     // MARK: - Punch In
 
     func punchIn(task: TaskItem? = nil) async {
+        cancelNotTrackingReminder()
+        showStartReminder = false
         guard !isTracking else { return }
         guard network.isOnline else {
             statusMessage = "No internet connection. Connect and try again."
@@ -185,6 +228,7 @@ class TrackingManager: ObservableObject {
             // ignore – session will be auto-closed server-side on next heartbeat timeout
         }
         statusMessage = "Session ended. Have a great day!"
+        scheduleNotTrackingReminder()
 
         clearSessionState()
         currentSessionId   = nil

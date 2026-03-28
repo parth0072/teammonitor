@@ -2,6 +2,7 @@
 
 import SwiftUI
 import ServiceManagement
+import UserNotifications
 
 @main
 struct TeamMonitorAgentApp: App {
@@ -30,18 +31,32 @@ struct TeamMonitorAgentApp: App {
 
 // MARK: - AppDelegate (keep alive + launch at login)
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Do NOT call CGRequestScreenCaptureAccess() here.
-        // That API shows the system popup — even if permission is already granted in
-        // System Settings — whenever CGPreflightScreenCaptureAccess() returns false
-        // (which happens for unsigned/dev builds on every launch).
-        // Permission is handled passively: the in-app banner shows "Open Settings"
-        // so the user can grant it manually, then restarts the app.
+        // Set delegate BEFORE requesting auth so foreground notifications work.
+        UNUserNotificationCenter.current().delegate = self
+
+        // Request notification permission at launch and log the result.
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error {
+                print("[Notifications] Auth error: \(error)")
+            } else {
+                print("[Notifications] Permission granted: \(granted)")
+            }
+        }
 
         // Register to launch automatically at login
         registerLaunchAtLogin()
+    }
+
+    // Show notifications even when the app is in the foreground / frontmost.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
     // Window close does NOT quit the app – it just hides to menu bar

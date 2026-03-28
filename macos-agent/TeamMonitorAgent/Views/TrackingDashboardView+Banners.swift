@@ -69,7 +69,7 @@ extension TrackingDashboardView {
 
     @ViewBuilder
     var startTimerReminderBanner: some View {
-        if showStartReminder && !manager.isTracking {
+        if manager.showStartReminder && !manager.isTracking {
             HStack(spacing: 10) {
                 Image(systemName: "timer")
                     .font(.system(size: 15, weight: .semibold))
@@ -84,7 +84,7 @@ extension TrackingDashboardView {
                 }
                 Spacer()
                 Button("Start Now") {
-                    showStartReminder = false
+                    manager.showStartReminder = false
                     if myTasks.isEmpty {
                         Task { await manager.punchIn() }
                     } else {
@@ -96,7 +96,7 @@ extension TrackingDashboardView {
                 .padding(.horizontal, 12).padding(.vertical, 5)
                 .background(Color(hex: "7c3aed")).cornerRadius(6).buttonStyle(.plain)
 
-                Button("✕") { showStartReminder = false }
+                Button("✕") { manager.showStartReminder = false }
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(Color(hex: "7c3aed").opacity(0.5))
                     .frame(width: 24, height: 24).buttonStyle(.plain)

@@ -31,6 +31,16 @@ extension TrackingDashboardView {
                     .cornerRadius(5)
             }.buttonStyle(.plain)
 
+            Button { activeSheet = .settings } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color(hex: "6b7280"))
+                    .frame(width: 28, height: 28)
+                    .background(Color(hex: "f3f4f6"))
+                    .cornerRadius(5)
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color(hex: "e5e7eb"), lineWidth: 1))
+            }.buttonStyle(.plain)
+
             Button("Sign Out") {
                 Task {
                     if manager.isTracking { await manager.punchOut() }

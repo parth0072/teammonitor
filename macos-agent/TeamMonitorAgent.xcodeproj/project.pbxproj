@@ -34,6 +34,7 @@
 		AA000029 /* Views/TrackingDashboardView+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000029 /* Views/TrackingDashboardView+Header.swift */; };
 		AA000030 /* Views/TrackingDashboardView+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000030 /* Views/TrackingDashboardView+Actions.swift */; };
 		AA000031 /* Views/TrackingDashboardView+Tabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000031 /* Views/TrackingDashboardView+Tabs.swift */; };
+		AA000032 /* Views/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* Views/SettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -64,6 +65,7 @@
 		AB000029 /* Views/TrackingDashboardView+Header.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Header.swift"; sourceTree = "<group>"; };
 		AB000030 /* Views/TrackingDashboardView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Actions.swift"; sourceTree = "<group>"; };
 		AB000031 /* Views/TrackingDashboardView+Tabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Tabs.swift"; sourceTree = "<group>"; };
+		AB000032 /* Views/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
 		AB000099 /* TeamMonitorAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeamMonitorAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -148,6 +150,7 @@
 				AB000024 /* Views/NewTaskView.swift */,
 				AB000025 /* Views/IdleAlertView.swift */,
 				AB000026 /* Views/BreakReminderView.swift */,
+				AB000032 /* Views/SettingsView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -247,6 +250,7 @@
 				AA000029 /* Views/TrackingDashboardView+Header.swift in Sources */,
 				AA000030 /* Views/TrackingDashboardView+Actions.swift in Sources */,
 				AA000031 /* Views/TrackingDashboardView+Tabs.swift in Sources */,
+				AA000032 /* Views/SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

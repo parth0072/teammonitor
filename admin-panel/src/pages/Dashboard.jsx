@@ -390,31 +390,40 @@ export default function Dashboard() {
   const autoRef = useRef(null);
 
   const load = useCallback(async () => {
-    try {
-      const [sess, stats, ss, emps, apps] = await Promise.all([
-        api.getSessions(today),
-        api.getSessionStats(7),
-        api.getScreenshots(today),
-        api.getEmployees(),
-        api.getActivitySummary(today).catch(() => []),
-      ]);
+    const [sess, stats, ss, emps, apps] = await Promise.all([
+      api.getSessions(today).catch(() => []),
+      api.getSessionStats(7).catch(() => []),
+      api.getScreenshots(today).catch(() => []),
+      api.getEmployees().catch(() => []),
+      api.getActivitySummary(today).catch(() => []),
+    ]);
 
-      setSessions(sess);
-      setScreenshots(ss);
-      setEmployees(emps);
-      setChartData(stats.map(r => ({
-        day:   format(new Date(r.date + "T00:00:00"), "EEE"),
-        hours: +(r.total_minutes / 60).toFixed(1),
-      })));
+    setSessions(sess);
+    setScreenshots(ss);
+    setEmployees(emps);
 
-      // Normalise app summary — different backends use different field names
-      const appList = Array.isArray(apps) ? apps : (apps?.apps || apps?.data || []);
-      const sorted  = [...appList].sort((a, b) =>
-        (b.total_seconds || b.duration_seconds || 0) - (a.total_seconds || a.duration_seconds || 0)
-      );
-      setTopApps(sorted);
-      setLastRefresh(new Date());
-    } catch (e) { console.error(e); }
+    // Build a full 7-day series so the chart always shows all days
+    const statsByDate = Object.fromEntries((stats || []).map(r => [r.date, r]));
+    const last7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const dateStr = d.toISOString().slice(0, 10);
+      const row     = statsByDate[dateStr];
+      return {
+        date:  dateStr,
+        day:   format(new Date(dateStr + "T00:00:00"), "EEE"),
+        hours: +(((row?.total_minutes || 0)) / 60).toFixed(1),
+      };
+    });
+    setChartData(last7);
+
+    // Normalise app summary — different backends use different field names
+    const appList = Array.isArray(apps) ? apps : (apps?.apps || apps?.data || []);
+    const sorted  = [...appList].sort((a, b) =>
+      (b.total_seconds || b.duration_seconds || 0) - (a.total_seconds || a.duration_seconds || 0)
+    );
+    setTopApps(sorted);
+    setLastRefresh(new Date());
     setLoading(false);
   }, [today]);
 

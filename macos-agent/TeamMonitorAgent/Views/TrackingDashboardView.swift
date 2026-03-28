@@ -16,7 +16,7 @@ struct TrackingDashboardView: View {
     @State var liveMinutes: Int = 0
 
     enum Sheet: Identifiable {
-        case idleAlert, manualEntry, reports, breakReminder, newTask, taskPicker
+        case idleAlert, manualEntry, reports, breakReminder, newTask, taskPicker, settings
         var id: Self { self }
     }
     @State var activeSheet: Sheet? = nil
@@ -31,9 +31,6 @@ struct TrackingDashboardView: View {
 
     @State var toast:          ToastMessage? = nil
     @State var toastTimer:     Timer?        = nil
-
-    @State var notTrackingTimer:  Timer? = nil
-    @State var showStartReminder: Bool   = false
 
     @AppStorage("breakIntervalMinutes") var breakIntervalMinutes: Int = 60
     @State var breakTimer: Timer? = nil
@@ -93,6 +90,8 @@ struct TrackingDashboardView: View {
                     activeSheet = nil
                     Task { await manager.punchIn(task: task) }
                 })
+            case .settings:
+                SettingsView()
             }
         }
         .onChange(of: manager.showIdleAlert) { showing in
@@ -112,18 +111,12 @@ struct TrackingDashboardView: View {
         .onAppear {
             liveMinutes = manager.trackedMinutes
             loadTasks()
-            requestNotificationPermission()
-            if !manager.isTracking { scheduleNotTrackingReminder() }
         }
-        .onDisappear { cancelNotTrackingReminder() }
         .onChange(of: manager.isTracking) { tracking in
             if tracking {
-                cancelNotTrackingReminder()
-                showStartReminder = false
                 scheduleBreakReminder()
             } else {
                 cancelBreakTimer()
-                scheduleNotTrackingReminder()
             }
         }
         .onChange(of: manager.isIdle) { idle in

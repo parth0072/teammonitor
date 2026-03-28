@@ -165,7 +165,12 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
     const [rows] = await db.query(
-      `SELECT date, SUM(total_minutes) AS total_minutes, COUNT(*) AS session_count
+      `SELECT date,
+        SUM(CASE WHEN status='active'
+              THEN TIMESTAMPDIFF(MINUTE, punch_in, NOW())
+              ELSE COALESCE(total_minutes, 0)
+            END) AS total_minutes,
+        COUNT(*) AS session_count
        FROM sessions
        WHERE date >= ?
        GROUP BY date ORDER BY date ASC`,
