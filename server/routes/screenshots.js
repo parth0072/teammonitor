@@ -7,6 +7,10 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { adminOnly } = require('../middleware/auth');
 
+// Try to load sharp for image optimization (optional – falls back gracefully)
+let sharp;
+try { sharp = require('sharp'); } catch (_) { sharp = null; }
+
 // Store files in uploads/<employeeId>/<date>/
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -35,9 +39,22 @@ router.post('/', auth, upload.single('screenshot'), async (req, res) => {
   const now  = new Date();
   const date = now.toISOString().slice(0, 10);
 
-  // Build public URL path
+  // Optimize image with sharp if available (resize to max 1280px, 80% JPEG quality)
+  if (sharp) {
+    try {
+      const buf = await sharp(req.file.path)
+        .resize(1280, null, { withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+      fs.writeFileSync(req.file.path, buf);
+    } catch (_) { /* optimization failed – keep original */ }
+  }
+
+  // Build URL: use BASE_URL env var if set, otherwise use relative /teammonitor path
   const relativePath = `/uploads/${req.user.id}/${date}/${req.file.filename}`;
-  const fileUrl = `${process.env.BASE_URL}${relativePath}`;
+  const fileUrl = process.env.BASE_URL
+    ? `${process.env.BASE_URL}${relativePath}`
+    : `/teammonitor${relativePath}`;
 
   try {
     const [result] = await db.query(

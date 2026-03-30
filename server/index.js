@@ -51,8 +51,38 @@ if (fs.existsSync(PUBLIC_DIR)) {
 app.use('/teammonitor', router);
 app.use('/', router);
 
+// ── 30-day screenshot cleanup ─────────────────────────────────────────────────
+async function cleanupOldScreenshots() {
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const [rows] = await db.query(
+      'SELECT id, file_path FROM screenshots WHERE captured_at < ?',
+      [cutoff]
+    );
+    if (!rows.length) return;
+    for (const row of rows) {
+      // Extract the /uploads/... portion of the URL and map to disk path
+      const match = (row.file_path || '').match(/\/uploads\/(.+)$/);
+      if (match) {
+        const diskPath = path.join(__dirname, 'uploads', match[1]);
+        try { if (fs.existsSync(diskPath)) fs.unlinkSync(diskPath); } catch (_) {}
+      }
+    }
+    const ids = rows.map(r => r.id);
+    await db.query(`DELETE FROM screenshots WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
+    console.log(`[cleanup] Deleted ${ids.length} screenshots older than 30 days`);
+  } catch (err) {
+    console.error('[cleanup] Screenshot cleanup error:', err.message);
+  }
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`TeamMonitor server running on port ${PORT}`);
   console.log(`Health: http://localhost:${PORT}/teammonitor/api/health`);
+
+  // Run cleanup once on startup, then every 24 hours
+  cleanupOldScreenshots();
+  setInterval(cleanupOldScreenshots, 24 * 60 * 60 * 1000);
 });
