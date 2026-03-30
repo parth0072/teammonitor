@@ -1,11 +1,9 @@
 // api.js – central API client
-// VITE_API_URL  overrides everything (set in .env file at build time)
-// Local dev      → http://localhost:3001/api
-// Production     → relative path, e.g. /teammonitor/api  (set VITE_BASE_PATH at build time)
-const BASE = import.meta.env.VITE_API_URL ||
-  (window.location.hostname === 'localhost'
-    ? 'http://localhost:3001/api'
-    : `${import.meta.env.VITE_BASE_PATH || ''}/api`);
+// Local dev  → http://localhost:3001/api
+// Production → /teammonitor/api  (derived from window.location at runtime)
+const BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:3001/api'
+  : '/teammonitor/api';
 
 function getToken() {
   return sessionStorage.getItem('tm_token');
