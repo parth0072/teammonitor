@@ -402,20 +402,11 @@ export default function Dashboard() {
     setScreenshots(ss);
     setEmployees(emps);
 
-    // Build a full 7-day series so the chart always shows all days
-    const statsByDate = Object.fromEntries((stats || []).map(r => [r.date, r]));
-    const last7 = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      const dateStr = d.toISOString().slice(0, 10);
-      const row     = statsByDate[dateStr];
-      return {
-        date:  dateStr,
-        day:   format(new Date(dateStr + "T00:00:00"), "EEE"),
-        hours: +(((row?.total_minutes || 0)) / 60).toFixed(1),
-      };
-    });
-    setChartData(last7);
+    setChartData((stats || []).map(r => ({
+      date:  r.date,
+      day:   format(new Date(r.date + "T00:00:00"), "EEE"),
+      hours: +(r.total_minutes / 60).toFixed(1),
+    })));
 
     // Normalise app summary — different backends use different field names
     const appList = Array.isArray(apps) ? apps : (apps?.apps || apps?.data || []);
@@ -512,37 +503,11 @@ export default function Dashboard() {
               Total: {fmtHMdec(chartData.reduce((a, d) => a + d.hours * 60, 0))}
             </div>
           </div>
-          {chartData.every(d => d.hours === 0) ? (
-            <div style={{
-              height: 170, display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 8,
-            }}>
-              {/* Day labels so the chart feels grounded even with no data */}
-              <div style={{ display: "flex", gap: 0, width: "100%", justifyContent: "space-around", marginBottom: 8 }}>
-                {chartData.map(d => (
-                  <div key={d.date} style={{
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-                  }}>
-                    <div style={{
-                      width: 28, height: 60, borderRadius: 6,
-                      background: d.day === todayLabel ? "#DBEAFE" : "#F1F5F9",
-                      border: d.day === todayLabel ? `1px dashed ${C.blue}` : "none",
-                    }} />
-                    <span style={{ fontSize: 11, color: C.muted, fontWeight: d.day === todayLabel ? 600 : 400 }}>
-                      {d.day}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, color: C.muted }}>No hours tracked yet this week</div>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={170}>
+          <ResponsiveContainer width="100%" height={170}>
               <BarChart data={chartData} barSize={28}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                 <XAxis dataKey="day" tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32}
-                       domain={[0, dataMax => Math.max(dataMax, 4)]} />
+                <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32} />
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F1F5F9", radius: 6 }} />
                 <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
                   {chartData.map((entry, i) => (
@@ -551,7 +516,6 @@ export default function Dashboard() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          )}
         </div>
 
         {/* Team split */}
