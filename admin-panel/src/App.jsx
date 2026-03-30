@@ -24,7 +24,7 @@ const S = {
   navLinkActive: { color: "#fff", background: "#334155", borderRadius: 8, margin: "0 8px" },
   footer: { padding: "16px 20px", borderTop: "1px solid #334155" },
   logoutBtn: { background: "none", border: "1px solid #475569", color: "#94a3b8", padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, width: "100%", display: "flex", alignItems: "center", gap: 8 },
-  main: { marginLeft: 220, padding: 32, minHeight: "100vh" },
+  main: { marginLeft: 220, padding: 32, minHeight: "100vh", flex: 1, minWidth: 0 },
 };
 
 const NAV_ITEMS = [
