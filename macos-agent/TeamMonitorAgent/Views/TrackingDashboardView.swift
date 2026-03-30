@@ -16,7 +16,7 @@ struct TrackingDashboardView: View {
     @State var liveMinutes: Int = 0
 
     enum Sheet: Identifiable {
-        case idleAlert, manualEntry, reports, breakReminder, newTask, taskPicker, settings
+        case idleAlert, manualEntry, reports, breakReminder, newTask, taskPicker, settings, notTrackingAlert
         var id: Self { self }
     }
     @State var activeSheet: Sheet? = nil
@@ -92,11 +92,25 @@ struct TrackingDashboardView: View {
                 })
             case .settings:
                 SettingsView()
+            case .notTrackingAlert:
+                NotTrackingAlertView(manager: manager, onStart: {
+                    manager.showNotTrackingAlert = false
+                    activeSheet = nil
+                    if myTasks.isEmpty {
+                        Task { await manager.punchIn() }
+                    } else {
+                        activeSheet = .taskPicker
+                    }
+                })
             }
         }
         .onChange(of: manager.showIdleAlert) { showing in
             if showing { activeSheet = .idleAlert }
             else if activeSheet == .idleAlert { activeSheet = nil }
+        }
+        .onChange(of: manager.showNotTrackingAlert) { showing in
+            if showing { activeSheet = .notTrackingAlert }
+            else if activeSheet == .notTrackingAlert { activeSheet = nil }
         }
         .onReceive(liveClock) { _ in
             guard manager.isTracking, !manager.isOnBreak else {

@@ -1,5 +1,6 @@
 // TrackingManager.swift – coordinates all tracking services, uses APIService (no Firebase)
 
+import AppKit
 import Foundation
 import Combine
 import UserNotifications
@@ -54,8 +55,17 @@ class TrackingManager: ObservableObject {
     // Offline state (banner only — no queuing)
     @Published var isOffline:           Bool     = false
 
-    // Not-tracking reminder banner
+    // Not-tracking reminder banner + alert
     @Published var showStartReminder:   Bool     = false
+    @Published var showNotTrackingAlert: Bool    = false
+
+    // When tracking stopped (used to display "X minutes ago" in the alert)
+    private(set) var stoppedTrackingAt: Date?    = nil
+
+    var minutesNotTracking: Int {
+        guard let stopped = stoppedTrackingAt else { return 0 }
+        return Int(Date().timeIntervalSince(stopped)) / 60
+    }
 
     // MARK: - Private
 
@@ -112,7 +122,10 @@ class TrackingManager: ObservableObject {
         restoreSessionIfNeeded()
 
         // Start the not-tracking reminder if we launched without an active session
-        if !isTracking { scheduleNotTrackingReminder() }
+        if !isTracking {
+            stoppedTrackingAt = Date()
+            scheduleNotTrackingReminder()
+        }
     }
 
     // MARK: - Screen-Recording Permission
@@ -164,8 +177,17 @@ class TrackingManager: ObservableObject {
             guard let self else { return }
             Task { @MainActor in
                 guard !self.isTracking else { self.cancelNotTrackingReminder(); return }
-                self.showStartReminder = true
-                self.sendNotification("⏱ Timer is not running — tap Start to begin tracking", isWarning: true)
+                self.showStartReminder    = true
+                self.showNotTrackingAlert = true
+
+                // Bring the app window to the front so the alert is visible
+                NSApp.windows.first(where: { $0.title == "TeamMonitor" })?.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+
+                self.sendNotification(
+                    "⏱ Timer is not running — you've been untracked for \(self.minutesNotTracking) min",
+                    isWarning: true
+                )
             }
         }
         RunLoop.main.add(t, forMode: .common)
@@ -201,7 +223,9 @@ class TrackingManager: ObservableObject {
 
     func punchIn(task: TaskItem? = nil) async {
         cancelNotTrackingReminder()
-        showStartReminder = false
+        showStartReminder    = false
+        showNotTrackingAlert = false
+        stoppedTrackingAt    = nil
         guard !isTracking else { return }
         guard network.isOnline else {
             statusMessage = "No internet connection. Connect and try again."
@@ -244,7 +268,8 @@ class TrackingManager: ObservableObject {
         } catch {
             // ignore – session will be auto-closed server-side on next heartbeat timeout
         }
-        statusMessage = "Session ended. Have a great day!"
+        statusMessage     = "Session ended. Have a great day!"
+        stoppedTrackingAt = Date()
         scheduleNotTrackingReminder()
 
         clearSessionState()
