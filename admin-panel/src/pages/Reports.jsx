@@ -150,15 +150,17 @@ export default function Reports() {
                 const maxH = Math.max(...weekStats.map(w => w.hours), 0.1);
                 return (
                   <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:160, paddingTop:8 }}>
-                    {weekStats.map((d, i) => (
+                    {weekStats.map((d, i) => {
+                      const barPx = d.hours > 0 ? Math.max((d.hours / maxH) * 110, 6) : 4;
+                      return (
                       <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                         {d.hours > 0 && <div style={{ fontSize:10, color:"#64748b" }}>{d.hours}h</div>}
                         <div style={{ width:"100%", background: d.hours > 0 ? "#3b82f6" : "#e2e8f0",
-                          height: d.hours > 0 ? `${Math.max((d.hours/maxH)*100, 4)}%` : 8,
-                          borderRadius:"4px 4px 0 0", transition:"height 0.4s ease" }} />
+                          height: barPx, borderRadius:"4px 4px 0 0", transition:"height 0.4s ease" }} />
                         <div style={{ fontSize:10, color:"#94a3b8", textAlign:"center", lineHeight:1.3 }}>{d.day}</div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 );
               })()

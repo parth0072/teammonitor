@@ -403,7 +403,7 @@ export default function Dashboard() {
     setEmployees(emps);
 
     // Build a full 7-day series so the chart always shows all days
-    const statsByDate = Object.fromEntries((stats || []).map(r => [r.date, r]));
+    const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
     const last7 = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (6 - i));
