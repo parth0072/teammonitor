@@ -218,7 +218,7 @@ class TrackingManager: ObservableObject {
         let c = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                guard !self.isTracking else { return }
+                guard !self.isTracking || self.isOnBreak else { return }
                 if self.secondsUntilNextReminder > 0 {
                     self.secondsUntilNextReminder -= 1
                 }
