@@ -79,7 +79,7 @@ export default function Reports() {
       setSessions(empId ? sess.filter(s => String(s.employee_id) === empId) : sess);
       setAppSummary(apps);
       setActivity(act);
-      setWeekStats(stats.map(r => ({ day: format(new Date(r.date+"T00:00:00"), "EEE M/d"), hours: +(r.total_minutes/60).toFixed(1) })));
+      setWeekStats(stats.map(r => ({ day: format(new Date(r.date.slice(0,10)+"T00:00:00"), "EEE M/d"), hours: +(r.total_minutes/60).toFixed(1) })));
     } catch(e) { console.error(e); }
     setLoading(false);
   }
@@ -144,15 +144,25 @@ export default function Reports() {
       <div style={S.row2}>
         <div style={S.card}>
           <div style={S.cardTitle}>Hours Tracked — Last 7 Days</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weekStats}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="day" tick={{ fontSize:11 }} />
-              <YAxis tick={{ fontSize:11 }} />
-              <Tooltip formatter={v => `${v}h`} />
-              <Bar dataKey="hours" fill="#3b82f6" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {weekStats.length === 0
+            ? <div style={{ color:"#94a3b8", fontSize:14, paddingTop:60, textAlign:"center" }}>No data for this period.</div>
+            : (() => {
+                const maxH = Math.max(...weekStats.map(w => w.hours), 0.1);
+                return (
+                  <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:160, paddingTop:8 }}>
+                    {weekStats.map((d, i) => (
+                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                        {d.hours > 0 && <div style={{ fontSize:10, color:"#64748b" }}>{d.hours}h</div>}
+                        <div style={{ width:"100%", background: d.hours > 0 ? "#3b82f6" : "#e2e8f0",
+                          height: d.hours > 0 ? `${Math.max((d.hours/maxH)*100, 4)}%` : 8,
+                          borderRadius:"4px 4px 0 0", transition:"height 0.4s ease" }} />
+                        <div style={{ fontSize:10, color:"#94a3b8", textAlign:"center", lineHeight:1.3 }}>{d.day}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
+          }
         </div>
 
         <div style={S.card}>
