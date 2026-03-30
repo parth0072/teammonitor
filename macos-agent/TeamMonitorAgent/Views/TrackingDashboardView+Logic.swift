@@ -63,6 +63,11 @@ extension TrackingDashboardView {
 
     // MARK: – Computed helpers
 
+    var reminderCountdownText: String {
+        let s = manager.secondsUntilNextReminder
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
     var timerStatusText: String {
         if !manager.isTracking { return "Inactive" }
         if manager.isIdle      { return "Idle" }

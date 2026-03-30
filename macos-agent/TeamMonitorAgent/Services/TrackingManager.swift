@@ -56,8 +56,11 @@ class TrackingManager: ObservableObject {
     @Published var isOffline:           Bool     = false
 
     // Not-tracking reminder banner + alert
-    @Published var showStartReminder:   Bool     = false
+    @Published var showStartReminder:    Bool    = false
     @Published var showNotTrackingAlert: Bool    = false
+
+    // Countdown to next not-tracking notification (seconds, counts down from 300)
+    @Published var secondsUntilNextReminder: Int = 5 * 60
 
     // When tracking stopped (used to display "X minutes ago" in the alert)
     private(set) var stoppedTrackingAt: Date?    = nil
@@ -78,6 +81,7 @@ class TrackingManager: ObservableObject {
     private var sessionTimer:         Timer?
     private var resumeTimer:          Timer?
     private var notTrackingTimer:     Timer?
+    private var countdownTimer:       Timer?
     var lastResumeTime:  Date?   // internal – read by view for live display
     private var pendingIdleStart: Date?
     private var cancellables = Set<AnyCancellable>()
@@ -147,25 +151,16 @@ class TrackingManager: ObservableObject {
     /// Uses .default sound only — .defaultCritical requires a special entitlement
     /// that unsigned dev builds don't have, causing silent rejection.
     func sendNotification(_ text: String, isWarning: Bool) {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            guard settings.authorizationStatus == .authorized ||
-                  settings.authorizationStatus == .provisional else {
-                print("[Notifications] Not authorized (\(settings.authorizationStatus.rawValue)) — requesting…")
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, err in
-                    if granted { self.sendNotification(text, isWarning: isWarning) }
-                    else { print("[Notifications] Permission denied: \(err?.localizedDescription ?? "unknown")") }
-                }
-                return
-            }
-            let content   = UNMutableNotificationContent()
-            content.title = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
-            content.body  = text
-            content.sound = .default   // .defaultCritical requires entitlement — don't use it
-            let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-            UNUserNotificationCenter.current().add(req) { err in
-                if let err { print("[Notifications] Delivery failed: \(err)") }
-                else { print("[Notifications] Sent: \(text)") }
-            }
+        // Permission is requested at launch (AppDelegate). Just send — macOS drops it
+        // silently if denied, no need for a secondary gate here.
+        let content   = UNMutableNotificationContent()
+        content.title = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
+        content.body  = text
+        content.sound = .default
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req) { err in
+            if let err { print("[Notifications] Delivery failed: \(err)") }
+            else       { print("[Notifications] Sent: \(text)") }
         }
     }
 
@@ -173,15 +168,27 @@ class TrackingManager: ObservableObject {
     /// Lives in TrackingManager (not the view) so it survives window close.
     func scheduleNotTrackingReminder() {
         cancelNotTrackingReminder()
+
+        // Reset + start the 1-second countdown
+        secondsUntilNextReminder = 5 * 60
+        startCountdownTimer()
+
+        // 5-minute repeating reminder
         let t = Timer(timeInterval: 5 * 60, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 guard !self.isTracking else { self.cancelNotTrackingReminder(); return }
+
+                // Reset countdown for the next interval
+                self.secondsUntilNextReminder = 5 * 60
+
                 self.showStartReminder    = true
                 self.showNotTrackingAlert = true
 
-                // Bring the app window to the front so the alert is visible
-                NSApp.windows.first(where: { $0.title == "TeamMonitor" })?.makeKeyAndOrderFront(nil)
+                // Bring the main app window to front (skip status-bar/panel windows)
+                if let win = NSApp.windows.first(where: { $0.canBecomeMain && $0.canBecomeKey }) {
+                    win.makeKeyAndOrderFront(nil)
+                }
                 NSApp.activate(ignoringOtherApps: true)
 
                 self.sendNotification(
@@ -198,6 +205,24 @@ class TrackingManager: ObservableObject {
     func cancelNotTrackingReminder() {
         notTrackingTimer?.invalidate()
         notTrackingTimer = nil
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        secondsUntilNextReminder = 5 * 60
+    }
+
+    private func startCountdownTimer() {
+        countdownTimer?.invalidate()
+        let c = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                guard !self.isTracking else { return }
+                if self.secondsUntilNextReminder > 0 {
+                    self.secondsUntilNextReminder -= 1
+                }
+            }
+        }
+        RunLoop.main.add(c, forMode: .common)
+        countdownTimer = c
     }
 
     /// Uploads screenshot data, increments the counter, and confirms screen
@@ -223,9 +248,10 @@ class TrackingManager: ObservableObject {
 
     func punchIn(task: TaskItem? = nil) async {
         cancelNotTrackingReminder()
-        showStartReminder    = false
-        showNotTrackingAlert = false
-        stoppedTrackingAt    = nil
+        showStartReminder        = false
+        showNotTrackingAlert     = false
+        stoppedTrackingAt        = nil
+        secondsUntilNextReminder = 5 * 60
         guard !isTracking else { return }
         guard network.isOnline else {
             statusMessage = "No internet connection. Connect and try again."

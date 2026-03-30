@@ -82,12 +82,21 @@ extension TrackingDashboardView {
             .frame(maxWidth: .infinity)
             Divider().frame(height: 42)
             VStack(spacing: 3) {
-                Text(timerStatusText)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(timerStatusColor)
-                Text("Timer status")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "9ca3af"))
+                if !manager.isTracking {
+                    Text(reminderCountdownText)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Color(hex: "f59e0b"))
+                    Text("next reminder in")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "9ca3af"))
+                } else {
+                    Text(timerStatusText)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(timerStatusColor)
+                    Text("Timer status")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "9ca3af"))
+                }
             }
             .frame(maxWidth: .infinity)
         }
