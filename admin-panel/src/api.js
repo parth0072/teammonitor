@@ -8,7 +8,7 @@ const BASE = import.meta.env.VITE_API_URL ||
     : `${import.meta.env.VITE_BASE_PATH || ''}/api`);
 
 function getToken() {
-  return sessionStorage.getItem('tm_token');
+  return localStorage.getItem('tm_token');
 }
 
 async function request(method, path, body, isForm = false) {
@@ -82,6 +82,6 @@ export const api = {
   getEmployeeStats: (empId, days) => request('GET', `/sessions/stats/employee?employeeId=${empId}&days=${days}`),
 };
 
-export function saveToken(token) { sessionStorage.setItem('tm_token', token); }
-export function clearToken()     { sessionStorage.removeItem('tm_token'); }
+export function saveToken(token) { localStorage.setItem('tm_token', token); }
+export function clearToken()     { localStorage.removeItem('tm_token'); }
 export function hasToken()       { return !!getToken(); }

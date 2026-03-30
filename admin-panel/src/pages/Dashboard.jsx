@@ -516,7 +516,8 @@ export default function Dashboard() {
             <BarChart data={chartData} barSize={28}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
               <XAxis dataKey="day" tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32} />
+              <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32}
+                     domain={[0, dataMax => Math.max(dataMax, 4)]} />
               <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F1F5F9", radius: 6 }} />
               <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
                 {chartData.map((entry, i) => (
