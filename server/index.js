@@ -51,18 +51,18 @@ if (fs.existsSync(PUBLIC_DIR)) {
 app.use('/teammonitor', router);
 app.use('/', router);
 
-// ── 30-day screenshot cleanup ─────────────────────────────────────────────────
+// ── 90-day screenshot cleanup (files + DB records only) ──────────────────────
 async function cleanupOldScreenshots() {
   try {
     const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
+    cutoff.setDate(cutoff.getDate() - 90);
     const [rows] = await db.query(
       'SELECT id, file_path FROM screenshots WHERE captured_at < ?',
       [cutoff]
     );
     if (!rows.length) return;
     for (const row of rows) {
-      // Extract the /uploads/... portion of the URL and map to disk path
+      // Delete the physical image file only — no other data touched
       const match = (row.file_path || '').match(/\/uploads\/(.+)$/);
       if (match) {
         const diskPath = path.join(__dirname, 'uploads', match[1]);
@@ -71,7 +71,7 @@ async function cleanupOldScreenshots() {
     }
     const ids = rows.map(r => r.id);
     await db.query(`DELETE FROM screenshots WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
-    console.log(`[cleanup] Deleted ${ids.length} screenshots older than 30 days`);
+    console.log(`[cleanup] Deleted ${ids.length} screenshot files older than 90 days`);
   } catch (err) {
     console.error('[cleanup] Screenshot cleanup error:', err.message);
   }
