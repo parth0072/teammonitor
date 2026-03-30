@@ -512,20 +512,46 @@ export default function Dashboard() {
               Total: {fmtHMdec(chartData.reduce((a, d) => a + d.hours * 60, 0))}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={170}>
-            <BarChart data={chartData} barSize={28}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32}
-                     domain={[0, dataMax => Math.max(dataMax, 4)]} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F1F5F9", radius: 6 }} />
-              <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={entry.day === todayLabel ? C.blue : "#BFDBFE"} />
+          {chartData.every(d => d.hours === 0) ? (
+            <div style={{
+              height: 170, display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              {/* Day labels so the chart feels grounded even with no data */}
+              <div style={{ display: "flex", gap: 0, width: "100%", justifyContent: "space-around", marginBottom: 8 }}>
+                {chartData.map(d => (
+                  <div key={d.date} style={{
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+                  }}>
+                    <div style={{
+                      width: 28, height: 60, borderRadius: 6,
+                      background: d.day === todayLabel ? "#DBEAFE" : "#F1F5F9",
+                      border: d.day === todayLabel ? `1px dashed ${C.blue}` : "none",
+                    }} />
+                    <span style={{ fontSize: 11, color: C.muted, fontWeight: d.day === todayLabel ? 600 : 400 }}>
+                      {d.day}
+                    </span>
+                  </div>
                 ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              </div>
+              <div style={{ fontSize: 12, color: C.muted }}>No hours tracked yet this week</div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={170}>
+              <BarChart data={chartData} barSize={28}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32}
+                       domain={[0, dataMax => Math.max(dataMax, 4)]} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F1F5F9", radius: 6 }} />
+                <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
+                  {chartData.map((entry, i) => (
+                    <Cell key={i} fill={entry.day === todayLabel ? C.blue : "#BFDBFE"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Team split */}
