@@ -136,9 +136,9 @@ if (USE_MYSQL) {
     Database = require('better-sqlite3');
   } catch (e) {
     console.error('');
-    console.error('ERROR: better-sqlite3 is not available and no DB_HOST is set.');
-    console.error('On cPanel/production: add DB_HOST, DB_NAME, DB_USER, DB_PASS to your .env file.');
-    console.error('On local dev:         run  npm install  (better-sqlite3 builds from source).');
+    console.error('ERROR: better-sqlite3 not installed and no DB_HOST set.');
+    console.error('For local dev: run  npm install  in the server folder.');
+    console.error('For cPanel:    create a .env file with DB_HOST, DB_NAME, DB_USER, DB_PASS');
     console.error('');
     process.exit(1);
   }

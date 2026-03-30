@@ -402,11 +402,20 @@ export default function Dashboard() {
     setScreenshots(ss);
     setEmployees(emps);
 
-    setChartData((stats || []).map(r => ({
-      date:  r.date,
-      day:   format(new Date(r.date + "T00:00:00"), "EEE"),
-      hours: +(r.total_minutes / 60).toFixed(1),
-    })));
+    // Build a full 7-day series so the chart always shows all days
+    const statsByDate = Object.fromEntries((stats || []).map(r => [r.date, r]));
+    const last7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const dateStr = d.toISOString().slice(0, 10);
+      const row     = statsByDate[dateStr];
+      return {
+        date:  dateStr,
+        day:   format(new Date(dateStr + "T00:00:00"), "EEE"),
+        hours: +(((row?.total_minutes || 0)) / 60).toFixed(1),
+      };
+    });
+    setChartData(last7);
 
     // Normalise app summary — different backends use different field names
     const appList = Array.isArray(apps) ? apps : (apps?.apps || apps?.data || []);
@@ -504,18 +513,18 @@ export default function Dashboard() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={170}>
-              <BarChart data={chartData} barSize={28}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F1F5F9", radius: 6 }} />
-                <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
-                  {chartData.map((entry, i) => (
-                    <Cell key={i} fill={entry.day === todayLabel ? C.blue : "#BFDBFE"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <BarChart data={chartData} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F1F5F9", radius: 6 }} />
+              <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={entry.day === todayLabel ? C.blue : "#BFDBFE"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Team split */}
