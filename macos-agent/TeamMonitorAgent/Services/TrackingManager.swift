@@ -177,7 +177,10 @@ class TrackingManager: ObservableObject {
         let t = Timer(timeInterval: 5 * 60, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                guard !self.isTracking else { self.cancelNotTrackingReminder(); return }
+                // Cancel if tracking is active and not on break
+                guard !self.isTracking || self.isOnBreak else {
+                    self.cancelNotTrackingReminder(); return
+                }
 
                 // Reset countdown for the next interval
                 self.secondsUntilNextReminder = 5 * 60
@@ -191,10 +194,10 @@ class TrackingManager: ObservableObject {
                 }
                 NSApp.activate(ignoringOtherApps: true)
 
-                self.sendNotification(
-                    "⏱ Timer is not running — you've been untracked for \(self.minutesNotTracking) min",
-                    isWarning: true
-                )
+                let msg = self.isOnBreak
+                    ? "⏸ Still on break — tap Resume to continue tracking"
+                    : "⏱ Timer is not running — you've been untracked for \(self.minutesNotTracking) min"
+                self.sendNotification(msg, isWarning: true)
             }
         }
         RunLoop.main.add(t, forMode: .common)
@@ -319,9 +322,11 @@ class TrackingManager: ObservableObject {
         screenshots.stop()
         idleDetector.stop()
 
-        isOnBreak     = true
-        statusMessage = "On break"
+        isOnBreak         = true
+        stoppedTrackingAt = Date()
+        statusMessage     = "On break"
         saveSessionState()
+        scheduleNotTrackingReminder()
 
         // Sync current time to server
         if let sessionId = currentSessionId {
@@ -333,6 +338,7 @@ class TrackingManager: ObservableObject {
     func resumeFromBreak() {
         guard isTracking, isOnBreak, let sessionId = currentSessionId else { return }
 
+        cancelNotTrackingReminder()
         isOnBreak      = false
         lastResumeTime = Date()
         statusMessage  = "Tracking active"

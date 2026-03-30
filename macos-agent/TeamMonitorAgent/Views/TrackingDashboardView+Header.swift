@@ -82,7 +82,7 @@ extension TrackingDashboardView {
             .frame(maxWidth: .infinity)
             Divider().frame(height: 42)
             VStack(spacing: 3) {
-                if !manager.isTracking {
+                if !manager.isTracking || manager.isOnBreak {
                     Text(reminderCountdownText)
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(Color(hex: "f59e0b"))
