@@ -12,6 +12,8 @@ import Activity from "./pages/Activity";
 import Reports from "./pages/Reports";
 import Projects from "./pages/Projects";
 import Timelines from "./pages/Timelines";
+import Leaves from "./pages/Leaves";
+import Productivity from "./pages/Productivity";
 
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -28,14 +30,16 @@ const S = {
 };
 
 const NAV_ITEMS = [
-  { path: "/dashboard",  label: "Dashboard",    icon: "▦"  },
-  { path: "/activity",   label: "Live Activity", icon: "🟢" },
-  { path: "/projects",   label: "Projects",     icon: "📁" },
-  { path: "/reports",    label: "Reports",      icon: "📊" },
-  { path: "/employees",  label: "Employees",    icon: "👥" },
-  { path: "/screenshots",label: "Screenshots",  icon: "🖼" },
-  { path: "/attendance", label: "Attendance",   icon: "📅" },
-  { path: "/timelines",  label: "Timelines",    icon: "⏱" },
+  { path: "/dashboard",   label: "Dashboard",    icon: "▦"  },
+  { path: "/activity",    label: "Live Activity", icon: "🟢" },
+  { path: "/productivity",label: "Productivity", icon: "📈" },
+  { path: "/projects",    label: "Projects",     icon: "📁" },
+  { path: "/reports",     label: "Reports",      icon: "📊" },
+  { path: "/leaves",      label: "Leaves",       icon: "🌿" },
+  { path: "/employees",   label: "Employees",    icon: "👥" },
+  { path: "/screenshots", label: "Screenshots",  icon: "🖼" },
+  { path: "/attendance",  label: "Attendance",   icon: "📅" },
+  { path: "/timelines",   label: "Timelines",    icon: "⏱" },
 ];
 
 function Sidebar() {
@@ -104,6 +108,8 @@ export default function App() {
           <Route path="/reports"      element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/projects"     element={<ProtectedRoute><Projects /></ProtectedRoute>} />
           <Route path="/timelines"    element={<ProtectedRoute><Timelines /></ProtectedRoute>} />
+          <Route path="/leaves"       element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
+          <Route path="/productivity" element={<ProtectedRoute><Productivity /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>

@@ -70,6 +70,25 @@ export const api = {
   getTimeline: (startDate, endDate, empId) =>
     request('GET', `/timeline?startDate=${startDate}&endDate=${endDate}${empId ? `&employeeId=${empId}` : ''}`),
 
+  // Leaves
+  getLeaveTypes:    ()             => request('GET',    '/leaves/types'),
+  createLeaveType:  (data)         => request('POST',   '/leaves/types', data),
+  updateLeaveType:  (id, data)     => request('PUT',    `/leaves/types/${id}`, data),
+  deleteLeaveType:  (id)           => request('DELETE', `/leaves/types/${id}`),
+  getLeaveRequests: (params = {})  => {
+    const q = new URLSearchParams(params).toString();
+    return request('GET', `/leaves/requests${q ? '?'+q : ''}`);
+  },
+  submitLeaveRequest:  (data)      => request('POST', '/leaves/requests', data),
+  approveLeave:  (id, note)        => request('PUT', `/leaves/requests/${id}/approve`, { note }),
+  rejectLeave:   (id, note)        => request('PUT', `/leaves/requests/${id}/reject`,  { note }),
+  cancelLeave:   (id)              => request('PUT', `/leaves/requests/${id}/cancel`),
+  getLeaveBalances: (year)         => request('GET', `/leaves/balances?year=${year}`),
+  setLeaveBalance:  (data)         => request('PUT', '/leaves/balances', data),
+
+  // Productivity
+  getProductivity: (days, empId)   => request('GET', `/productivity?days=${days}${empId ? `&employeeId=${empId}` : ''}`),
+
   // Manual entry (admin)
   createManualEntry: (data) => request('POST', '/sessions/manual/admin', data),
 

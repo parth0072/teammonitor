@@ -8,6 +8,24 @@ const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899","#06
 const fmtDur = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; };
 const fmtHM  = m => { const h=Math.floor(m/60),mn=m%60; return `${h}h ${String(mn).padStart(2,"0")}m`; };
 
+// App categorization
+const PRODUCTIVE_KW = ["code","xcode","visual studio","intellij","pycharm","webstorm","android studio",
+  "sublime","atom","vim","neovim","terminal","iterm","hyper","warp","figma","sketch","adobe","photoshop",
+  "illustrator","affinity","word","excel","powerpoint","pages","numbers","keynote","notion","obsidian",
+  "slack","teams","zoom","meet","webex","mail","outlook","jira","linear","asana","trello","postman",
+  "insomnia","tableplus","sequel","datagrip","dbeaver","docker","github desktop","sourcetree","safari",
+  "chrome","firefox","edge","arc"];
+const UNPRODUCTIVE_KW = ["youtube","netflix","spotify","twitch","hulu","disney","twitter","facebook",
+  "instagram","tiktok","snapchat","reddit","steam","epic games","whatsapp","telegram","signal"];
+function categorize(app="") {
+  const l = app.toLowerCase();
+  if (UNPRODUCTIVE_KW.some(k=>l.includes(k))) return "unproductive";
+  if (PRODUCTIVE_KW.some(k=>l.includes(k)))   return "productive";
+  return "neutral";
+}
+const CAT_COLOR = { productive:"#16a34a", neutral:"#3b82f6", unproductive:"#dc2626" };
+const CAT_BG    = { productive:"#dcfce7", neutral:"#dbeafe", unproductive:"#fee2e2" };
+
 const S = {
   page:       { padding: "0 0 40px" },
   header:     { display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:28 },
@@ -259,17 +277,26 @@ export default function Activity() {
             ? <div style={{ color:"#94a3b8", fontSize:14 }}>No app data yet.</div>
             : (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={appSummary.map(a => ({ name: a.app_name.slice(0,14), secs: a.total_seconds }))} layout="vertical" margin={{ left:0, right:20 }}>
+                <BarChart data={appSummary.map(a => ({ name: a.app_name.slice(0,14), secs: a.total_seconds, cat: categorize(a.app_name) }))} layout="vertical" margin={{ left:0, right:20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
                   <XAxis type="number" tickFormatter={v => fmtDur(v)} tick={{ fontSize:11 }} />
                   <YAxis type="category" dataKey="name" width={100} tick={{ fontSize:12 }} />
                   <Tooltip formatter={v => fmtDur(v)} />
                   <Bar dataKey="secs" radius={[0,4,4,0]}>
-                    {appSummary.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    {appSummary.map((a, i) => <Cell key={i} fill={CAT_COLOR[categorize(a.app_name)]} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
+          {appSummary.length > 0 && (
+            <div style={{ display:"flex", gap:14, marginTop:12, fontSize:11 }}>
+              {[["productive","#16a34a","Productive"],["neutral","#3b82f6","Neutral"],["unproductive","#dc2626","Unproductive"]].map(([k,c,l])=>(
+                <span key={k} style={{ display:"flex", alignItems:"center", gap:4, color:"#64748b" }}>
+                  <span style={{ width:10,height:10,borderRadius:"50%",background:c,display:"inline-block" }} />{l}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Live activity feed */}
@@ -279,12 +306,14 @@ export default function Activity() {
             {activity.length === 0 && <div style={{ color:"#94a3b8", fontSize:14 }}>No activity recorded yet.</div>}
             {activity.slice(0, 20).map(log => {
               const emp = employees.find(e => String(e.id) === String(log.employee_id));
+              const cat = categorize(log.app_name);
               return (
                 <div key={log.id} style={S.actRow}>
-                  <div style={{ ...S.dot, background: COLORS[Math.abs((log.app_name||"").charCodeAt(0) % COLORS.length)] }} />
+                  <div style={{ ...S.dot, background: CAT_COLOR[cat] }} />
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:500, color:"#1e293b" }}>
-                      {emp?.name || "Unknown"} — <span style={{ color:"#3b82f6" }}>{log.app_name}</span>
+                      {emp?.name || "Unknown"} — <span style={{ color: CAT_COLOR[cat] }}>{log.app_name}</span>
+                      <span style={{ marginLeft:6, fontSize:10, fontWeight:700, padding:"1px 6px", borderRadius:8, background: CAT_BG[cat], color: CAT_COLOR[cat] }}>{cat}</span>
                     </div>
                     {log.window_title && <div style={{ fontSize:11, color:"#9ca3af", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{log.window_title}</div>}
                   </div>

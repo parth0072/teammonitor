@@ -119,6 +119,44 @@ if (USE_MYSQL) {
         assigned_to    INT          DEFAULT NULL,
         created_at     DATETIME     DEFAULT NOW()
       )`);
+
+    // ── Leave management ──────────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leave_types (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        name         VARCHAR(100) NOT NULL,
+        color        VARCHAR(20)  DEFAULT '#3b82f6',
+        default_days DECIMAL(4,1) DEFAULT 0,
+        is_paid      TINYINT(1)   DEFAULT 1,
+        is_active    TINYINT(1)   DEFAULT 1,
+        created_at   DATETIME     DEFAULT NOW()
+      )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leave_balances (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id    INT NOT NULL,
+        leave_type_id  INT NOT NULL,
+        year           INT NOT NULL,
+        allocated_days DECIMAL(4,1) DEFAULT 0,
+        used_days      DECIMAL(4,1) DEFAULT 0,
+        UNIQUE KEY uq_emp_type_year (employee_id, leave_type_id, year)
+      )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS leave_requests (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id   INT NOT NULL,
+        leave_type_id INT NOT NULL,
+        from_date     DATE NOT NULL,
+        to_date       DATE NOT NULL,
+        days          DECIMAL(4,1) DEFAULT 1,
+        reason        TEXT,
+        status        VARCHAR(20)  DEFAULT 'pending',
+        reviewed_by   INT          DEFAULT NULL,
+        reviewed_at   DATETIME     DEFAULT NULL,
+        reviewer_note TEXT,
+        created_at    DATETIME     DEFAULT NOW()
+      )`);
+
     console.log('✓  MySQL connected:', process.env.DB_NAME);
   }
 
@@ -222,6 +260,38 @@ if (USE_MYSQL) {
       status      TEXT DEFAULT 'todo',
       assigned_to INTEGER DEFAULT NULL,
       created_at  TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS leave_types (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      name         TEXT NOT NULL,
+      color        TEXT DEFAULT '#3b82f6',
+      default_days REAL DEFAULT 0,
+      is_paid      INTEGER DEFAULT 1,
+      is_active    INTEGER DEFAULT 1,
+      created_at   TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS leave_balances (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id    INTEGER NOT NULL,
+      leave_type_id  INTEGER NOT NULL,
+      year           INTEGER NOT NULL,
+      allocated_days REAL DEFAULT 0,
+      used_days      REAL DEFAULT 0,
+      UNIQUE(employee_id, leave_type_id, year)
+    );
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id   INTEGER NOT NULL,
+      leave_type_id INTEGER NOT NULL,
+      from_date     TEXT NOT NULL,
+      to_date       TEXT NOT NULL,
+      days          REAL DEFAULT 1,
+      reason        TEXT,
+      status        TEXT DEFAULT 'pending',
+      reviewed_by   INTEGER DEFAULT NULL,
+      reviewed_at   TEXT DEFAULT NULL,
+      reviewer_note TEXT,
+      created_at    TEXT DEFAULT (datetime('now'))
     );
   `);
 

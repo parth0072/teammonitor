@@ -26,8 +26,10 @@ router.use('/api/employees',   require('./routes/employees'));
 router.use('/api/sessions',    require('./routes/sessions'));
 router.use('/api/activity',    require('./routes/activity'));
 router.use('/api/screenshots', require('./routes/screenshots'));
-router.use('/api/projects',    require('./routes/projects'));
-router.use('/api/timeline',    require('./routes/timeline'));
+router.use('/api/projects',     require('./routes/projects'));
+router.use('/api/timeline',     require('./routes/timeline'));
+router.use('/api/leaves',       require('./routes/leaves'));
+router.use('/api/productivity', require('./routes/productivity'));
 
 // Health check
 router.get('/api/health', async (req, res) => {
