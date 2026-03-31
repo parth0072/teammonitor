@@ -57,7 +57,7 @@ function Lightbox({ screenshots, index, onClose }) {
 
       {/* Image */}
       <div onClick={e => e.stopPropagation()} style={{ textAlign:"center", maxWidth:"90vw" }}>
-        <img src={ss.file_path} alt="Screenshot"
+        <img src={imgSrc(ss.file_path)} alt="Screenshot"
           style={{ maxWidth:"88vw", maxHeight:"78vh", borderRadius:12, display:"block", margin:"0 auto" }} />
         <div style={{ color:"#e2e8f0", marginTop:12, fontSize:14 }}>
           <span style={{ fontWeight:600 }}>{ss.employee_name}</span>
@@ -88,6 +88,13 @@ function Lightbox({ screenshots, index, onClose }) {
 }
 
 // ── Screenshots page ─────────────────────────────────────────────────────────
+
+// Append ?token= so <img> can load encrypted screenshots (headers not allowed on img tags)
+function imgSrc(filePath) {
+  if (!filePath) return null;
+  const token = sessionStorage.getItem('tm_token') || '';
+  return `${filePath}?token=${encodeURIComponent(token)}`;
+}
 
 export default function Screenshots() {
   const [screenshots, setScreenshots] = useState([]);
@@ -164,7 +171,7 @@ export default function Screenshots() {
             onMouseEnter={e => { e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 6px 20px rgba(0,0,0,0.12)"; }}
             onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.08)"; }}>
             {ss.file_path
-              ? <img style={S.img} src={ss.file_path} alt="Screenshot" loading="lazy" />
+              ? <img style={S.img} src={imgSrc(ss.file_path)} alt="Screenshot" loading="lazy" />
               : <div style={{ ...S.img, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36 }}>🖥</div>}
             <div style={S.info}>
               <div style={{ fontSize:13, fontWeight:600, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ss.employee_name}</div>

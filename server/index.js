@@ -65,9 +65,13 @@ async function cleanupOldScreenshots() {
     if (!rows.length) return;
     for (const row of rows) {
       // Delete the physical image file only — no other data touched
-      const match = (row.file_path || '').match(/\/uploads\/(.+)$/);
-      if (match) {
-        const diskPath = path.join(__dirname, 'uploads', match[1]);
+      // Supports both old URL format (/uploads/...) and new encrypted format (/view/empId/date/file.enc)
+      const fp = row.file_path || '';
+      const newMatch = fp.match(/\/view\/(\d+\/\d{4}-\d{2}-\d{2}\/[\w.-]+\.enc)/);
+      const oldMatch = fp.match(/\/uploads\/(.+)$/);
+      const rel = newMatch ? newMatch[1] : (oldMatch ? oldMatch[1] : null);
+      if (rel) {
+        const diskPath = path.join(__dirname, 'uploads', rel);
         try { if (fs.existsSync(diskPath)) fs.unlinkSync(diskPath); } catch (_) {}
       }
     }
