@@ -57,21 +57,23 @@ router.get('/', auth, adminOnly, async (req, res) => {
   );
 
   // Build productivity map
+  const toDateStr = v => (v instanceof Date ? v.toISOString() : String(v)).slice(0, 10);
+
   const idleMap = {};
   for (const r of idleRows) {
-    const key = `${r.employee_id}:${r.date.slice(0,10)}`;
+    const key = `${r.employee_id}:${toDateStr(r.date)}`;
     idleMap[key] = (r.idle_seconds || 0);
   }
   const appMap = {};
   for (const r of appRows) {
-    const key = `${r.employee_id}:${r.date.slice(0,10)}`;
+    const key = `${r.employee_id}:${toDateStr(r.date)}`;
     if (!appMap[key]) appMap[key] = [];
     appMap[key].push({ app_name: r.app_name, secs: r.secs });
   }
 
   const result = employees.map(emp => {
     const days_data = dateList.map(date => {
-      const sess = sessRows.find(r => String(r.employee_id) === String(emp.id) && r.date.slice(0,10) === date);
+      const sess = sessRows.find(r => String(r.employee_id) === String(emp.id) && toDateStr(r.date) === date);
       const tracked_minutes = sess ? (sess.tracked_minutes || 0) : 0;
       const idle_seconds    = idleMap[`${emp.id}:${date}`] || 0;
       const tracked_seconds = tracked_minutes * 60;
