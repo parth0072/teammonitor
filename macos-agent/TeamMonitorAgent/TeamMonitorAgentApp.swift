@@ -37,12 +37,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Set delegate BEFORE requesting auth so foreground notifications work.
         UNUserNotificationCenter.current().delegate = self
 
-        // Request notification permission at launch and log the result.
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if let error {
-                print("[Notifications] Auth error: \(error)")
-            } else {
-                print("[Notifications] Permission granted: \(granted)")
+        // Request notification permission only once.
+        // On first grant, send a welcome notification to "warm up" the system —
+        // without this macOS sometimes silently drops the first real notification.
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                // First launch — ask for permission
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+                    if let error {
+                        print("[Notifications] Auth error: \(error)")
+                        return
+                    }
+                    print("[Notifications] Permission granted: \(granted)")
+                    guard granted else { return }
+                    // Small delay so macOS finishes registering before we send
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        let content   = UNMutableNotificationContent()
+                        content.title = "TeamMonitor is running"
+                        content.body  = "You'll get reminders if you forget to start tracking."
+                        content.sound = .default
+                        let req = UNNotificationRequest(identifier: "tm-welcome", content: content, trigger: nil)
+                        UNUserNotificationCenter.current().add(req) { _ in }
+                    }
+                }
+            case .denied:
+                // User previously denied — don't ask again, just log
+                print("[Notifications] Permission previously denied — skipping request")
+            default:
+                // Already authorised
+                print("[Notifications] Already authorised")
             }
         }
 

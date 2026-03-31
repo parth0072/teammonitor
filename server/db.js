@@ -52,6 +52,7 @@ if (USE_MYSQL) {
       )`);
     // Add screenshot_interval to existing tables that predate this column
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS screenshot_interval INT DEFAULT 300`).catch(() => {});
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS screen_permission TINYINT(1) DEFAULT 1`).catch(() => {});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS sessions (
         id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -301,6 +302,7 @@ if (USE_MYSQL) {
   // Migrate existing databases that predate new columns
   const migrations = [
     `ALTER TABLE employees ADD COLUMN screenshot_interval INTEGER DEFAULT 300`,
+    `ALTER TABLE employees ADD COLUMN screen_permission INTEGER DEFAULT 1`,
     `ALTER TABLE sessions  ADD COLUMN task_id INTEGER DEFAULT NULL`,
     `ALTER TABLE projects  ADD COLUMN status     TEXT DEFAULT 'active'`,
     `ALTER TABLE projects  ADD COLUMN created_by INTEGER DEFAULT NULL`,

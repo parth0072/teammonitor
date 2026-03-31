@@ -322,6 +322,18 @@ function EmployeeCard({ employee, session, lastScreenshot }) {
         }}>
           {active ? "● " : done ? "✓ " : "○ "}{statusLabel}
         </div>
+
+        {/* Screen permission warning */}
+        {employee.screen_permission === 0 && (
+          <div style={{
+            position: "absolute", top: 8, left: 8,
+            background: "#fef3c7", color: "#92400e",
+            fontSize: 10, fontWeight: 700, padding: "3px 7px", borderRadius: 20,
+            display: "flex", alignItems: "center", gap: 3,
+          }} title="Screen recording permission denied — screenshots disabled">
+            📵 No Screenshots
+          </div>
+        )}
       </div>
 
       <div style={{ padding: "12px 14px" }}>

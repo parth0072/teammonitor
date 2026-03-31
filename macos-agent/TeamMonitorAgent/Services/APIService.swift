@@ -208,8 +208,11 @@ class APIService: ObservableObject {
         try await put("/sessions/\(sessionId)/punch-out", body: body)
     }
 
-    func heartbeat(sessionId: Int, totalMinutes: Int) async throws {
-        let body = ["totalMinutes": totalMinutes] as [String: Any]
+    func heartbeat(sessionId: Int, totalMinutes: Int, screenPermission: Bool = true) async throws {
+        let body: [String: Any] = [
+            "totalMinutes":     totalMinutes,
+            "screenPermission": screenPermission,
+        ]
         try await put("/sessions/\(sessionId)/heartbeat", body: body)
     }
 

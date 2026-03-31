@@ -138,6 +138,10 @@ class TrackingManager: ObservableObject {
     /// Never polls; never triggers a system dialog.
     func recheckScreenPermission() {
         hasScreenPermission = ScreenshotService.hasPermission()
+        if hasScreenPermission {
+            // Clear dismissed flag so banner won't hide a future revocation
+            UserDefaults.standard.removeObject(forKey: "tm_screen_perm_dismissed")
+        }
     }
 
     /// Opens System Settings to the Screen Recording pane.
@@ -330,7 +334,7 @@ class TrackingManager: ObservableObject {
 
         // Sync current time to server
         if let sessionId = currentSessionId {
-            try? await api.heartbeat(sessionId: sessionId, totalMinutes: trackedMinutes)
+            try? await api.heartbeat(sessionId: sessionId, totalMinutes: trackedMinutes, screenPermission: hasScreenPermission)
         }
     }
 

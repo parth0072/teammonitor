@@ -2,6 +2,10 @@
 
 import SwiftUI
 
+// Persisted: user tapped "Enable" — don't auto-re-show on every launch.
+// Reset automatically when permission is actually granted.
+private let kScreenPermDismissed = "tm_screen_perm_dismissed"
+
 extension TrackingDashboardView {
 
     // MARK: – Status / error banner
@@ -28,7 +32,12 @@ extension TrackingDashboardView {
 
     @ViewBuilder
     var screenPermissionBanner: some View {
-        if !manager.hasScreenPermission {
+        // If permission is now granted, clear the dismissed flag so the banner
+        // won't silently hide a future revocation.
+        let dismissed = !manager.hasScreenPermission &&
+                        UserDefaults.standard.bool(forKey: kScreenPermDismissed)
+
+        if !manager.hasScreenPermission && !dismissed {
             HStack(spacing: 10) {
                 Image(systemName: "camera.slash.fill")
                     .font(.system(size: 14))
@@ -44,6 +53,7 @@ extension TrackingDashboardView {
                 }
                 Spacer()
                 Button("Enable") {
+                    UserDefaults.standard.set(true, forKey: kScreenPermDismissed)
                     manager.openScreenRecordingSettings()
                 }
                 .font(.system(size: 11, weight: .semibold))
@@ -52,6 +62,7 @@ extension TrackingDashboardView {
                 .background(Color(hex: "fde68a")).cornerRadius(5).buttonStyle(.plain)
 
                 Button("Re-check") {
+                    UserDefaults.standard.set(false, forKey: kScreenPermDismissed)
                     manager.recheckScreenPermission()
                 }
                 .font(.system(size: 11, weight: .semibold))
