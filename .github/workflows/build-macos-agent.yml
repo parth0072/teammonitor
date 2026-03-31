@@ -1,0 +1,57 @@
+name: Build macOS Agent
+
+on:
+  push:
+    tags:
+      - "v*"           # triggers on: git tag v1.0.1 && git push --tags
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app (unsigned)
+        run: |
+          xcodebuild \
+            -project macos-agent/TeamMonitorAgent.xcodeproj \
+            -scheme TeamMonitorAgent \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            clean build
+
+      - name: Locate .app
+        run: |
+          APP_PATH=$(find build/DerivedData -name "TeamMonitorAgent.app" | head -1)
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+          echo "Found: $APP_PATH"
+
+      - name: Remove quarantine & zip
+        run: |
+          xattr -rd com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+          cd "$(dirname "$APP_PATH")"
+          zip -r "$GITHUB_WORKSPACE/TeamMonitorAgent.zip" TeamMonitorAgent.app
+          echo "ZIP_PATH=$GITHUB_WORKSPACE/TeamMonitorAgent.zip" >> $GITHUB_ENV
+
+      - name: Upload artifact (every build)
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeamMonitorAgent
+          path: TeamMonitorAgent.zip
+          retention-days: 30
+
+      - name: Create GitHub Release (on tag only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: TeamMonitorAgent.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
