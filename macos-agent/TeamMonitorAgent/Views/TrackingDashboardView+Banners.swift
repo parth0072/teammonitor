@@ -1,4 +1,4 @@
-// TrackingDashboardView+Banners.swift — status, permission, reminder, offline banners
+// TrackingDashboardView+Banners.swift — status, permission, reminder, offline, update banners
 
 import SwiftUI
 
@@ -7,6 +7,77 @@ import SwiftUI
 private let kScreenPermDismissed = "tm_screen_perm_dismissed"
 
 extension TrackingDashboardView {
+
+    // MARK: – Auto-update banner
+
+    @ViewBuilder
+    var updateBanner: some View {
+        let updater = UpdateService.shared
+        if updater.updateAvailable && !updater.isDownloading {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 15))
+                    .foregroundColor(Color(hex: "065f46"))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Update Available — v\(updater.latestVersion)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "065f46"))
+                    Text("A newer version of TeamMonitor is ready to install.")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "047857"))
+                }
+                Spacer()
+                Button("Update Now") {
+                    Task { await UpdateService.shared.downloadAndInstall() }
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12).padding(.vertical, 5)
+                .background(Color(hex: "059669")).cornerRadius(6).buttonStyle(.plain)
+
+                Button("✕") { UpdateService.shared.dismissUpdate() }
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(hex: "059669").opacity(0.5))
+                    .frame(width: 24, height: 24).buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(Color(hex: "d1fae5"))
+            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "a7f3d0")), alignment: .bottom)
+        } else if updater.isDownloading {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .frame(width: 18, height: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Installing update…")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "065f46"))
+                    ProgressView(value: updater.downloadProgress)
+                        .accentColor(Color(hex: "059669"))
+                        .frame(maxWidth: 200)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(Color(hex: "d1fae5"))
+            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "a7f3d0")), alignment: .bottom)
+        } else if let err = UpdateService.shared.installError {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.red)
+                Text("Update failed: \(err)")
+                    .font(.system(size: 11))
+                    .foregroundColor(.red)
+                Spacer()
+                Button("✕") { UpdateService.shared.installError = nil }
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.red.opacity(0.5))
+                    .frame(width: 24, height: 24).buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(Color.red.opacity(0.08))
+        }
+    }
 
     // MARK: – Status / error banner
 

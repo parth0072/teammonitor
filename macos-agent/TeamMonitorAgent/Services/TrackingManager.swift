@@ -82,6 +82,9 @@ class TrackingManager: ObservableObject {
     private var resumeTimer:          Timer?
     private var notTrackingTimer:     Timer?
     private var countdownTimer:       Timer?
+    // Counts minute-ticks; heartbeat is sent every kHeartbeatEvery ticks to reduce HTTP calls.
+    private var heartbeatTickCount:   Int   = 0
+    private let kHeartbeatEvery:      Int   = 5   // send heartbeat every 5 minutes
     var lastResumeTime:  Date?   // internal – read by view for live display
     private var pendingIdleStart: Date?
     private var cancellables = Set<AnyCancellable>()
@@ -492,14 +495,26 @@ class TrackingManager: ObservableObject {
 
     private func startMinuteTimer(sessionId: Int) {
         sessionTimer?.invalidate()
+        heartbeatTickCount = 0
         // Use .common run-loop mode so the timer fires even during UI interactions
         // (.default mode is paused while menus/drags/events are active).
         let t = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                self.trackedMinutes += 1
+                self.trackedMinutes     += 1
+                self.heartbeatTickCount += 1
                 self.saveSessionState()
-                try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: self.trackedMinutes)
+
+                // Send heartbeat every kHeartbeatEvery minutes (not every minute)
+                // to reduce server load and battery/network usage.
+                if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
+                    try? await self.api.heartbeat(
+                        sessionId:       sessionId,
+                        totalMinutes:    self.trackedMinutes,
+                        screenPermission: self.hasScreenPermission
+                    )
+                    self.heartbeatTickCount = 0   // reset to avoid Int overflow over long sessions
+                }
             }
         }
         RunLoop.main.add(t, forMode: .common)
@@ -522,6 +537,7 @@ class TrackingManager: ObservableObject {
     private func stopAllServices() {
         sessionTimer?.invalidate(); sessionTimer = nil
         resumeTimer?.invalidate();  resumeTimer  = nil
+        heartbeatTickCount = 0
         screenshots.stop()
         appTracker.stop()
         idleDetector.stop()
