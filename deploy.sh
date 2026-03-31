@@ -37,14 +37,17 @@ fi
 echo "Using npm: $(which npm) ($(npm --version))"
 
 echo ""
-echo "=== [1/3] Installing admin-panel dependencies ==="
+echo "=== [1/4] Pulling latest code from main ==="
+cd "$ROOT"
+git pull origin main
+
+echo ""
+echo "=== [3/4] Installing & building admin panel ==="
 cd "$ROOT/admin-panel"
 npm install --silent
-
-echo "=== [2/3] Building admin panel ==="
 npm run build
 
-echo "=== [3/3] Copying build to server/public ==="
+echo "=== [4/4] Copying build to server/public ==="
 rm -rf "$ROOT/server/public"
 mkdir -p "$ROOT/server/public"
 cp -r "$ROOT/admin-panel/dist/." "$ROOT/server/public/"
