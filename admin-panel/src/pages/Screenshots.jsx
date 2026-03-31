@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../api";
 import { format, subDays } from "date-fns";
+import { useAuth } from "../App";
 
 const S = {
   title:      { fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 },
@@ -89,6 +90,8 @@ function Lightbox({ screenshots, index, onClose }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Screenshots() {
+  const { user }      = useAuth();
+  const isAdmin       = user?.role === "admin";
   const [screenshots, setScreenshots] = useState([]);
   const [employees,   setEmployees]   = useState([]);
   const [filterEmp,   setFilterEmp]   = useState("all");
@@ -98,17 +101,21 @@ export default function Screenshots() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const autoRef = useRef(null);
 
-  useEffect(() => { api.getEmployees().then(setEmployees).catch(console.error); }, []);
+  useEffect(() => {
+    if (isAdmin) api.getEmployees().then(setEmployees).catch(console.error);
+  }, [isAdmin]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getScreenshots(filterDate, filterEmp !== "all" ? filterEmp : undefined);
+      const data = isAdmin
+        ? await api.getScreenshots(filterDate, filterEmp !== "all" ? filterEmp : undefined)
+        : await api.getMyScreenshots(filterDate);
       setScreenshots(data);
       setLastRefresh(new Date());
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [filterDate, filterEmp]);
+  }, [filterDate, filterEmp, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -154,10 +161,12 @@ export default function Screenshots() {
         <select style={S.select} value={filterDate} onChange={e => setFilterDate(e.target.value)}>
           {DATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select style={S.select} value={filterEmp} onChange={e => setFilterEmp(e.target.value)}>
-          <option value="all">All Employees</option>
-          {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
+        {isAdmin && (
+          <select style={S.select} value={filterEmp} onChange={e => setFilterEmp(e.target.value)}>
+            <option value="all">All Employees</option>
+            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
         <span style={{ color:"#64748b", fontSize:13 }}>
           {loading ? "Loading…" : `${screenshots.length} screenshot${screenshots.length !== 1 ? "s" : ""}`}
         </span>

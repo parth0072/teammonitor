@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
+import { useAuth } from "../App";
 import { format, differenceInCalendarDays, parseISO } from "date-fns";
 
 const STATUS_STYLE = {
@@ -260,13 +261,15 @@ function BalanceModal({ employees, leaveTypes, onClose, onSave }) {
 // ── Main Leaves Page ─────────────────────────────────────────────────────────
 
 export default function Leaves() {
+  const { user }  = useAuth();
+  const isAdmin   = user?.role === "admin";
   const [tab,          setTab]          = useState("requests");
   const [requests,     setRequests]     = useState([]);
   const [leaveTypes,   setLeaveTypes]   = useState([]);
   const [balances,     setBalances]     = useState([]);
   const [employees,    setEmployees]    = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [filterStatus, setFilterStatus] = useState("pending");
+  const [filterStatus, setFilterStatus] = useState(isAdmin ? "pending" : "");
   const [filterEmp,    setFilterEmp]    = useState("");
   const [modal,        setModal]        = useState(null); // null | {type, data}
   const year = new Date().getFullYear();
@@ -274,19 +277,26 @@ export default function Leaves() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [types, reqs, bals, emps] = await Promise.all([
-        api.getLeaveTypes(),
-        api.getLeaveRequests(filterStatus ? { status: filterStatus } : {}),
-        api.getLeaveBalances(year),
-        api.getEmployees(),
-      ]);
-      setLeaveTypes(types);
-      setRequests(reqs);
-      setBalances(bals);
-      setEmployees(emps);
+      if (isAdmin) {
+        const [types, reqs, bals, emps] = await Promise.all([
+          api.getLeaveTypes(),
+          api.getLeaveRequests(filterStatus ? { status: filterStatus } : {}),
+          api.getLeaveBalances(year),
+          api.getEmployees(),
+        ]);
+        setLeaveTypes(types); setRequests(reqs); setBalances(bals); setEmployees(emps);
+      } else {
+        // Employee: own requests + leave types (for apply form) + own balances
+        const [types, reqs, bals] = await Promise.all([
+          api.getLeaveTypes(),
+          api.getLeaveRequests(filterStatus ? { status: filterStatus, employeeId: user?.id } : { employeeId: user?.id }),
+          api.getLeaveBalances(year),
+        ]);
+        setLeaveTypes(types); setRequests(reqs); setBalances(bals);
+      }
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [filterStatus, year]);
+  }, [filterStatus, year, isAdmin, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -295,7 +305,7 @@ export default function Leaves() {
 
   // ── Requests tab ────────────────────────────────────────────────────────────
 
-  const filteredReqs = filterEmp ? requests.filter(r => String(r.employee_id) === filterEmp) : requests;
+  const filteredReqs = (isAdmin && filterEmp) ? requests.filter(r => String(r.employee_id) === filterEmp) : requests;
 
   const RequestsTab = (
     <div>
@@ -307,10 +317,12 @@ export default function Leaves() {
             {s === "pending" && pendingCount > 0 && <span style={{ marginLeft: 6, background: "#ef4444", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 11 }}>{pendingCount}</span>}
           </button>
         ))}
-        <select style={{ ...S.input, width: "auto", padding: "7px 12px" }} value={filterEmp} onChange={e => setFilterEmp(e.target.value)}>
-          <option value="">All Employees</option>
-          {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
+        {isAdmin && (
+          <select style={{ ...S.input, width: "auto", padding: "7px 12px" }} value={filterEmp} onChange={e => setFilterEmp(e.target.value)}>
+            <option value="">All Employees</option>
+            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        )}
         <button style={{ ...S.btn, ...S.btnBlue, marginLeft: "auto" }} onClick={() => setModal({ type: "request" })}>+ New Request</button>
       </div>
 
@@ -326,14 +338,15 @@ export default function Leaves() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                {["Employee", "Leave Type", "From", "To", "Days", "Reason", "Status", "Actions"].map(h =>
+                {isAdmin && <th style={S.th}>Employee</th>}
+                {["Leave Type", "From", "To", "Days", "Reason", "Status", "Actions"].map(h =>
                   <th key={h} style={S.th}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {filteredReqs.map(r => (
                 <tr key={r.id}>
-                  <td style={S.td}><span style={{ fontWeight: 600 }}>{r.employee_name}</span></td>
+                  {isAdmin && <td style={S.td}><span style={{ fontWeight: 600 }}>{r.employee_name}</span></td>}
                   <td style={S.td}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <span style={{ width: 10, height: 10, borderRadius: "50%", background: r.leave_type_color || "#3b82f6", flexShrink: 0 }} />
@@ -348,7 +361,7 @@ export default function Leaves() {
                   <td style={S.td}><StatusBadge status={r.status} /></td>
                   <td style={S.td}>
                     <div style={{ display: "flex", gap: 6 }}>
-                      {r.status === "pending" && (
+                      {isAdmin && r.status === "pending" && (
                         <>
                           <button style={{ ...S.btn, ...S.btnGreen, padding: "5px 12px" }} onClick={() => setModal({ type: "review", data: r, action: "approve" })}>Approve</button>
                           <button style={{ ...S.btn, ...S.btnRed, padding: "5px 12px" }} onClick={() => setModal({ type: "review", data: r, action: "reject" })}>Reject</button>
@@ -414,9 +427,10 @@ export default function Leaves() {
 
   // ── Balances tab ────────────────────────────────────────────────────────────
 
-  // Group balances by employee
+  // Group balances by employee (for employees, only show own)
   const balByEmp = {};
   for (const b of balances) {
+    if (!isAdmin && String(b.employee_id) !== String(user?.id)) continue;
     if (!balByEmp[b.employee_id]) balByEmp[b.employee_id] = { name: b.employee_name, items: [] };
     balByEmp[b.employee_id].items.push(b);
   }
@@ -425,7 +439,7 @@ export default function Leaves() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ fontSize: 14, color: "#64748b" }}>Year: <b>{year}</b></div>
-        <button style={{ ...S.btn, ...S.btnBlue }} onClick={() => setModal({ type: "balance" })}>+ Allocate Days</button>
+        {isAdmin && <button style={{ ...S.btn, ...S.btnBlue }} onClick={() => setModal({ type: "balance" })}>+ Allocate Days</button>}
       </div>
       <div style={S.card}>
         {Object.keys(balByEmp).length === 0 ? (
@@ -474,15 +488,17 @@ export default function Leaves() {
     <div style={{ width: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={S.title}>Leave Management</h1>
-          <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>Manage leave requests, policies and employee balances</div>
+          <h1 style={S.title}>{isAdmin ? "Leave Management" : "My Leaves"}</h1>
+          <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>
+            {isAdmin ? "Manage leave requests, policies and employee balances" : "Apply for leave and track your requests and balances"}
+          </div>
         </div>
       </div>
 
       <div style={S.tabs}>
         {[
           { key: "requests", label: `Requests${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
-          { key: "types",    label: "Leave Types" },
+          ...(isAdmin ? [{ key: "types", label: "Leave Types" }] : []),
           { key: "balances", label: "Balances" },
         ].map(t => (
           <button key={t.key} style={{ ...S.tab, ...(tab === t.key ? S.tabA : {}) }} onClick={() => setTab(t.key)}>
@@ -496,9 +512,9 @@ export default function Leaves() {
       {tab === "balances" && BalancesTab}
 
       {modal?.type === "request"   && <RequestModal leaveTypes={leaveTypes} onClose={closeModal} onSave={closeModal} />}
-      {modal?.type === "review"    && <ReviewModal req_row={modal.data} action={modal.action} onClose={closeModal} onSave={closeModal} />}
-      {modal?.type === "leaveType" && <LeaveTypeModal existing={modal.data} onClose={closeModal} onSave={closeModal} />}
-      {modal?.type === "balance"   && <BalanceModal employees={employees} leaveTypes={leaveTypes} onClose={closeModal} onSave={closeModal} />}
+      {isAdmin && modal?.type === "review"    && <ReviewModal req_row={modal.data} action={modal.action} onClose={closeModal} onSave={closeModal} />}
+      {isAdmin && modal?.type === "leaveType" && <LeaveTypeModal existing={modal.data} onClose={closeModal} onSave={closeModal} />}
+      {isAdmin && modal?.type === "balance"   && <BalanceModal employees={employees} leaveTypes={leaveTypes} onClose={closeModal} onSave={closeModal} />}
     </div>
   );
 }

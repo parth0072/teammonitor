@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../api";
 import { format } from "date-fns";
+import { useAuth } from "../App";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Cell,
@@ -387,9 +388,152 @@ function EmployeeCard({ employee, session, lastScreenshot }) {
   );
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
+// ── Employee Personal Dashboard ───────────────────────────────────────────────
 
-export default function Dashboard() {
+function EmployeeDashboard({ user }) {
+  const today = format(new Date(), "yyyy-MM-dd");
+  const [sessions,    setSessions]    = useState([]);
+  const [screenshots, setScreenshots] = useState([]);
+  const [chartData,   setChartData]   = useState([]);
+  const [topApps,     setTopApps]     = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const autoRef = useRef(null);
+
+  const load = useCallback(async () => {
+    const [sess, stats, ss, apps] = await Promise.all([
+      api.getMySessions(today).catch(() => []),
+      api.getMySessionStats(7).catch(() => []),
+      api.getMyScreenshots(today).catch(() => []),
+      api.getMyActivitySummary(today).catch(() => []),
+    ]);
+
+    setSessions(sess);
+    setScreenshots(ss);
+
+    const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
+    const last7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const dateStr = d.toISOString().slice(0, 10);
+      const row     = statsByDate[dateStr];
+      return {
+        date:  dateStr,
+        day:   format(new Date(dateStr + "T00:00:00"), "EEE"),
+        hours: +(((row?.total_minutes || 0)) / 60).toFixed(1),
+      };
+    });
+    setChartData(last7);
+
+    const appList = Array.isArray(apps) ? apps : (apps?.apps || apps?.data || []);
+    setTopApps([...appList].sort((a, b) =>
+      (b.total_seconds || b.duration_seconds || 0) - (a.total_seconds || a.duration_seconds || 0)
+    ));
+    setLastRefresh(new Date());
+    setLoading(false);
+  }, [today]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    autoRef.current = setInterval(load, 30_000);
+    return () => clearInterval(autoRef.current);
+  }, [load]);
+
+  if (loading) return <SkeletonDashboard />;
+
+  const activeSession = sessions.find(s => s.status === "active");
+  const totalMins     = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
+  const todayLabel    = format(new Date(), "EEE");
+
+  return (
+    <div style={{ maxWidth: 1280 }}>
+      <style>{pulse}</style>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: 0 }}>
+            My Dashboard
+          </h1>
+          <div style={{ color: C.muted, fontSize: 14, marginTop: 4 }}>
+            {format(new Date(), "EEEE, MMMM d yyyy")}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: activeSession ? C.green : C.muted,
+                        animation: activeSession ? "tm-ring 2s infinite" : "none" }} />
+          <span style={{ fontSize: 12, color: C.muted }}>
+            {activeSession ? "Tracking · " : ""}refreshed {format(lastRefresh, "h:mm:ss a")}
+          </span>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
+        <StatCard label="Status"           value={activeSession ? "Active" : "Offline"} color={activeSession ? C.green : C.muted} icon={activeSession ? "🟢" : "⚫"} sub={activeSession ? `since ${format(new Date(activeSession.punch_in), "h:mm a")}` : "not tracking"} />
+        <StatCard label="Hours Today"      value={fmtHMdec(totalMins)}  color={C.blue}   icon="⏱" sub={`${sessions.length} session${sessions.length !== 1 ? "s" : ""}`} />
+        <StatCard label="Screenshots"      value={screenshots.length}   color={C.purple} icon="📷" sub="captured today" />
+        <StatCard label="This Week"        value={fmtHMdec(chartData.reduce((a, d) => a + d.hours * 60, 0))} color={C.indigo} icon="📊" sub="total tracked" />
+      </div>
+
+      {/* Chart row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 16 }}>
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>My Hours</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Last 7 days</div>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={170}>
+            <BarChart data={chartData} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: C.muted }} axisLine={false} tickLine={false} width={32} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "#F1F5F9", radius: 6 }} />
+              <Bar dataKey="hours" radius={[6, 6, 0, 0]}>
+                {chartData.map((entry, i) => (
+                  <Cell key={i} fill={entry.day === todayLabel ? C.blue : "#BFDBFE"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Recent screenshots */}
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Recent Screenshots</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Today</div>
+          {screenshots.length === 0 ? (
+            <div style={{ color: C.muted, fontSize: 13, textAlign: "center", paddingTop: 20 }}>No screenshots yet today</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {screenshots.slice(0, 4).map(ss => (
+                <div key={ss.id} style={{ borderRadius: 8, overflow: "hidden", background: C.light, aspectRatio: "16/10" }}>
+                  {ss.file_path
+                    ? <img src={`${ss.file_path}?token=${encodeURIComponent(sessionStorage.getItem("tm_token") || "")}`} alt="screenshot"
+                           style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🖥</div>
+                  }
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {topApps.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <TopAppsWidget apps={topApps} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Admin Dashboard ───────────────────────────────────────────────────────────
+
+function AdminDashboard() {
   const today = format(new Date(), "yyyy-MM-dd");
 
   const [sessions,    setSessions]    = useState([]);
@@ -414,7 +558,6 @@ export default function Dashboard() {
     setScreenshots(ss);
     setEmployees(emps);
 
-    // Build a full 7-day series so the chart always shows all days
     const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
     const last7 = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
@@ -429,7 +572,6 @@ export default function Dashboard() {
     });
     setChartData(last7);
 
-    // Normalise app summary — different backends use different field names
     const appList = Array.isArray(apps) ? apps : (apps?.apps || apps?.data || []);
     const sorted  = [...appList].sort((a, b) =>
       (b.total_seconds || b.duration_seconds || 0) - (a.total_seconds || a.duration_seconds || 0)
@@ -447,16 +589,12 @@ export default function Dashboard() {
 
   if (loading) return <SkeletonDashboard />;
 
-  // ── Derived metrics ──────────────────────────────────────────────────────
-
   const activeCount  = sessions.filter(s => s.status === "active").length;
   const doneCount    = sessions.filter(s => s.status !== "active").length;
   const absentCount  = Math.max(0, employees.length - sessions.length);
+  const totalMins    = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
+  const avgMins      = sessions.length ? totalMins / sessions.length : 0;
 
-  const totalMins = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
-  const avgMins   = sessions.length ? totalMins / sessions.length : 0;
-
-  // Latest session per employee
   const sessionByEmp = {};
   sessions.forEach(s => {
     const prev = sessionByEmp[s.employee_id];
@@ -465,7 +603,6 @@ export default function Dashboard() {
     }
   });
 
-  // Latest screenshot per employee
   const screenshotByEmp = {};
   screenshots.forEach(ss => {
     if (!screenshotByEmp[ss.employee_id]) screenshotByEmp[ss.employee_id] = ss;
@@ -477,7 +614,6 @@ export default function Dashboard() {
     return rank(sa) - rank(sb) || a.name.localeCompare(b.name);
   });
 
-  // Bar chart color: today's bar highlighted
   const todayLabel = format(new Date(), "EEE");
 
   return (
@@ -591,4 +727,12 @@ export default function Dashboard() {
       </div>
     </div>
   );
+}
+
+// ── Dashboard (role-aware entry point) ───────────────────────────────────────
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  if (user?.role === "admin") return <AdminDashboard />;
+  return <EmployeeDashboard user={user} />;
 }

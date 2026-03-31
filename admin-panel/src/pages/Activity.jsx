@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { useAuth } from "../App";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 
@@ -77,18 +78,18 @@ function ScreenshotModal({ ss, onClose }) {
 
 // ── Recent Screenshots strip ─────────────────────────────────────────────────
 
-function RecentScreenshots({ date }) {
+function RecentScreenshots({ date, isAdmin }) {
   const [screenshots, setScreenshots] = useState([]);
   const [selected, setSelected]       = useState(null);
   const [loading, setLoading]         = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const data = await api.getScreenshots(date);
-      setScreenshots(data.slice(0, 12)); // latest 12
+      const data = isAdmin ? await api.getScreenshots(date) : await api.getMyScreenshots(date);
+      setScreenshots(data.slice(0, 12));
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [date]);
+  }, [date, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -159,6 +160,8 @@ function RecentScreenshots({ date }) {
 
 export default function Activity() {
   const navigate  = useNavigate();
+  const { user }  = useAuth();
+  const isAdmin   = user?.role === "admin";
   const today     = format(new Date(), "yyyy-MM-dd");
   const [sessions,   setSessions]   = useState([]);
   const [appSummary, setAppSummary] = useState([]);
@@ -169,20 +172,31 @@ export default function Activity() {
 
   const load = useCallback(async () => {
     try {
-      const [sess, apps, act, emps] = await Promise.all([
-        api.getSessions(today),
-        api.getActivitySummary(today),
-        api.getActivity(today),
-        api.getEmployees(),
-      ]);
-      setSessions(sess);
-      setAppSummary(apps.slice(0, 8));
-      setActivity(act.slice(-50).reverse());
-      setEmployees(emps);
+      if (isAdmin) {
+        const [sess, apps, act, emps] = await Promise.all([
+          api.getSessions(today),
+          api.getActivitySummary(today),
+          api.getActivity(today),
+          api.getEmployees(),
+        ]);
+        setSessions(sess);
+        setAppSummary(apps.slice(0, 8));
+        setActivity(act.slice(-50).reverse());
+        setEmployees(emps);
+      } else {
+        const [sess, apps, act] = await Promise.all([
+          api.getMySessions(today),
+          api.getMyActivitySummary(today),
+          api.getMyActivity(today),
+        ]);
+        setSessions(sess);
+        setAppSummary(apps.slice(0, 8));
+        setActivity(act.slice(-50).reverse());
+      }
       setLastRefresh(new Date());
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [today]);
+  }, [today, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -192,15 +206,16 @@ export default function Activity() {
     return () => clearInterval(t);
   }, [load]);
 
-  const empCards = employees.map(emp => {
+  const empCards = isAdmin ? employees.map(emp => {
     const empSessions   = sessions.filter(s => String(s.employee_id) === String(emp.id));
     const activeSession = empSessions.find(s => s.status === "active");
     const totalMins     = empSessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
     const latestApp     = activity.find(a => String(a.employee_id) === String(emp.id))?.app_name || "";
-    return { ...emp, activeSession, totalMins, latestApp, empSessions };
-  });
+    return { ...emp, activeSession, totalMins, latestApp };
+  }) : [];
 
-  const activeCount = empCards.filter(e => e.activeSession).length;
+  const activeCount   = isAdmin ? empCards.filter(e => e.activeSession).length : sessions.filter(s => s.status === "active").length;
+  const myTotalMins   = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
 
   if (loading) return <div style={{ color:"#64748b", padding:40 }}>Loading…</div>;
 
@@ -208,31 +223,41 @@ export default function Activity() {
     <div style={S.page}>
       <div style={S.header}>
         <div>
-          <h1 style={S.title}>Live Activity</h1>
+          <h1 style={S.title}>{isAdmin ? "Live Activity" : "My Activity"}</h1>
           <p style={S.sub}>{format(new Date(), "EEEE, MMMM d")} · Last updated {format(lastRefresh, "h:mm:ss a")}</p>
         </div>
         <button style={S.refreshBtn} onClick={load}>↻ Refresh</button>
       </div>
 
       {/* Summary strip */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
-        {[
+      {(() => {
+        const cards = isAdmin ? [
           { label:"Active Now",    value:activeCount,        color:"#16a34a", bg:"#dcfce7", icon:"🟢" },
           { label:"Total Online",  value:sessions.length,    color:"#3b82f6", bg:"#eff6ff", icon:"👥" },
           { label:"Apps Tracked",  value:appSummary.length,  color:"#8b5cf6", bg:"#f5f3ff", icon:"💻" },
           { label:"Events Today",  value:activity.length,    color:"#f59e0b", bg:"#fffbeb", icon:"📊" },
-        ].map(c => (
-          <div key={c.label} style={{ background:"#fff", borderRadius:12, padding:"16px 20px", border:"1px solid #e2e8f0", display:"flex", alignItems:"center", gap:14 }}>
-            <div style={{ width:44, height:44, borderRadius:10, background:c.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>{c.icon}</div>
-            <div>
-              <div style={{ fontSize:26, fontWeight:700, color:c.color }}>{c.value}</div>
-              <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{c.label}</div>
-            </div>
+        ] : [
+          { label:"Status",        value: activeCount > 0 ? "Active" : "Offline", color: activeCount > 0 ? "#16a34a" : "#64748b", bg: activeCount > 0 ? "#dcfce7" : "#f1f5f9", icon:"🟢" },
+          { label:"Tracked Today", value: fmtHM(myTotalMins), color:"#3b82f6", bg:"#eff6ff", icon:"⏱" },
+          { label:"Apps Used",     value: appSummary.length,  color:"#8b5cf6", bg:"#f5f3ff", icon:"💻" },
+        ];
+        return (
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${cards.length},1fr)`, gap:16, marginBottom:24 }}>
+            {cards.map(c => (
+              <div key={c.label} style={{ background:"#fff", borderRadius:12, padding:"16px 20px", border:"1px solid #e2e8f0", display:"flex", alignItems:"center", gap:14 }}>
+                <div style={{ width:44, height:44, borderRadius:10, background:c.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>{c.icon}</div>
+                <div>
+                  <div style={{ fontSize:26, fontWeight:700, color:c.color }}>{c.value}</div>
+                  <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>{c.label}</div>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
-      {/* Employee cards */}
+      {/* Employee cards — admin only */}
+      {isAdmin && (
       <div style={S.grid}>
         {empCards.map(emp => (
           <div key={emp.id}
@@ -267,6 +292,7 @@ export default function Activity() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Charts row */}
       <div style={S.row2}>
@@ -312,7 +338,7 @@ export default function Activity() {
                   <div style={{ ...S.dot, background: CAT_COLOR[cat] }} />
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:500, color:"#1e293b" }}>
-                      {emp?.name || "Unknown"} — <span style={{ color: CAT_COLOR[cat] }}>{log.app_name}</span>
+                      {isAdmin && <>{emp?.name || "Unknown"} — </>}<span style={{ color: CAT_COLOR[cat] }}>{log.app_name}</span>
                       <span style={{ marginLeft:6, fontSize:10, fontWeight:700, padding:"1px 6px", borderRadius:8, background: CAT_BG[cat], color: CAT_COLOR[cat] }}>{cat}</span>
                     </div>
                     {log.window_title && <div style={{ fontSize:11, color:"#9ca3af", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{log.window_title}</div>}
@@ -328,7 +354,7 @@ export default function Activity() {
       </div>
 
       {/* Recent Screenshots */}
-      <RecentScreenshots date={today} />
+      <RecentScreenshots date={today} isAdmin={isAdmin} />
     </div>
   );
 }

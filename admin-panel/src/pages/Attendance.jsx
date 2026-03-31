@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api";
 import { format, subDays } from "date-fns";
+import { useAuth } from "../App";
 
 const S = {
   title:   { fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 },
@@ -23,14 +24,17 @@ const DATE_OPTIONS = Array.from({ length: 7 }, (_, i) => {
 const fmtDur = m => { if (!m) return "—"; const h=Math.floor(m/60),mn=m%60; return h>0?`${h}h ${mn}m`:`${mn}m`; };
 
 export default function Attendance() {
+  const { user }  = useAuth();
+  const isAdmin   = user?.role === "admin";
   const [sessions, setSessions]   = useState([]);
   const [filterDate, setFilterDate] = useState(DATE_OPTIONS[0].value);
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    api.getSessions(filterDate).then(setSessions).catch(console.error).finally(() => setLoading(false));
-  }, [filterDate]);
+    const fetch = isAdmin ? api.getSessions(filterDate) : api.getMySessions(filterDate);
+    fetch.then(setSessions).catch(console.error).finally(() => setLoading(false));
+  }, [filterDate, isAdmin]);
 
   const totalMins  = sessions.reduce((a,s) => a + (s.total_minutes||0), 0);
   const activeNow  = sessions.filter(s => s.status === "active").length;
@@ -38,7 +42,7 @@ export default function Attendance() {
 
   return (
     <div>
-      <h1 style={S.title}>Attendance</h1>
+      <h1 style={S.title}>{isAdmin ? "Attendance" : "My Attendance"}</h1>
       <p style={S.sub}>Punch-in/out records by day</p>
 
       <div style={S.sumGrid}>
@@ -61,13 +65,16 @@ export default function Attendance() {
       </div>
 
       <table style={S.table} cellSpacing={0}>
-        <thead><tr>{["Employee","Punch In","Punch Out","Duration","Status"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+        <thead><tr>
+          {isAdmin && <th style={S.th}>Employee</th>}
+          {["Punch In","Punch Out","Duration","Status"].map(h => <th key={h} style={S.th}>{h}</th>)}
+        </tr></thead>
         <tbody>
-          {loading && <tr><td colSpan={5} style={{ ...S.td, textAlign:"center", color:"#94a3b8" }}>Loading…</td></tr>}
-          {!loading && sessions.length === 0 && <tr><td colSpan={5} style={{ ...S.td, textAlign:"center", color:"#94a3b8", padding:40 }}>No sessions for this date.</td></tr>}
+          {loading && <tr><td colSpan={isAdmin ? 5 : 4} style={{ ...S.td, textAlign:"center", color:"#94a3b8" }}>Loading…</td></tr>}
+          {!loading && sessions.length === 0 && <tr><td colSpan={isAdmin ? 5 : 4} style={{ ...S.td, textAlign:"center", color:"#94a3b8", padding:40 }}>No sessions for this date.</td></tr>}
           {sessions.map(s => (
             <tr key={s.id}>
-              <td style={S.td}><span style={{ fontWeight:600 }}>{s.employee_name}</span>{s.department && <span style={{ color:"#94a3b8", fontSize:12, marginLeft:6 }}>{s.department}</span>}</td>
+              {isAdmin && <td style={S.td}><span style={{ fontWeight:600 }}>{s.employee_name}</span>{s.department && <span style={{ color:"#94a3b8", fontSize:12, marginLeft:6 }}>{s.department}</span>}</td>}
               <td style={S.td}>{s.punch_in ? format(new Date(s.punch_in),"h:mm a") : "—"}</td>
               <td style={S.td}>{s.punch_out ? format(new Date(s.punch_out),"h:mm a") : <span style={{ color:"#10b981" }}>Active</span>}</td>
               <td style={S.td}>{fmtDur(s.total_minutes)}</td>

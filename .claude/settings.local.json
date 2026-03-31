@@ -58,7 +58,12 @@
       "Bash(npm rebuild:*)",
       "Bash(curl -s https://api.alphabyteinnovation.com/teammonitor/api/health)",
       "Bash(chmod +x /Users/coda/Desktop/worklog/TeamMonitor/macos-agent/install.sh /Users/coda/Desktop/worklog/TeamMonitor/macos-agent/uninstall.sh)",
-      "Bash(git tag:*)"
+      "Bash(git tag:*)",
+      "Bash(find /Users/coda/Desktop/worklog/TeamMonitor/admin-panel/src -name api* -o -name Api*)",
+      "Bash(find /Users/coda/Desktop/worklog/TeamMonitor/admin-panel/src -name *.ts)",
+      "Bash(rm -f /Users/coda/Desktop/worklog/TeamMonitor/server/public/assets/*.js /Users/coda/Desktop/worklog/TeamMonitor/server/public/assets/*.css)",
+      "Bash(cp /Users/coda/Desktop/worklog/TeamMonitor/admin-panel/dist/assets/* /Users/coda/Desktop/worklog/TeamMonitor/server/public/assets/)",
+      "Bash(rm -f /Users/coda/Desktop/worklog/TeamMonitor/server/public/assets/*.js)"
     ]
   }
 }

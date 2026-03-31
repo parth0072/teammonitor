@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
+import { useAuth } from "../App";
 import { format, subDays } from "date-fns";
 
 // App categorization
@@ -100,6 +101,8 @@ function AppCategoryBar({ topApps }) {
 }
 
 export default function Productivity() {
+  const { user }  = useAuth();
+  const isAdmin   = user?.role === "admin";
   const [days,       setDays]       = useState(7);
   const [data,       setData]       = useState(null);
   const [loading,    setLoading]    = useState(true);
@@ -108,10 +111,13 @@ export default function Productivity() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await api.getProductivity(days)); }
+    try {
+      // Employees always get their own data; admins get all
+      setData(await api.getProductivity(days, isAdmin ? undefined : user?.id));
+    }
     catch (e) { console.error(e); }
     setLoading(false);
-  }, [days]);
+  }, [days, isAdmin, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -138,9 +144,9 @@ export default function Productivity() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 }}>Productivity Monitor</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 }}>{isAdmin ? "Productivity Monitor" : "My Productivity"}</h1>
           <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>
-            Activity & productivity scores for last {days} days
+            {isAdmin ? "Activity & productivity scores" : "Your activity & productivity scores"} for last {days} days
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

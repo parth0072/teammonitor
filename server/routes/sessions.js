@@ -144,6 +144,21 @@ router.get('/my', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/sessions/stats/mine?days=7  – own daily hours (employee)
+router.get('/stats/mine', auth, async (req, res) => {
+  try {
+    const days = parseInt(req.query.days || '7');
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const [rows] = await db.query(
+      `SELECT date, SUM(total_minutes) AS total_minutes FROM sessions WHERE employee_id=? AND date >= ? GROUP BY date ORDER BY date ASC`,
+      [req.user.id, cutoffStr]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/sessions/stats/employee?employeeId=&days=7
 router.get('/stats/employee', auth, adminOnly, async (req, res) => {
   try {

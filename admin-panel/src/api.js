@@ -47,14 +47,19 @@ export const api = {
 
   // Sessions / Attendance
   getSessions:     (date)   => request('GET',  `/sessions?date=${date}`),
-  getSessionStats: (days)   => request('GET',  `/sessions/stats?days=${days}`),
+  getMySessions:   (date)   => request('GET',  `/sessions/my?date=${date}`),
+  getSessionStats:     (days) => request('GET', `/sessions/stats?days=${days}`),
+  getMySessionStats:   (days) => request('GET', `/sessions/stats/mine?days=${days}`),
 
   // Screenshots
-  getScreenshots:  (date, empId) => request('GET', `/screenshots?date=${date}${empId ? `&employeeId=${empId}` : ''}`),
+  getScreenshots:    (date, empId) => request('GET', `/screenshots?date=${date}${empId ? `&employeeId=${empId}` : ''}`),
+  getMyScreenshots:  (date)        => request('GET', `/screenshots/mine?date=${date}`),
 
   // Activity
   getActivity:        (date, empId) => request('GET', `/activity?date=${date}${empId ? `&employeeId=${empId}` : ''}`),
   getActivitySummary: (date, empId) => request('GET', `/activity/summary?date=${date}${empId ? `&employeeId=${empId}` : ''}`),
+  getMyActivity:        (date)      => request('GET', `/activity/mine?date=${date}`),
+  getMyActivitySummary: (date)      => request('GET', `/activity/mine/summary?date=${date}`),
 
   // Projects & Tasks
   getProjects:    ()                       => request('GET',    '/projects'),

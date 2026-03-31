@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
+import { useAuth } from "../App";
 import { format, subDays, eachDayOfInterval, parseISO } from "date-fns";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -249,6 +250,8 @@ function SummaryTable({ employees, sessions, idleLogs }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Timelines() {
+  const { user }       = useAuth();
+  const isAdmin        = user?.role === "admin";
   const [employees,    setEmployees]    = useState([]);
   const [employeeId,   setEmployeeId]   = useState("all");
   const [startDate,    setStartDate]    = useState(format(subDays(new Date(), 6), "yyyy-MM-dd"));
@@ -258,17 +261,22 @@ export default function Timelines() {
   const [idleLogs,     setIdleLogs]     = useState([]);
   const [loading,      setLoading]      = useState(false);
 
-  useEffect(() => { api.getEmployees().then(setEmployees).catch(console.error); }, []);
+  useEffect(() => {
+    if (isAdmin) api.getEmployees().then(setEmployees).catch(console.error);
+  }, [isAdmin]);
+
+  // For employees, always filter to themselves
+  const effectiveEmpId = isAdmin ? employeeId : (user?.id ? String(user.id) : "all");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getTimeline(startDate, endDate, employeeId !== "all" ? employeeId : undefined);
+      const data = await api.getTimeline(startDate, endDate, effectiveEmpId !== "all" ? effectiveEmpId : undefined);
       setSessions(data.sessions || []);
       setIdleLogs(data.idleLogs || []);
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [startDate, endDate, employeeId]);
+  }, [startDate, endDate, effectiveEmpId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -277,9 +285,11 @@ export default function Timelines() {
     .map(d => format(d, "yyyy-MM-dd"));
 
   // Which employees to show in timeline section
-  const timelineEmployees = employeeId === "all"
-    ? employees.filter(e => sessions.some(s => String(s.employee_id) === String(e.id)))
-    : employees.filter(e => String(e.id) === employeeId);
+  const timelineEmployees = isAdmin
+    ? (effectiveEmpId === "all"
+        ? employees.filter(e => sessions.some(s => String(s.employee_id) === String(e.id)))
+        : employees.filter(e => String(e.id) === effectiveEmpId))
+    : (user ? [{ id: user.id, name: user.name, department: user.department }] : []);
 
   const DAY_RESET_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
     value: i, label: `${String(i).padStart(2,"0")}:00`
@@ -292,12 +302,13 @@ export default function Timelines() {
 
   return (
     <div>
-      <h1 style={{ fontSize:26, fontWeight:700, color:"#1e293b", margin:0 }}>Timelines</h1>
-      <p style={{ color:"#64748b", fontSize:14, marginTop:4, marginBottom:24 }}>Employee History</p>
+      <h1 style={{ fontSize:26, fontWeight:700, color:"#1e293b", margin:0 }}>{isAdmin ? "Timelines" : "My Timeline"}</h1>
+      <p style={{ color:"#64748b", fontSize:14, marginTop:4, marginBottom:24 }}>Work history by day</p>
 
       {/* Filter bar */}
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:28, flexWrap:"wrap",
                     background:"#fff", padding:"16px 20px", borderRadius:12, border:"1px solid #e2e8f0" }}>
+        {isAdmin && (
         <div>
           <div style={{ fontSize:11, fontWeight:600, color:"#9ca3af", marginBottom:4 }}>Employee</div>
           <select style={S.select} value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
@@ -305,6 +316,7 @@ export default function Timelines() {
             {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
+        )}
         <div>
           <div style={{ fontSize:11, fontWeight:600, color:"#9ca3af", marginBottom:4 }}>Start Date</div>
           <input type="date" style={S.select} value={startDate} onChange={e => setStartDate(e.target.value)} />

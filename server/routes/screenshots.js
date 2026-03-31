@@ -125,8 +125,10 @@ router.get('/view/:empId/:date/:filename', (req, res) => {
     return res.status(401).send('Invalid token');
   }
 
-  // Only admins can view screenshots
-  if (user.role !== 'admin') return res.status(403).send('Forbidden');
+  // Admins can view any screenshot; employees can only view their own
+  if (user.role !== 'admin' && String(user.id) !== String(req.params.empId)) {
+    return res.status(403).send('Forbidden');
+  }
 
   const { empId, date, filename } = req.params;
 
@@ -147,6 +149,21 @@ router.get('/view/:empId/:date/:filename', (req, res) => {
   } catch (err) {
     res.status(500).send('Decryption failed');
   }
+});
+
+// ── GET /api/screenshots/mine?date=  (employee – own screenshots only) ────────
+router.get('/mine', auth, async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const [rows] = await db.query(
+      `SELECT s.*, e.name AS employee_name
+       FROM screenshots s JOIN employees e ON s.employee_id=e.id
+       WHERE s.date=? AND s.employee_id=?
+       ORDER BY s.captured_at DESC`,
+      [date, req.user.id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── GET /api/screenshots?date=&employeeId=  (admin) ──────────────────────────
