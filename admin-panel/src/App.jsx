@@ -21,7 +21,7 @@ export const useAuth = () => useContext(AuthContext);
 const S = {
   sidebar: { width: 220, background: "#1e293b", minHeight: "100vh", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 100 },
   logo: { padding: "24px 20px", color: "#fff", fontSize: 20, fontWeight: 700, borderBottom: "1px solid #334155", display: "flex", alignItems: "center", gap: 10 },
-  nav: { flex: 1, padding: "16px 0" },
+  nav: { flex: 1, padding: "16px 0", overflowY: "auto" },
   navLink: { display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", color: "#94a3b8", textDecoration: "none", fontSize: 14, fontWeight: 500, transition: "all 0.15s" },
   navLinkActive: { color: "#fff", background: "#334155", borderRadius: 8, margin: "0 8px" },
   footer: { padding: "16px 20px", borderTop: "1px solid #334155" },
