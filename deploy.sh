@@ -44,7 +44,7 @@ git pull origin main
 echo ""
 echo "=== [3/4] Installing & building admin panel ==="
 cd "$ROOT/admin-panel"
-npm install --include=dev
+npm install
 npm run build
 
 echo "=== [4/4] Copying build to server/public ==="
