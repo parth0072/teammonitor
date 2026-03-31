@@ -234,7 +234,7 @@ function TaskCard({ task, employees, onEdit, onStatusChange, onDelete }) {
           <option value="done">Done</option>
         </select>
         <div style={{ display:"flex", gap:4 }}>
-          <button style={btnSecondary} onClick={onEdit}
+          <button onClick={onEdit}
             style={{ fontSize:11, padding:"3px 8px", background:"#f8fafc", border:"none", borderRadius:6, cursor:"pointer", color:"#475569" }}>
             Edit
           </button>

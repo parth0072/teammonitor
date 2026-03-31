@@ -35,7 +35,7 @@ const NAV_ITEMS = [
   { path: "/productivity",label: "Productivity", icon: "📈" },
   { path: "/projects",    label: "Projects",     icon: "📁" },
   { path: "/reports",     label: "Reports",      icon: "📊" },
-  { path: "/leaves",      label: "Leaves",       icon: "🌿" },
+  { path: "/leaves",      label: "Leaves",       icon: "🏖" },
   { path: "/employees",   label: "Employees",    icon: "👥" },
   { path: "/screenshots", label: "Screenshots",  icon: "🖼" },
   { path: "/attendance",  label: "Attendance",   icon: "📅" },

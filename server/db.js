@@ -65,6 +65,9 @@ if (USE_MYSQL) {
         created_at     DATETIME    DEFAULT NOW()
       )`);
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS task_id INT DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`).catch(() => {});
+    await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by INT DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INT DEFAULT NULL`).catch(() => {});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS activity_logs (
         id               INT AUTO_INCREMENT PRIMARY KEY,
@@ -299,6 +302,9 @@ if (USE_MYSQL) {
   const migrations = [
     `ALTER TABLE employees ADD COLUMN screenshot_interval INTEGER DEFAULT 300`,
     `ALTER TABLE sessions  ADD COLUMN task_id INTEGER DEFAULT NULL`,
+    `ALTER TABLE projects  ADD COLUMN status     TEXT DEFAULT 'active'`,
+    `ALTER TABLE projects  ADD COLUMN created_by INTEGER DEFAULT NULL`,
+    `ALTER TABLE tasks     ADD COLUMN created_by INTEGER DEFAULT NULL`,
   ];
   for (const m of migrations) {
     try { db.exec(m); } catch (_) { /* column already exists */ }

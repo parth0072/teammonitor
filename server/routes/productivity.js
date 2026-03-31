@@ -7,6 +7,7 @@ const { adminOnly } = require('../middleware/auth');
 // GET /api/productivity?days=7&employeeId=  (admin)
 // Returns per-employee per-day productivity stats
 router.get('/', auth, adminOnly, async (req, res) => {
+  try {
   const days       = Math.min(parseInt(req.query.days) || 7, 30);
   const employeeId = req.query.employeeId;
 
@@ -104,6 +105,9 @@ router.get('/', auth, adminOnly, async (req, res) => {
   });
 
   res.json({ employees: result, dateList });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
