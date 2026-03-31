@@ -8,7 +8,7 @@ const S = {
   filters:  { display: "flex", gap: 12, marginBottom: 20, marginTop: 12, flexWrap: "wrap", alignItems: "center" },
   select:   { padding: "8px 14px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14, background: "#fff", fontFamily: "Inter,sans-serif", cursor: "pointer" },
   refreshBtn:{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", cursor:"pointer", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:8 },
-  grid:     { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 },
+  grid:     { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14, width: "100%" },
   card:     { background: "#fff", borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", border: "1px solid #e2e8f0", cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s" },
   img:      { width: "100%", height: 130, objectFit: "cover", background: "#f1f5f9", display: "block" },
   info:     { padding: "10px 12px" },
@@ -123,7 +123,7 @@ export default function Screenshots() {
   }, [filterDate, load]);
 
   return (
-    <div>
+    <div style={{ width: "100%" }}>
       <div style={S.topBar}>
         <h1 style={S.title}>Screenshots</h1>
         <button style={S.refreshBtn} onClick={load}>↻ Refresh</button>
