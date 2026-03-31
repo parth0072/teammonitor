@@ -46,6 +46,17 @@ echo "=== [3/4] Installing & building admin panel ==="
 cd "$ROOT/admin-panel"
 rm -rf node_modules package-lock.json
 npm install --no-audit
+
+# Add local bin to PATH so vite is found
+export PATH="$ROOT/admin-panel/node_modules/.bin:$PATH"
+
+# Verify vite installed correctly
+if [ ! -f node_modules/.bin/vite ] && [ ! -L node_modules/.bin/vite ]; then
+  echo "WARNING: node_modules/.bin/vite not found after install"
+  echo "Checking vite package:"
+  ls node_modules/vite/ 2>/dev/null || echo "  vite folder missing entirely"
+fi
+
 npm run build
 
 echo "=== [4/4] Copying build to server/public ==="
