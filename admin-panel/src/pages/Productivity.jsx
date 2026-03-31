@@ -34,8 +34,8 @@ const CAT = {
   unproductive: { label: "Unproductive", color: "#dc2626", bg: "#fee2e2" },
 };
 
-const fmtH = m => { const h = Math.floor(m / 60), mn = m % 60; return h > 0 ? `${h}h ${mn}m` : `${mn}m`; };
-const fmtS = s => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
+const fmtH = m => { m = Math.round(Number(m) || 0); const h = Math.floor(m / 60), mn = m % 60; return h > 0 ? `${h}h ${mn}m` : `${mn}m`; };
+const fmtS = s => { s = Math.round(Number(s) || 0); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
 
 function ScoreRing({ score, size = 72 }) {
   if (score === null) return <div style={{ width: size, height: size, borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#94a3b8" }}>—</div>;
@@ -156,19 +156,18 @@ export default function Productivity() {
       </div>
 
       {/* Team summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 16, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 28 }}>
         {[
-          { label: "Team Avg Productivity", value: teamAvgScore !== null ? `${teamAvgScore}%` : "—", color: teamAvgScore >= 75 ? "#16a34a" : teamAvgScore >= 50 ? "#f59e0b" : "#dc2626", icon: "📈" },
-          { label: "Total Hours Tracked", value: fmtH(teamTotalHours), color: "#3b82f6", icon: "⏱" },
-          { label: "Employees Tracked", value: employees.filter(e => e.totalTracked > 0).length, color: "#8b5cf6", icon: "👥" },
-          { label: "Period", value: `${days} days`, color: "#64748b", icon: "📅" },
+          { label: "Team Avg Score",     value: teamAvgScore !== null ? `${teamAvgScore}%` : "—", color: teamAvgScore >= 75 ? "#16a34a" : teamAvgScore >= 50 ? "#f59e0b" : "#dc2626", bg: "#f0fdf4", icon: "📈" },
+          { label: "Total Hours Tracked",value: fmtH(teamTotalHours),                             color: "#2563eb", bg: "#eff6ff", icon: "⏱" },
+          { label: "Employees Tracked",  value: employees.filter(e => e.totalTracked > 0).length, color: "#7c3aed", bg: "#f5f3ff", icon: "👥" },
+          { label: "Period",             value: `${days} days`,                                    color: "#0f766e", bg: "#f0fdfa", icon: "📅" },
         ].map(c => (
-          <div key={c.label} style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ fontSize: 26 }}>{c.icon}</div>
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: c.color }}>{c.value}</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{c.label}</div>
+          <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: "18px 20px", border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>{c.icon}</span>{c.label}
             </div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: c.color, letterSpacing: -0.5 }}>{c.value}</div>
           </div>
         ))}
       </div>
@@ -220,22 +219,20 @@ export default function Productivity() {
                 </div>
 
                 {/* Stats */}
-                <div style={{ display: "flex", gap: 28, alignItems: "center", flexShrink: 0 }}>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#3b82f6" }}>{fmtH(emp.totalTracked)}</div>
+                <div style={{ display: "flex", gap: 20, alignItems: "center", flexShrink: 0 }}>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#2563eb" }}>{fmtH(emp.totalTracked)}</div>
                     <div style={{ fontSize: 11, color: "#94a3b8" }}>Tracked</div>
                   </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#f59e0b" }}>{fmtS(emp.totalIdle)}</div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#f59e0b" }}>{fmtS(emp.totalIdle)}</div>
                     <div style={{ fontSize: 11, color: "#94a3b8" }}>Idle</div>
                   </div>
-                  <ScoreRing score={emp.avgScore} size={64} />
-                </div>
-
-                {/* Trend bars */}
-                <div style={{ width: 80, flexShrink: 0 }}>
-                  <MiniBar days_data={emp.days_data} metric="score" />
-                  <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, textAlign: "center" }}>Score trend</div>
+                  <ScoreRing score={emp.avgScore} size={60} />
+                  <div style={{ width: 70, flexShrink: 0 }}>
+                    <MiniBar days_data={emp.days_data} metric="score" />
+                    <div style={{ fontSize: 10, color: "#cbd5e1", marginTop: 2, textAlign: "center" }}>trend</div>
+                  </div>
                 </div>
 
                 <div style={{ color: "#94a3b8", fontSize: 18 }}>{isOpen ? "▲" : "▼"}</div>
