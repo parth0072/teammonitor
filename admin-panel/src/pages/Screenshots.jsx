@@ -3,15 +3,20 @@ import { api } from "../api";
 import { format, subDays } from "date-fns";
 
 const S = {
-  title:    { fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 },
-  topBar:   { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginTop: 0 },
-  filters:  { display: "flex", gap: 12, marginBottom: 20, marginTop: 12, flexWrap: "wrap", alignItems: "center" },
-  select:   { padding: "8px 14px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14, background: "#fff", fontFamily: "Inter,sans-serif", cursor: "pointer" },
-  refreshBtn:{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", cursor:"pointer", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:8 },
-  grid:     { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14, width: "100%" },
-  card:     { background: "#fff", borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", border: "1px solid #e2e8f0", cursor: "pointer", transition: "transform 0.15s, box-shadow 0.15s" },
-  img:      { width: "100%", height: 130, objectFit: "cover", background: "#f1f5f9", display: "block" },
-  info:     { padding: "10px 12px" },
+  title:      { fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 },
+  topBar:     { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  filters:    { display: "flex", gap: 12, marginBottom: 20, marginTop: 12, flexWrap: "wrap", alignItems: "center" },
+  select:     { padding: "8px 14px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14, background: "#fff", fontFamily: "Inter,sans-serif", cursor: "pointer" },
+  refreshBtn: { background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", cursor:"pointer", fontSize:13, fontWeight:600 },
+  group:      { marginBottom: 28 },
+  groupHeader:{ display:"flex", alignItems:"center", gap:10, marginBottom:12 },
+  avatar:     { width:34, height:34, borderRadius:"50%", background:"#3b82f6", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, flexShrink:0 },
+  empName:    { fontSize:15, fontWeight:700, color:"#1e293b" },
+  count:      { fontSize:13, color:"#94a3b8" },
+  grid:       { display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:10, width:"100%" },
+  card:       { background:"#fff", borderRadius:10, overflow:"hidden", boxShadow:"0 1px 3px rgba(0,0,0,0.08)", border:"1px solid #e2e8f0", cursor:"pointer", transition:"transform 0.15s,box-shadow 0.15s" },
+  img:        { width:"100%", height:120, objectFit:"cover", background:"#f1f5f9", display:"block" },
+  time:       { padding:"7px 10px", fontSize:12, color:"#64748b" },
 };
 
 const DATE_OPTIONS = Array.from({ length: 7 }, (_, i) => {
@@ -19,21 +24,25 @@ const DATE_OPTIONS = Array.from({ length: 7 }, (_, i) => {
   return { label: i===0?"Today":i===1?"Yesterday":format(d,"EEE, MMM d"), value: format(d,"yyyy-MM-dd") };
 });
 
-// ── Lightbox ─────────────────────────────────────────────────────────────────
+function imgSrc(filePath) {
+  if (!filePath) return null;
+  const token = sessionStorage.getItem('tm_token') || '';
+  return `${filePath}?token=${encodeURIComponent(token)}`;
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
 
 function Lightbox({ screenshots, index, onClose }) {
   const [current, setCurrent] = useState(index);
-
   useEffect(() => { setCurrent(index); }, [index]);
-
   const prev = useCallback(() => setCurrent(i => Math.max(0, i - 1)), []);
   const next = useCallback(() => setCurrent(i => Math.min(screenshots.length - 1, i + 1)), [screenshots.length]);
 
   useEffect(() => {
     const onKey = e => {
-      if (e.key === "Escape")      onClose();
-      if (e.key === "ArrowLeft")   prev();
-      if (e.key === "ArrowRight")  next();
+      if (e.key === "Escape")     onClose();
+      if (e.key === "ArrowLeft")  prev();
+      if (e.key === "ArrowRight") next();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -45,17 +54,11 @@ function Lightbox({ screenshots, index, onClose }) {
   return (
     <div onClick={onClose}
       style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:999 }}>
-
-      {/* Prev button */}
       {current > 0 && (
         <button onClick={e => { e.stopPropagation(); prev(); }}
           style={{ position:"absolute", left:20, background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"50%",
-                   width:44, height:44, fontSize:22, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-          ‹
-        </button>
+                   width:44, height:44, fontSize:22, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>
       )}
-
-      {/* Image */}
       <div onClick={e => e.stopPropagation()} style={{ textAlign:"center", maxWidth:"90vw" }}>
         <img src={imgSrc(ss.file_path)} alt="Screenshot"
           style={{ maxWidth:"88vw", maxHeight:"78vh", borderRadius:12, display:"block", margin:"0 auto" }} />
@@ -74,27 +77,16 @@ function Lightbox({ screenshots, index, onClose }) {
           {current + 1} / {screenshots.length} · ← → to navigate · Esc to close
         </div>
       </div>
-
-      {/* Next button */}
       {current < screenshots.length - 1 && (
         <button onClick={e => { e.stopPropagation(); next(); }}
           style={{ position:"absolute", right:20, background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"50%",
-                   width:44, height:44, fontSize:22, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-          ›
-        </button>
+                   width:44, height:44, fontSize:22, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>›</button>
       )}
     </div>
   );
 }
 
-// ── Screenshots page ─────────────────────────────────────────────────────────
-
-// Append ?token= so <img> can load encrypted screenshots (headers not allowed on img tags)
-function imgSrc(filePath) {
-  if (!filePath) return null;
-  const token = sessionStorage.getItem('tm_token') || '';
-  return `${filePath}?token=${encodeURIComponent(token)}`;
-}
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Screenshots() {
   const [screenshots, setScreenshots] = useState([]);
@@ -120,17 +112,34 @@ export default function Screenshots() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh every 30s (only for today)
   useEffect(() => {
     clearInterval(autoRef.current);
-    if (filterDate === DATE_OPTIONS[0].value) {
-      autoRef.current = setInterval(load, 30_000);
-    }
+    if (filterDate === DATE_OPTIONS[0].value) autoRef.current = setInterval(load, 30_000);
     return () => clearInterval(autoRef.current);
   }, [filterDate, load]);
 
+  // Group screenshots by employee
+  const groups = [];
+  const seen = {};
+  for (const ss of screenshots) {
+    const key = ss.employee_id;
+    if (!seen[key]) {
+      seen[key] = { name: ss.employee_name, items: [] };
+      groups.push(seen[key]);
+    }
+    seen[key].items.push(ss);
+  }
+
+  // Flat list for lightbox (preserves order)
+  // Map each ss to its flat index
+  const flatIndex = {};
+  let idx = 0;
+  for (const g of groups) {
+    for (const ss of g.items) { flatIndex[ss.id] = idx++; }
+  }
+
   return (
-    <div style={{ width: "100%" }}>
+    <div style={{ width:"100%" }}>
       <div style={S.topBar}>
         <h1 style={S.title}>Screenshots</h1>
         <button style={S.refreshBtn} onClick={load}>↻ Refresh</button>
@@ -162,35 +171,37 @@ export default function Screenshots() {
         </div>
       )}
 
-      <div style={S.grid}>
-        {screenshots.map((ss, i) => (
-          <div
-            key={ss.id}
-            style={S.card}
-            onClick={() => setLightboxIdx(i)}
-            onMouseEnter={e => { e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 6px 20px rgba(0,0,0,0.12)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.08)"; }}>
-            {ss.file_path
-              ? <img style={S.img} src={imgSrc(ss.file_path)} alt="Screenshot" loading="lazy" />
-              : <div style={{ ...S.img, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36 }}>🖥</div>}
-            <div style={S.info}>
-              <div style={{ fontSize:13, fontWeight:600, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ss.employee_name}</div>
-              <div style={{ fontSize:12, color:"#64748b", marginTop:3 }}>
-                {ss.captured_at ? format(new Date(ss.captured_at), "MMM d · h:mm a") : "—"}
-              </div>
-              {ss.activity_level != null && (
-                <div style={{ marginTop:5 }}>
-                  <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:10,
-                                 background: ss.activity_level > 50 ? "#dcfce7" : "#fef9c3",
-                                 color: ss.activity_level > 50 ? "#16a34a" : "#92400e" }}>
-                    {ss.activity_level}% active
-                  </span>
-                </div>
-              )}
-            </div>
+      {groups.map(group => (
+        <div key={group.name} style={S.group}>
+          <div style={S.groupHeader}>
+            <div style={S.avatar}>{group.name.charAt(0).toUpperCase()}</div>
+            <span style={S.empName}>{group.name}</span>
+            <span style={S.count}>{group.items.length} screenshot{group.items.length !== 1 ? "s" : ""}</span>
           </div>
-        ))}
-      </div>
+          <div style={S.grid}>
+            {group.items.map(ss => (
+              <div key={ss.id} style={S.card}
+                onClick={() => setLightboxIdx(flatIndex[ss.id])}
+                onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 6px 16px rgba(0,0,0,0.12)"; }}
+                onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.08)"; }}>
+                {ss.file_path
+                  ? <img style={S.img} src={imgSrc(ss.file_path)} alt="Screenshot" loading="lazy" />
+                  : <div style={{ ...S.img, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>🖥</div>}
+                <div style={S.time}>
+                  {ss.captured_at ? format(new Date(ss.captured_at), "h:mm a") : "—"}
+                  {ss.activity_level != null && (
+                    <span style={{ marginLeft:6, fontSize:11, fontWeight:700, padding:"1px 6px", borderRadius:8,
+                                   background: ss.activity_level > 50 ? "#dcfce7" : "#fef9c3",
+                                   color: ss.activity_level > 50 ? "#16a34a" : "#92400e" }}>
+                      {ss.activity_level}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
 
       <Lightbox screenshots={screenshots} index={lightboxIdx} onClose={() => setLightboxIdx(null)} />
     </div>
