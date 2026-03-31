@@ -36,6 +36,7 @@
 		AA000031 /* Views/TrackingDashboardView+Tabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000031 /* Views/TrackingDashboardView+Tabs.swift */; };
 		AA000032 /* Views/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* Views/SettingsView.swift */; };
 		AA000033 /* Views/NotTrackingAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Views/NotTrackingAlertView.swift */; };
+		AA000034 /* Services/UpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000034 /* Services/UpdateService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +69,7 @@
 		AB000031 /* Views/TrackingDashboardView+Tabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/TrackingDashboardView+Tabs.swift"; sourceTree = "<group>"; };
 		AB000032 /* Views/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
 		AB000033 /* Views/NotTrackingAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/NotTrackingAlertView.swift; sourceTree = "<group>"; };
+		AB000034 /* Services/UpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/UpdateService.swift; sourceTree = "<group>"; };
 		AB000099 /* TeamMonitorAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeamMonitorAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -116,6 +118,7 @@
 				AB000009 /* Services/TrackingManager.swift */,
 				AB000015 /* Services/NetworkMonitor.swift */,
 				AB000016 /* Services/OfflineQueue.swift */,
+				AB000034 /* Services/UpdateService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -255,6 +258,7 @@
 				AA000031 /* Views/TrackingDashboardView+Tabs.swift in Sources */,
 				AA000032 /* Views/SettingsView.swift in Sources */,
 				AA000033 /* Views/NotTrackingAlertView.swift in Sources */,
+				AA000034 /* Services/UpdateService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -29,6 +29,7 @@ struct TrackingDashboardView: View {
     @State var myTasks:      [TaskItem]    = []
     @State var projects:     [ProjectItem] = []
     @State var tasksLoading: Bool          = false
+    @State var tasksError:   String?       = nil
 
     @State var toast:          ToastMessage? = nil
     @State var toastTimer:     Timer?        = nil

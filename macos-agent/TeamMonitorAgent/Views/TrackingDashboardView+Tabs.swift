@@ -83,6 +83,22 @@ extension TrackingDashboardView {
                     }
                     if tasksLoading {
                         ProgressView().padding(.vertical, 36).frame(maxWidth: .infinity)
+                    } else if let err = tasksError {
+                        VStack(spacing: 10) {
+                            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 28))
+                                .foregroundColor(Color(hex: "f59e0b"))
+                            Text("Could not load tasks")
+                                .font(.system(size: 13, weight: .semibold)).foregroundColor(Color(hex: "374151"))
+                            Text(err)
+                                .font(.system(size: 11)).foregroundColor(Color(hex: "9ca3af"))
+                                .multilineTextAlignment(.center).padding(.horizontal, 24)
+                            Button("Retry") { loadTasks() }
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16).padding(.vertical, 6)
+                                .background(Color(hex: "3b82f6")).cornerRadius(6).buttonStyle(.plain)
+                        }
+                        .frame(maxWidth: .infinity).padding(.vertical, 36)
                     } else if filtered.isEmpty {
                         VStack(spacing: 10) {
                             Image(systemName: "checklist").font(.system(size: 30))

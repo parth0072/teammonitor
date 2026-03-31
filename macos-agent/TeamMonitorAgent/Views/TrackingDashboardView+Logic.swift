@@ -8,11 +8,17 @@ extension TrackingDashboardView {
 
     func loadTasks() {
         tasksLoading = true
-        Task {
-            async let t = APIService.shared.getMyTasks()
-            async let p = APIService.shared.getProjects()
-            myTasks      = (try? await t) ?? []
-            projects     = (try? await p) ?? []
+        tasksError   = nil
+        Task { @MainActor in
+            do {
+                async let t = APIService.shared.getMyTasks()
+                async let p = APIService.shared.getProjects()
+                myTasks  = try await t
+                projects = try await p
+            } catch {
+                tasksError = error.localizedDescription
+                print("[loadTasks] error: \(error)")
+            }
             tasksLoading = false
         }
     }
