@@ -13,7 +13,7 @@ router.get('/', auth, async (req, res) => {
       `SELECT p.*, e.name AS created_by_name,
               COUNT(t.id) AS task_count
        FROM projects p
-       JOIN employees e ON p.created_by = e.id
+       LEFT JOIN employees e ON p.created_by = e.id
        LEFT JOIN tasks t ON t.project_id = p.id
        WHERE p.status = 'active'
        GROUP BY p.id
@@ -85,7 +85,7 @@ router.get('/tasks/mine', auth, async (req, res) => {
        FROM tasks t
        JOIN projects p ON t.project_id = p.id
        LEFT JOIN employees e ON t.assigned_to = e.id
-       WHERE (t.assigned_to = ? OR t.created_by = ?)
+       WHERE (t.assigned_to = ? OR t.created_by = ? OR t.assigned_to IS NULL)
          AND t.status != 'done'
          AND p.status = 'active'
        ORDER BY t.status ASC, t.created_at DESC`,
