@@ -10,7 +10,7 @@ struct TeamMonitorAgentApp: App {
 
     var body: some Scene {
         // Main window
-        WindowGroup("TeamMonitor") {
+        WindowGroup("TeamMonitor", id: "main") {
             ContentView()
                 .frame(minWidth: 700, minHeight: 580)
         }
@@ -159,6 +159,7 @@ struct MenuBarLabel: View {
 
 struct MenuBarView: View {
     @StateObject private var manager = TrackingManager.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         // Status line
@@ -192,7 +193,7 @@ struct MenuBarView: View {
 
         // Open main window
         Button("Open TeamMonitor…") {
-            NSApp.windows.first?.makeKeyAndOrderFront(nil)
+            openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
 
