@@ -37,6 +37,8 @@
 		AA000032 /* Views/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* Views/SettingsView.swift */; };
 		AA000033 /* Views/NotTrackingAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Views/NotTrackingAlertView.swift */; };
 		AA000034 /* Services/UpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000034 /* Services/UpdateService.swift */; };
+		AA000035 /* Services/AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000035 /* Services/AppLogger.swift */; };
+		AA000036 /* Views/BugReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000036 /* Views/BugReportView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -70,6 +72,8 @@
 		AB000032 /* Views/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
 		AB000033 /* Views/NotTrackingAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/NotTrackingAlertView.swift; sourceTree = "<group>"; };
 		AB000034 /* Services/UpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/UpdateService.swift; sourceTree = "<group>"; };
+		AB000035 /* Services/AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppLogger.swift; sourceTree = "<group>"; };
+		AB000036 /* Views/BugReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/BugReportView.swift; sourceTree = "<group>"; };
 		AB000099 /* TeamMonitorAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeamMonitorAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -119,6 +123,7 @@
 				AB000015 /* Services/NetworkMonitor.swift */,
 				AB000016 /* Services/OfflineQueue.swift */,
 				AB000034 /* Services/UpdateService.swift */,
+				AB000035 /* Services/AppLogger.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -157,6 +162,7 @@
 				AB000026 /* Views/BreakReminderView.swift */,
 				AB000032 /* Views/SettingsView.swift */,
 				AB000033 /* Views/NotTrackingAlertView.swift */,
+				AB000036 /* Views/BugReportView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -259,6 +265,8 @@
 				AA000032 /* Views/SettingsView.swift in Sources */,
 				AA000033 /* Views/NotTrackingAlertView.swift in Sources */,
 				AA000034 /* Services/UpdateService.swift in Sources */,
+				AA000035 /* Services/AppLogger.swift in Sources */,
+				AA000036 /* Views/BugReportView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
