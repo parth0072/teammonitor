@@ -95,18 +95,33 @@ class UpdateService: ObservableObject {
             try? xattr.run(); xattr.waitUntilExit()
             downloadProgress = 0.80
 
-            // 5. Replace /Applications/TeamMonitorAgent.app
-            let appDest = URL(fileURLWithPath: "/Applications/\(appBundleName)")
-            if fm.fileExists(atPath: appDest.path) {
-                try fm.removeItem(at: appDest)
-            }
-            try fm.copyItem(at: appSrc, to: appDest)
+            // 5. Replace the running copy (wherever it is — /Applications, ~/Downloads, etc.)
+            let currentAppURL = Bundle.main.bundleURL
+            let appDest       = currentAppURL.deletingLastPathComponent()
+                                             .appendingPathComponent(appBundleName)
+
+            // Use a shell script so macOS doesn't block the self-replace
+            let script = """
+            sleep 1
+            rm -rf \(appDest.path.shellEscaped)
+            cp -R \(appSrc.path.shellEscaped) \(appDest.path.shellEscaped)
+            xattr -rd com.apple.quarantine \(appDest.path.shellEscaped) 2>/dev/null || true
+            open -n \(appDest.path.shellEscaped)
+            """
+            let scriptFile = tmpDir.appendingPathComponent("install.sh")
+            try script.write(to: scriptFile, atomically: true, encoding: .utf8)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptFile.path)
+
+            let sh = Process()
+            sh.executableURL = URL(fileURLWithPath: "/bin/bash")
+            sh.arguments     = [scriptFile.path]
+            try sh.run()   // detached — runs after we quit
             downloadProgress = 1.0
 
-            // 6. Relaunch from new location after a brief pause
+            // 6. Quit so the install script can replace us
             try? fm.removeItem(at: tmpDir)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.relaunch(appPath: appDest.path)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                NSApp.terminate(nil)
             }
 
         } catch {
@@ -144,20 +159,15 @@ class UpdateService: ObservableObject {
         return false
     }
 
-    private func relaunch(appPath: String) {
-        // Use `open` CLI to start the new copy, then terminate self.
-        let open = Process()
-        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        open.arguments     = ["-n", appPath]
-        try? open.run()
-        // Give the new instance half a second to start before we quit
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApp.terminate(nil)
-        }
-    }
 }
 
 // MARK: - Errors
+
+private extension String {
+    /// Wraps the string in single quotes and escapes any embedded single quotes,
+    /// so it's safe to embed in a shell script argument.
+    var shellEscaped: String { "'" + replacingOccurrences(of: "'", with: "'\\''") + "'" }
+}
 
 enum UpdateError: LocalizedError {
     case unzipFailed
