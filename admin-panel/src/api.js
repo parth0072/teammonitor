@@ -91,6 +91,15 @@ export const api = {
   getLeaveBalances: (year)         => request('GET', `/leaves/balances?year=${year}`),
   setLeaveBalance:  (data)         => request('PUT', '/leaves/balances', data),
 
+  // Jira integration (per-employee)
+  getJiraStatus:    ()                          => request('GET',    '/jira/status'),
+  connectJira:      (siteUrl, email, apiToken)  => request('POST',   '/jira/connect', { siteUrl, email, apiToken }),
+  disconnectJira:   ()                          => request('DELETE', '/jira/disconnect'),
+  getJiraProjects:  ()                          => request('GET',    '/jira/projects'),
+  getJiraIssues:    (projectKey)                => request('GET',    `/jira/issues${projectKey ? `?projectKey=${projectKey}` : ''}`),
+  syncJira:         (projectKey, teamMonitorProjectId) =>
+    request('POST', '/jira/sync', { projectKey, teamMonitorProjectId }),
+
   // Productivity
   getProductivity: (days, empId)   => request('GET', `/productivity?days=${days}${empId ? `&employeeId=${empId}` : ''}`),
 

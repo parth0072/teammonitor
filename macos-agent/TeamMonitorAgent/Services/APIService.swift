@@ -109,6 +109,34 @@ struct TaskItem: Decodable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Jira Models
+
+struct JiraStatus: Decodable {
+    let connected:   Bool
+    let siteUrl:     String?
+    let email:       String?
+    let displayName: String?
+    enum CodingKeys: String, CodingKey {
+        case connected
+        case siteUrl     = "siteUrl"
+        case email
+        case displayName = "displayName"
+    }
+}
+
+struct JiraIssue: Decodable, Identifiable, Hashable {
+    let id:             String
+    let key:            String
+    let summary:        String
+    let status:         String
+    let statusCategory: String   // new | indeterminate | done
+    let priority:       String
+    let issueType:      String
+    let projectKey:     String
+    let projectName:    String
+    let url:            String
+}
+
 // MARK: - Reports / Activity Models
 
 struct ActivitySummaryItem: Decodable, Identifiable {
@@ -358,6 +386,22 @@ class APIService: ObservableObject {
     func updateTaskStatus(taskId: Int, status: String) async throws {
         let body: [String: Any] = ["status": status]
         try await put("/projects/tasks/\(taskId)", body: body)
+    }
+
+    // MARK: - Jira
+
+    func getJiraStatus() async throws -> JiraStatus {
+        try await get("/jira/status")
+    }
+
+    /// Returns issues assigned to the current user that are not done.
+    /// Pass nil for all projects, or a Jira project key to filter.
+    func getJiraIssues(projectKey: String? = nil) async throws -> [JiraIssue] {
+        var path = "/jira/issues"
+        if let key = projectKey, !key.isEmpty {
+            path += "?projectKey=\(key)"
+        }
+        return try await get(path)
     }
 
     // MARK: - Helpers

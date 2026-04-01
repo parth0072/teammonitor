@@ -37,18 +37,33 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
-  id           INT AUTO_INCREMENT PRIMARY KEY,
-  project_id   INT NOT NULL,
-  name         VARCHAR(200) NOT NULL,
-  description  TEXT DEFAULT '',
-  status       ENUM('todo','in_progress','done') DEFAULT 'todo',
-  assigned_to  INT DEFAULT NULL,
-  created_by   INT NOT NULL,
-  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  project_id      INT NOT NULL,
+  name            VARCHAR(200) NOT NULL,
+  description     TEXT DEFAULT '',
+  status          ENUM('todo','in_progress','done') DEFAULT 'todo',
+  assigned_to     INT DEFAULT NULL,
+  created_by      INT NOT NULL,
+  jira_issue_key  VARCHAR(50) DEFAULT NULL,   -- e.g. "PROJ-42" when imported from Jira
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (project_id)  REFERENCES projects(id)  ON DELETE CASCADE,
   FOREIGN KEY (assigned_to) REFERENCES employees(id) ON DELETE SET NULL,
   FOREIGN KEY (created_by)  REFERENCES employees(id) ON DELETE CASCADE
 );
+
+-- Jira per-employee credentials (API token auth, one row per employee)
+CREATE TABLE IF NOT EXISTS jira_credentials (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id      INT NOT NULL UNIQUE,
+  site_url         VARCHAR(255) NOT NULL,     -- e.g. https://mycompany.atlassian.net
+  email            VARCHAR(150) NOT NULL,     -- Atlassian account email
+  api_token        TEXT NOT NULL,             -- Jira API token
+  jira_account_id  VARCHAR(100) DEFAULT NULL, -- accountId from Jira /myself
+  display_name     VARCHAR(150) DEFAULT NULL, -- display name from Jira
+  connected_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+);
+-- If tasks table already exists: ALTER TABLE tasks ADD COLUMN jira_issue_key VARCHAR(50) DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS sessions (
   id             INT AUTO_INCREMENT PRIMARY KEY,

@@ -27,6 +27,7 @@ router.use('/api/sessions',    require('./routes/sessions'));
 router.use('/api/activity',    require('./routes/activity'));
 router.use('/api/screenshots', require('./routes/screenshots'));
 router.use('/api/projects',     require('./routes/projects'));
+router.use('/api/jira',         require('./routes/jira'));
 router.use('/api/timeline',     require('./routes/timeline'));
 router.use('/api/leaves',       require('./routes/leaves'));
 router.use('/api/productivity', require('./routes/productivity'));
@@ -91,6 +92,20 @@ async function runMigrations() {
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS idle_warning_minutes   INT        NOT NULL DEFAULT 2`,
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS idle_stop_minutes      INT        NOT NULL DEFAULT 5`,
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS screenshots_enabled    TINYINT(1) NOT NULL DEFAULT 1`,
+
+    // Jira integration
+    `CREATE TABLE IF NOT EXISTS jira_credentials (
+       id               INT AUTO_INCREMENT PRIMARY KEY,
+       employee_id      INT NOT NULL UNIQUE,
+       site_url         VARCHAR(255) NOT NULL,
+       email            VARCHAR(150) NOT NULL,
+       api_token        TEXT NOT NULL,
+       jira_account_id  VARCHAR(100) DEFAULT NULL,
+       display_name     VARCHAR(150) DEFAULT NULL,
+       connected_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+     )`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS jira_issue_key VARCHAR(50) DEFAULT NULL`,
   ];
   for (const sql of migrations) {
     try {
@@ -99,7 +114,7 @@ async function runMigrations() {
       console.error('[migration] Failed:', err.message);
     }
   }
-  console.log('[migration] Employee columns up to date');
+  console.log('[migration] Schema up to date (employees + jira)');
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────

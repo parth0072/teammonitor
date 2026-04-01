@@ -20,6 +20,29 @@ extension TrackingDashboardView {
                 print("[loadTasks] error: \(error)")
             }
             tasksLoading = false
+            // Load Jira issues in parallel (non-blocking — failure is silent)
+            loadJiraIssues()
+        }
+    }
+
+    func loadJiraIssues() {
+        Task { @MainActor in
+            jiraLoading = true
+            do {
+                let statusResp = try await APIService.shared.getJiraStatus()
+                jiraConnected  = statusResp.connected
+                if statusResp.connected {
+                    jiraIssues = try await APIService.shared.getJiraIssues()
+                } else {
+                    jiraIssues = []
+                }
+            } catch {
+                // Jira errors are non-fatal; just hide the section
+                jiraConnected = false
+                jiraIssues    = []
+                print("[loadJiraIssues] \(error)")
+            }
+            jiraLoading = false
         }
     }
 
