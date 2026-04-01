@@ -37,9 +37,13 @@ class ScreenshotService: ObservableObject {
 
     // MARK: - Start / Stop
 
-    func start(interval: TimeInterval = 300, onCapture: @escaping (Data) -> Void) {
+    var isEnabled: Bool = true   // set false to stop all captures (BE-configured)
+
+    func start(interval: TimeInterval = 300, enabled: Bool = true, onCapture: @escaping (Data) -> Void) {
         self.captureIntervalSeconds = interval
-        self.onCapture = onCapture
+        self.isEnabled              = enabled
+        self.onCapture              = onCapture
+        guard enabled else { return }
         scheduleNext()
     }
 
@@ -51,11 +55,17 @@ class ScreenshotService: ObservableObject {
     private func scheduleNext() {
         timer?.invalidate()
         // Random jitter: ±20% of interval so screenshots aren't predictable
-        let jitter  = captureIntervalSeconds * 0.2
-        let delay   = captureIntervalSeconds + Double.random(in: -jitter...jitter)
+        let jitter = captureIntervalSeconds * 0.2
+        let delay  = captureIntervalSeconds + Double.random(in: -jitter...jitter)
         let t = Timer(timeInterval: max(30, delay), repeats: false) { [weak self] _ in
-            self?.captureNow()
-            self?.scheduleNext()
+            guard let self, self.isEnabled else { return }
+            // If permission was revoked while running, stop the service
+            if !ScreenshotService.hasPermission() {
+                self.stop()
+                return
+            }
+            self.captureNow()
+            self.scheduleNext()
         }
         RunLoop.main.add(t, forMode: .common)
         timer = t
@@ -85,8 +95,10 @@ class ScreenshotService: ObservableObject {
         guard let cgImage = CGDisplayCreateImage(displayID) else { return nil }
         let size    = NSSize(width: cgImage.width, height: cgImage.height)
         let nsImage = NSImage(cgImage: cgImage, size: size)
-        let compressed = nsImage.resized(toMaxWidth: 1280)
-        return compressed.jpegData(compressionFactor: 0.5)
+        // Resize to max 960 px wide (down from 1280) and compress at 0.3 (down from 0.5)
+        // to keep file sizes small (~50–100 KB typical vs 200–400 KB before).
+        let compressed = nsImage.resized(toMaxWidth: 960)
+        return compressed.jpegData(compressionFactor: 0.3)
     }
 }
 

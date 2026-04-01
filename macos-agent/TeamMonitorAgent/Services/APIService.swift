@@ -37,10 +37,39 @@ struct EmployeeInfo: Codable {
     let name: String
     let email: String
     let role: String
-    let screenshotInterval: Int
+    let screenshotInterval:   Int
+    let breakEnabled:         Bool
+    let breakIntervalMinutes: Int
+    let idleWarningMinutes:   Int
+    let idleStopMinutes:      Int
+    let screenshotsEnabled:   Bool
+
     enum CodingKeys: String, CodingKey {
         case id, name, email, role
-        case screenshotInterval = "screenshot_interval"
+        case screenshotInterval   = "screenshot_interval"
+        case breakEnabled         = "break_enabled"
+        case breakIntervalMinutes = "break_interval_minutes"
+        case idleWarningMinutes   = "idle_warning_minutes"
+        case idleStopMinutes      = "idle_stop_minutes"
+        case screenshotsEnabled   = "screenshots_enabled"
+    }
+
+    // Fallback decoder: old servers won't send the new fields; use safe defaults.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id                  = try c.decode(Int.self,    forKey: .id)
+        name                = try c.decode(String.self, forKey: .name)
+        email               = try c.decode(String.self, forKey: .email)
+        role                = try c.decode(String.self, forKey: .role)
+        screenshotInterval  = try c.decodeIfPresent(Int.self,  forKey: .screenshotInterval)   ?? 300
+        // New fields — default to safe values if server hasn't migrated yet
+        let rawBreak        = try c.decodeIfPresent(Int.self,  forKey: .breakEnabled)         ?? 0
+        breakEnabled        = rawBreak != 0
+        breakIntervalMinutes = try c.decodeIfPresent(Int.self, forKey: .breakIntervalMinutes) ?? 60
+        idleWarningMinutes  = try c.decodeIfPresent(Int.self,  forKey: .idleWarningMinutes)   ?? 2
+        idleStopMinutes     = try c.decodeIfPresent(Int.self,  forKey: .idleStopMinutes)      ?? 5
+        let rawScreenshots  = try c.decodeIfPresent(Int.self,  forKey: .screenshotsEnabled)   ?? 1
+        screenshotsEnabled  = rawScreenshots != 0
     }
 }
 struct PunchInResponse: Decodable {

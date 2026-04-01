@@ -34,7 +34,6 @@ struct TrackingDashboardView: View {
     @State var toast:          ToastMessage? = nil
     @State var toastTimer:     Timer?        = nil
 
-    @AppStorage("breakIntervalMinutes") var breakIntervalMinutes: Int = 60
     @State var breakTimer: Timer? = nil
 
     enum DashTab: String { case tasks = "My Tasks", activity = "App Activity", notes = "Work Notes" }
@@ -132,7 +131,7 @@ struct TrackingDashboardView: View {
             Task { await UpdateService.shared.checkForUpdates() }
         }
         .onChange(of: manager.isTracking) { tracking in
-            if tracking {
+            if tracking && APIService.shared.employee?.breakEnabled == true {
                 scheduleBreakReminder()
             } else {
                 cancelBreakTimer()
@@ -142,7 +141,7 @@ struct TrackingDashboardView: View {
             if idle { showToast("You've been idle — timer paused", warning: true) }
         }
         .onChange(of: manager.trackedMinutes) { mins in
-            if mins > 0 && mins % 30 == 0 {
+            if mins > 0 && mins % 30 == 0 && APIService.shared.employee?.breakEnabled == true {
                 showToast("You've been working \(mins / 60)h \(mins % 60)m — remember to take a break!", warning: false)
             }
         }

@@ -152,16 +152,34 @@ extension TrackingDashboardView {
 
     @ViewBuilder
     var idleWarning: some View {
-        if manager.isTracking {
-            HStack {
+        if manager.showIdleWarning {
+            HStack(spacing: 10) {
+                Image(systemName: "clock.badge.exclamationmark.fill")
+                    .font(.system(size: 15))
+                    .foregroundColor(Color(hex: "92400e"))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("No activity detected — timer will pause soon")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "92400e"))
+                    Text("Move your mouse or press a key to stay active. Pausing in \(manager.idleWarningSecondsLeft)s…")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "b45309"))
+                }
                 Spacer()
-                Text("Your timeout is set to 5 minutes")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color(hex: "d97706"))
-                Spacer()
+                Button("I'm here") {
+                    // User dismissed — IdleDetectionService will cancel when it
+                    // detects movement; this just hides the banner immediately.
+                    manager.showIdleWarning     = false
+                    manager.idleWarningSecondsLeft = 0
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Color(hex: "b45309")).cornerRadius(5).buttonStyle(.plain)
             }
-            .padding(.vertical, 7).background(Color.white)
-            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "e5e7eb")), alignment: .bottom)
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(Color(hex: "fef3c7"))
+            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "fde68a")), alignment: .bottom)
         }
     }
 }

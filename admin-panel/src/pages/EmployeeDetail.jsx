@@ -64,17 +64,36 @@ export default function EmployeeDetail() {
   }));
 
   // Settings state
-  const [settingsInterval, setSettingsInterval] = useState(300);
+  const [settingsInterval,      setSettingsInterval]      = useState(300);
+  const [breakEnabled,          setBreakEnabled]          = useState(false);
+  const [breakIntervalMinutes,  setBreakIntervalMinutes]  = useState(60);
+  const [idleWarningMinutes,    setIdleWarningMinutes]    = useState(2);
+  const [idleStopMinutes,       setIdleStopMinutes]       = useState(5);
+  const [screenshotsEnabled,    setScreenshotsEnabled]    = useState(true);
   const [settingsMsg, setSettingsMsg] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
-  useEffect(() => { if (emp) setSettingsInterval(emp.screenshot_interval || 300); }, [emp]);
+  useEffect(() => {
+    if (!emp) return;
+    setSettingsInterval(emp.screenshot_interval || 300);
+    setBreakEnabled(!!emp.break_enabled);
+    setBreakIntervalMinutes(emp.break_interval_minutes || 60);
+    setIdleWarningMinutes(emp.idle_warning_minutes ?? 2);
+    setIdleStopMinutes(emp.idle_stop_minutes ?? 5);
+    setScreenshotsEnabled(emp.screenshots_enabled !== 0);
+  }, [emp]);
 
   async function saveSettings() {
     setSettingsSaving(true); setSettingsMsg("");
     try {
       await api.updateEmployee(id, {
         name: emp.name, department: emp.department, role: emp.role,
-        is_active: emp.is_active, screenshot_interval: settingsInterval
+        is_active: emp.is_active,
+        screenshot_interval:    settingsInterval,
+        break_enabled:          breakEnabled,
+        break_interval_minutes: breakIntervalMinutes,
+        idle_warning_minutes:   idleWarningMinutes,
+        idle_stop_minutes:      idleStopMinutes,
+        screenshots_enabled:    screenshotsEnabled,
       });
       setSettingsMsg("✓ Settings saved");
       setTimeout(() => setSettingsMsg(""), 3000);
@@ -229,27 +248,93 @@ export default function EmployeeDetail() {
 
       {tab===5 && (
         <div style={S.card}>
-          <div style={S.cardTitle}>Screenshot Settings</div>
-          <p style={{ color:"#64748b", fontSize:14, marginBottom:20 }}>
-            Control how frequently screenshots are captured when this employee is being tracked.
+          <div style={S.cardTitle}>macOS Agent Settings</div>
+          <p style={{ color:"#64748b", fontSize:14, marginBottom:24 }}>
+            Configure tracking behaviour for this employee's macOS agent. Changes take effect on next login.
           </p>
-          <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:8 }}>Screenshot Interval</label>
-          <select
-            value={settingsInterval}
-            onChange={e => setSettingsInterval(Number(e.target.value))}
-            style={{ padding:"10px 14px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, background:"#fff", marginBottom:16, minWidth:260 }}
-          >
-            {INTERVAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <div style={{ background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, padding:"10px 16px", fontSize:13, color:"#0369a1", marginBottom:20, display:"inline-flex", alignItems:"center", gap:8 }}>
-            📸 Screenshots every <strong style={{ margin:"0 4px" }}>{fmtInterval(settingsInterval)}</strong> — approx. <strong style={{ margin:"0 4px" }}>{Math.round(480/(settingsInterval/60))}</strong> per 8-hour day
+
+          {/* Screenshots */}
+          <div style={{ marginBottom:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:12, display:"flex", alignItems:"center", gap:8 }}>
+              📸 Screenshots
+            </div>
+            <label style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, cursor:"pointer" }}>
+              <input type="checkbox" checked={screenshotsEnabled} onChange={e => setScreenshotsEnabled(e.target.checked)} style={{ width:16, height:16 }} />
+              <span style={{ fontSize:13, fontWeight:600, color:"#374151" }}>Enable screenshot capture</span>
+            </label>
+            {screenshotsEnabled && (
+              <>
+                <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>Capture Interval</label>
+                <select
+                  value={settingsInterval}
+                  onChange={e => setSettingsInterval(Number(e.target.value))}
+                  style={{ padding:"9px 14px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, background:"#fff", marginBottom:10, minWidth:260 }}
+                >
+                  {INTERVAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <div style={{ background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, padding:"8px 14px", fontSize:13, color:"#0369a1", display:"inline-flex", alignItems:"center", gap:6 }}>
+                  📸 ~{Math.round(480/(settingsInterval/60))} screenshots per 8-hour day
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Idle / Auto-stop */}
+          <div style={{ marginBottom:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:12 }}>
+              ⏸ Idle Detection (mouse &amp; keyboard)
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+              <div>
+                <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>
+                  Warning after (minutes)
+                </label>
+                <input type="number" min="1" max="60" value={idleWarningMinutes}
+                  onChange={e => setIdleWarningMinutes(Math.max(1, parseInt(e.target.value)||1))}
+                  style={{ padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, width:"100%", boxSizing:"border-box" }} />
+                <div style={{ fontSize:12, color:"#64748b", marginTop:4 }}>Show warning countdown after this many minutes of inactivity</div>
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>
+                  Auto-stop after (minutes)
+                </label>
+                <input type="number" min="1" max="60" value={idleStopMinutes}
+                  onChange={e => setIdleStopMinutes(Math.max(parseInt(idleWarningMinutes)||2, parseInt(e.target.value)||5))}
+                  style={{ padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, width:"100%", boxSizing:"border-box" }} />
+                <div style={{ fontSize:12, color:"#64748b", marginTop:4 }}>Automatically pause timer after this many minutes of inactivity</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Break Reminder */}
+          <div style={{ marginBottom:24 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:12 }}>
+              ☕ Break Reminders
+            </div>
+            <label style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, cursor:"pointer" }}>
+              <input type="checkbox" checked={breakEnabled} onChange={e => setBreakEnabled(e.target.checked)} style={{ width:16, height:16 }} />
+              <span style={{ fontSize:13, fontWeight:600, color:"#374151" }}>Enable break reminders</span>
+            </label>
+            {breakEnabled && (
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <label style={{ fontSize:13, fontWeight:600, color:"#374151" }}>Remind every</label>
+                <select value={breakIntervalMinutes} onChange={e => setBreakIntervalMinutes(Number(e.target.value))}
+                  style={{ padding:"9px 14px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, background:"#fff" }}>
+                  <option value={30}>30 minutes</option>
+                  <option value={45}>45 minutes</option>
+                  <option value={60}>1 hour</option>
+                  <option value={90}>90 minutes</option>
+                  <option value={120}>2 hours</option>
+                </select>
+              </div>
+            )}
+          </div>
+
           {settingsMsg && <div style={{ marginBottom:12, fontSize:13, fontWeight:600, color: settingsMsg.startsWith("✓")?"#16a34a":"#ef4444" }}>{settingsMsg}</div>}
-          <div>
-            <button onClick={saveSettings} disabled={settingsSaving} style={{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", cursor:"pointer", fontSize:14, fontWeight:600, opacity: settingsSaving?0.7:1 }}>
-              {settingsSaving ? "Saving…" : "Save Settings"}
-            </button>
-          </div>
+          <button onClick={saveSettings} disabled={settingsSaving}
+            style={{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", cursor:"pointer", fontSize:14, fontWeight:600, opacity: settingsSaving?0.7:1 }}>
+            {settingsSaving ? "Saving…" : "Save Settings"}
+          </button>
         </div>
       )}
 

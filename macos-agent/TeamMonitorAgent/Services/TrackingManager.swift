@@ -52,6 +52,11 @@ class TrackingManager: ObservableObject {
     // Break state
     @Published var isOnBreak:           Bool     = false
 
+    // Idle warning (before auto-stop)
+    @Published var showIdleWarning:         Bool = false
+    @Published var idleWarningSecondsLeft:  Int  = 0
+    private var idleWarningCountdownTimer:  Timer?
+
     // Offline state (banner only — no queuing)
     @Published var isOffline:           Bool     = false
 
@@ -437,55 +442,77 @@ class TrackingManager: ObservableObject {
         startMinuteTimer(sessionId: sessionId)
         startResumeTimer()
 
-        // Screenshots – interval from employee profile (default 300s / 5 min)
+        // Screenshots — interval + enabled flag from employee profile
         let screenshotInterval = TimeInterval(api.employee?.screenshotInterval ?? 300)
-        screenshots.start(interval: screenshotInterval) { [weak self] imageData in
+        let screenshotsOn      = api.employee?.screenshotsEnabled ?? true
+        screenshots.start(interval: screenshotInterval, enabled: screenshotsOn) { [weak self] imageData in
             guard let self else { return }
-            Task {
-                await self.uploadScreenshot(imageData, sessionId: sessionId)
+            Task { await self.uploadScreenshot(imageData, sessionId: sessionId) }
+        }
+
+        // Initial screenshot 10 s after start so admin sees activity immediately
+        if screenshotsOn {
+            let initialShot = Timer(timeInterval: 10, repeats: false) { [weak self] _ in
+                guard ScreenshotService.hasPermission() else { return }
+                self?.screenshots.captureNow()
             }
+            RunLoop.main.add(initialShot, forMode: .common)
         }
 
-        // Take a first screenshot 10 s after start so admin sees activity immediately
-        let initialShot = Timer(timeInterval: 10, repeats: false) { [weak self] _ in
-            self?.screenshots.captureNow()
-        }
-        RunLoop.main.add(initialShot, forMode: .common)
-
-        // App / window tracking — logs which app + window title is active
+        // App / window tracking
         appTracker.onAppChange = { [weak self] appName, windowTitle, startTime, endTime in
             guard let self else { return }
             let duration = Int(endTime.timeIntervalSince(startTime))
             Task {
                 try? await self.api.logActivity(
-                    sessionId:       sessionId,
-                    appName:         appName,
-                    windowTitle:     windowTitle,
-                    startTime:       startTime,
-                    endTime:         endTime,
-                    durationSeconds: duration
+                    sessionId: sessionId, appName: appName, windowTitle: windowTitle,
+                    startTime: startTime, endTime: endTime, durationSeconds: duration
                 )
             }
         }
         appTracker.start(pollInterval: 30)
 
-        // Idle detection
-        idleDetector.onIdleStart = { [weak self] idleStart in
+        // Idle detection — thresholds from employee config
+        idleDetector.warningThresholdSeconds = (api.employee?.idleWarningMinutes ?? 2) * 60
+        idleDetector.stopThresholdSeconds    = (api.employee?.idleStopMinutes    ?? 5) * 60
+
+        // Warning: show countdown to user before auto-stop
+        idleDetector.onIdleWarning = { [weak self] secondsLeft in
             guard let self else { return }
-            Task { @MainActor in self.pendingIdleStart = idleStart }
+            Task { @MainActor in
+                self.idleWarningSecondsLeft = secondsLeft
+                self.showIdleWarning = true
+            }
+        }
+        idleDetector.onIdleWarningCancelled = { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                self.showIdleWarning = false
+                self.idleWarningSecondsLeft = 0
+            }
         }
 
+        // Stop threshold reached — pause the minute timer, record idle start
+        idleDetector.onIdleStart = { [weak self] idleStart in
+            guard let self else { return }
+            Task { @MainActor in
+                self.pendingIdleStart = idleStart
+                self.showIdleWarning  = false
+                self.idleWarningSecondsLeft = 0
+                // Stop counting time
+                self.sessionTimer?.invalidate(); self.sessionTimer = nil
+                self.resumeTimer?.invalidate();  self.resumeTimer  = nil
+            }
+        }
+
+        // User returned after stop — show idle alert (count/subtract)
         idleDetector.onIdleEnd = { [weak self] idleStart, idleEnd in
             guard let self else { return }
             let idleMinutes = max(1, Int(idleEnd.timeIntervalSince(idleStart)) / 60)
             Task { @MainActor in
-                self.sessionTimer?.invalidate(); self.sessionTimer = nil
-                self.resumeTimer?.invalidate();  self.resumeTimer  = nil
                 self.idleAlertMinutes = idleMinutes
-                // Force false → true so onChange always fires even if a previous
-                // alert was dismissed via Esc without calling resumeAfterIdle.
-                self.showIdleAlert = false
-                self.showIdleAlert = true
+                self.showIdleAlert    = false
+                self.showIdleAlert    = true
             }
         }
         idleDetector.start()

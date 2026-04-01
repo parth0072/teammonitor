@@ -9,8 +9,6 @@ struct SettingsView: View {
     @ObservedObject private var manager = TrackingManager.shared
     @Environment(\.dismiss) private var dismiss
 
-    @AppStorage("breakIntervalMinutes") var breakIntervalMinutes: Int = 60
-
     @State private var notificationStatus: String = "Checking…"
     @State private var testSent: Bool = false
 
@@ -85,21 +83,27 @@ struct SettingsView: View {
                         }
                     }
 
-                    // MARK: Break Reminders
-                    settingsSection("Break Reminders") {
-                        HStack {
-                            Text("Remind me every")
-                                .font(.system(size: 13))
-                            Spacer()
-                            Picker("", selection: $breakIntervalMinutes) {
-                                Text("30 min").tag(30)
-                                Text("45 min").tag(45)
-                                Text("1 hour").tag(60)
-                                Text("90 min").tag(90)
-                                Text("2 hours").tag(120)
+                    // MARK: Break Reminders (shown only when admin enables it)
+                    if APIService.shared.employee?.breakEnabled == true {
+                        let intervalMins = APIService.shared.employee?.breakIntervalMinutes ?? 60
+                        settingsSection("Break Reminders") {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Break reminder interval")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Text("Configured by your admin")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color(hex: "6b7280"))
+                                }
+                                Spacer()
+                                Text(intervalMins >= 60 && intervalMins % 60 == 0
+                                     ? "\(intervalMins / 60)h"
+                                     : "\(intervalMins) min")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(Color(hex: "374151"))
+                                    .padding(.horizontal, 12).padding(.vertical, 5)
+                                    .background(Color(hex: "f3f4f6")).cornerRadius(5)
                             }
-                            .pickerStyle(.menu)
-                            .frame(width: 110)
                         }
                     }
 

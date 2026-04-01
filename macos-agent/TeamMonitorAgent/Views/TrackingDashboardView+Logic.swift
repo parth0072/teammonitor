@@ -38,7 +38,8 @@ extension TrackingDashboardView {
 
     func scheduleBreakReminder(interval: TimeInterval? = nil) {
         cancelBreakTimer()
-        let secs = interval ?? TimeInterval(breakIntervalMinutes * 60)
+        let beInterval = APIService.shared.employee?.breakIntervalMinutes ?? 60
+        let secs = interval ?? TimeInterval(beInterval * 60)
         breakTimer = Timer.scheduledTimer(withTimeInterval: secs, repeats: false) { _ in
             Task { @MainActor in
                 guard manager.isTracking else { return }

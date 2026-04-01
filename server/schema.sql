@@ -9,10 +9,21 @@ CREATE TABLE IF NOT EXISTS employees (
   department          VARCHAR(100) DEFAULT '',
   role                ENUM('admin','employee') DEFAULT 'employee',
   is_active           TINYINT(1) DEFAULT 1,
-  screenshot_interval INT DEFAULT 300,   -- seconds between screenshots (default 5 min)
-  created_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+  screenshot_interval    INT DEFAULT 300,         -- seconds between screenshots (default 5 min)
+  break_enabled          TINYINT(1) DEFAULT 0,     -- show break reminder in macOS agent
+  break_interval_minutes INT DEFAULT 60,           -- minutes between break reminders
+  idle_warning_minutes   INT DEFAULT 2,            -- minutes of inactivity before warning
+  idle_stop_minutes      INT DEFAULT 5,            -- minutes of inactivity before auto-stop
+  screenshots_enabled    TINYINT(1) DEFAULT 1,     -- capture screenshots (admin can disable)
+  created_at             DATETIME DEFAULT CURRENT_TIMESTAMP
 );
--- If already created: ALTER TABLE employees ADD COLUMN screenshot_interval INT DEFAULT 300;
+-- If already created, run these in phpMyAdmin:
+-- ALTER TABLE employees ADD COLUMN screenshot_interval INT DEFAULT 300;
+-- ALTER TABLE employees ADD COLUMN break_enabled TINYINT(1) DEFAULT 0;
+-- ALTER TABLE employees ADD COLUMN break_interval_minutes INT DEFAULT 60;
+-- ALTER TABLE employees ADD COLUMN idle_warning_minutes INT DEFAULT 2;
+-- ALTER TABLE employees ADD COLUMN idle_stop_minutes INT DEFAULT 5;
+-- ALTER TABLE employees ADD COLUMN screenshots_enabled TINYINT(1) DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS projects (
   id           INT AUTO_INCREMENT PRIMARY KEY,

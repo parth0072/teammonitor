@@ -1,5 +1,10 @@
 // IdleDetectionService.swift
-// Detects keyboard/mouse inactivity using IOKit
+// Detects keyboard/mouse inactivity using IOKit.
+//
+// State machine:
+//   .active   → no inactivity (or recovered before warning)
+//   .warning  → past warningThresholdSeconds, countdown shown to user
+//   .stopped  → past stopThresholdSeconds, timer auto-paused; waiting for movement
 
 import Foundation
 import IOKit
@@ -7,28 +12,33 @@ import IOKit
 class IdleDetectionService: ObservableObject {
     static let shared = IdleDetectionService()
 
-    // Seconds of inactivity before considered "idle"
-    var idleThresholdSeconds: Int = 300  // 5 minutes
+    // Thresholds (set from BE config before calling start())
+    var warningThresholdSeconds: Int = 120   // 2 min — show countdown
+    var stopThresholdSeconds:    Int = 300   // 5 min — auto-stop timer
 
-    @Published var isIdle: Bool = false
-    @Published var idleSeconds: Int = 0
-    @Published var activityPercent: Int = 100  // 0–100
+    @Published var isIdle:           Bool = false   // true once stop threshold passed
+    @Published var idleSeconds:      Int  = 0
+    @Published var activityPercent:  Int  = 100
 
-    private var timer: Timer?
-    private var idleStart: Date?
+    private enum IdleState { case active, warning, stopped }
+    private var state: IdleState = .active
+
+    private var timer:              Timer?
+    private var idleStart:          Date?
     private var totalActiveSeconds: Int = 0
-    private var totalIdleSeconds: Int = 0
+    private var totalIdleSeconds:   Int = 0
 
     // Callbacks
-    var onIdleStart: ((Date) -> Void)?
-    var onIdleEnd: ((Date, Date) -> Void)?  // (idleStart, idleEnd)
+    var onIdleWarning: ((Int) -> Void)?              // called with seconds remaining until stop
+    var onIdleWarningCancelled: (() -> Void)?        // called when user moves during warning
+    var onIdleStart: ((Date) -> Void)?               // called when stop threshold reached
+    var onIdleEnd:   ((Date, Date) -> Void)?         // called when movement detected after stop
 
     // MARK: - Start / Stop
 
     func start() {
         timer?.invalidate()
-        // Reset state WITHOUT firing callbacks — prevents pre-session idle time
-        // from immediately triggering onIdleEnd and killing the minute timer.
+        state              = .active
         isIdle             = false
         idleStart          = nil
         totalActiveSeconds = 0
@@ -41,8 +51,7 @@ class IdleDetectionService: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
-        // Discard any open idle period silently — caller is stopping the session
-        // intentionally (punch out / break), so no idle alert should fire.
+        state     = .active
         isIdle    = false
         idleStart = nil
         totalActiveSeconds = 0
@@ -51,34 +60,69 @@ class IdleDetectionService: ObservableObject {
 
     func resetActivityCounters() {
         totalActiveSeconds = 0
-        totalIdleSeconds = 0
+        totalIdleSeconds   = 0
         updateActivityPercent()
     }
 
-    // MARK: - Check
+    // MARK: - Check (every 5 s)
 
     private func check() {
         let idle = systemIdleSeconds()
         DispatchQueue.main.async { self.idleSeconds = idle }
 
-        if idle >= idleThresholdSeconds {
-            // Became idle
-            if !isIdle {
+        switch state {
+        case .active:
+            if idle >= stopThresholdSeconds {
+                // Skipped warning — jumped straight to stop (e.g. lid closed, long absence)
                 let now = Date()
-                DispatchQueue.main.async { self.isIdle = true }
+                state     = .stopped
                 idleStart = now
+                DispatchQueue.main.async { self.isIdle = true }
                 onIdleStart?(now)
+                totalIdleSeconds += 5
+            } else if idle >= warningThresholdSeconds {
+                state = .warning
+                let remaining = stopThresholdSeconds - idle
+                onIdleWarning?(remaining)
+                totalIdleSeconds += 5
+            } else {
+                totalActiveSeconds += 5
             }
-            totalIdleSeconds += 5
-        } else {
-            // Active
-            if isIdle, let start = idleStart {
+
+        case .warning:
+            if idle < warningThresholdSeconds {
+                // User moved — cancel warning
+                state = .active
+                onIdleWarningCancelled?()
+                totalActiveSeconds += 5
+            } else if idle >= stopThresholdSeconds {
+                // Countdown expired — stop
                 let now = Date()
+                state     = .stopped
+                idleStart = now
+                DispatchQueue.main.async { self.isIdle = true }
+                onIdleStart?(now)
+                totalIdleSeconds += 5
+            } else {
+                // Still in warning window — update remaining
+                let remaining = stopThresholdSeconds - idle
+                onIdleWarning?(remaining)
+                totalIdleSeconds += 5
+            }
+
+        case .stopped:
+            if idle < warningThresholdSeconds {
+                // User returned
+                let now   = Date()
+                let start = idleStart ?? now
+                state     = .active
                 DispatchQueue.main.async { self.isIdle = false }
                 onIdleEnd?(start, now)
                 idleStart = nil
+                totalActiveSeconds += 5
+            } else {
+                totalIdleSeconds += 5
             }
-            totalActiveSeconds += 5
         }
 
         updateActivityPercent()
@@ -86,7 +130,7 @@ class IdleDetectionService: ObservableObject {
 
     private func updateActivityPercent() {
         let total = totalActiveSeconds + totalIdleSeconds
-        let pct = total > 0 ? Int(Double(totalActiveSeconds) / Double(total) * 100) : 100
+        let pct   = total > 0 ? Int(Double(totalActiveSeconds) / Double(total) * 100) : 100
         DispatchQueue.main.async { self.activityPercent = pct }
     }
 

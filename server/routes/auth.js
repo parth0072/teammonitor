@@ -28,7 +28,19 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
-      employee: { id: emp.id, name: emp.name, email: emp.email, role: emp.role, department: emp.department, screenshot_interval: emp.screenshot_interval ?? 300 }
+      employee: {
+        id:                    emp.id,
+        name:                  emp.name,
+        email:                 emp.email,
+        role:                  emp.role,
+        department:            emp.department,
+        screenshot_interval:   emp.screenshot_interval   ?? 300,
+        break_enabled:         emp.break_enabled         ?? 0,
+        break_interval_minutes:emp.break_interval_minutes?? 60,
+        idle_warning_minutes:  emp.idle_warning_minutes  ?? 2,
+        idle_stop_minutes:     emp.idle_stop_minutes     ?? 5,
+        screenshots_enabled:   emp.screenshots_enabled   ?? 1,
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -73,7 +85,10 @@ router.post('/register', auth, adminOnly, async (req, res) => {
 // GET /api/auth/me
 router.get('/me', auth, async (req, res) => {
   const [rows] = await db.query(
-    'SELECT id, name, email, role, department, screenshot_interval FROM employees WHERE id = ?',
+    `SELECT id, name, email, role, department,
+            screenshot_interval, break_enabled, break_interval_minutes,
+            idle_warning_minutes, idle_stop_minutes, screenshots_enabled
+     FROM employees WHERE id = ?`,
     [req.user.id]
   );
   res.json(rows[0] || {});
