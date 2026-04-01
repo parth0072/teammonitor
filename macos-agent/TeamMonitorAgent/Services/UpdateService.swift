@@ -55,6 +55,7 @@ class UpdateService: ObservableObject {
     func downloadAndInstall() async {
         guard let url = URL(string: zipURL) else { return }
         isDownloading    = true
+        updateAvailable  = false   // hide banner immediately
         downloadProgress = 0
         installError     = nil
 
