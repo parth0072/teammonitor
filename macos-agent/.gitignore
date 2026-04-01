@@ -1,0 +1,10 @@
+build/
+*.xcarchive/
+DerivedData/
+*.o
+*.d
+*.hmap
+*.ipa
+*.dmg
+xcuserdata/
+*.xcuserstate
