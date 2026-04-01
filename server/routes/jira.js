@@ -1,10 +1,11 @@
 // routes/jira.js  – per-employee Jira integration (API token auth)
-const router = require('express').Router();
-const https  = require('https');
-const http   = require('http');
-const { URL } = require('url');
-const db     = require('../db');
-const auth   = require('../middleware/auth');
+const router             = require('express').Router();
+const https              = require('https');
+const http               = require('http');
+const { URL }            = require('url');
+const db                 = require('../db');
+const auth               = require('../middleware/auth');
+const { encrypt, decrypt } = require('../utils/encrypt');
 
 // ── Jira REST API v3 helper ───────────────────────────────────────────────────
 // Uses Node's built-in https so no extra dependencies needed.
@@ -52,7 +53,11 @@ async function getCreds(employeeId) {
   const [rows] = await db.query(
     'SELECT * FROM jira_credentials WHERE employee_id = ?', [employeeId]
   );
-  return rows[0] || null;
+  if (!rows[0]) return null;
+  // Decrypt the stored token before returning so all callers get the plain value
+  const row = { ...rows[0] };
+  try { row.api_token = decrypt(row.api_token); } catch { return null; }
+  return row;
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -87,7 +92,8 @@ router.post('/connect', auth, async (req, res) => {
       return res.status(401).json({ error: 'Could not connect to Jira: ' + err.message });
     }
 
-    const cleanUrl = siteUrl.replace(/\/$/, '');
+    const cleanUrl      = siteUrl.replace(/\/$/, '');
+    const encryptedToken = encrypt(apiToken);
 
     // Upsert: check if row exists first (works for both MySQL and SQLite)
     const [existing] = await db.query(
@@ -99,14 +105,14 @@ router.post('/connect', auth, async (req, res) => {
             SET site_url=?, email=?, api_token=?, jira_account_id=?, display_name=?,
                 connected_at=CURRENT_TIMESTAMP
           WHERE employee_id=?`,
-        [cleanUrl, email, apiToken, myself.accountId, myself.displayName, req.user.id]
+        [cleanUrl, email, encryptedToken, myself.accountId, myself.displayName, req.user.id]
       );
     } else {
       await db.query(
         `INSERT INTO jira_credentials
            (employee_id, site_url, email, api_token, jira_account_id, display_name)
          VALUES (?,?,?,?,?,?)`,
-        [req.user.id, cleanUrl, email, apiToken, myself.accountId, myself.displayName]
+        [req.user.id, cleanUrl, email, encryptedToken, myself.accountId, myself.displayName]
       );
     }
 
