@@ -83,10 +83,31 @@ async function cleanupOldScreenshots() {
   }
 }
 
+// ── DB migrations (idempotent — safe to run on every startup) ────────────────
+async function runMigrations() {
+  const migrations = [
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS break_enabled          TINYINT(1) NOT NULL DEFAULT 0`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS break_interval_minutes INT        NOT NULL DEFAULT 60`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS idle_warning_minutes   INT        NOT NULL DEFAULT 2`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS idle_stop_minutes      INT        NOT NULL DEFAULT 5`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS screenshots_enabled    TINYINT(1) NOT NULL DEFAULT 1`,
+  ];
+  for (const sql of migrations) {
+    try {
+      await db.query(sql);
+    } catch (err) {
+      console.error('[migration] Failed:', err.message);
+    }
+  }
+  console.log('[migration] Employee columns up to date');
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`TeamMonitor server running on port ${PORT}`);
   console.log(`Health: http://localhost:${PORT}/teammonitor/api/health`);
+
+  runMigrations();
 
   // Run cleanup once on startup, then every 24 hours
   cleanupOldScreenshots();
