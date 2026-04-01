@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../App";
 
 const S = {
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 },
@@ -53,9 +54,12 @@ export default function Employees() {
   const [editForm, setEditForm]   = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError]   = useState("");
+  const [deleteEmp, setDeleteEmp]   = useState(null);
+  const [deleting, setDeleting]     = useState(false);
+  const { user } = useAuth();
   const navigate = useNavigate();
 
-  const load = () => api.getEmployees().then(setEmployees).catch(console.error);
+  const load = () => api.getEmployees().then(data => setEmployees(data.filter(e => e.is_active !== 0))).catch(console.error);
   useEffect(() => { load(); }, []);
 
   const openEdit = emp => {
@@ -72,6 +76,16 @@ export default function Employees() {
       load();
     } catch (err) { setEditError(err.message); }
     setEditSaving(false);
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.deleteEmployee(deleteEmp.id);
+      setDeleteEmp(null);
+      load();
+    } catch (err) { console.error(err); }
+    setDeleting(false);
   };
 
   const handleAdd = async () => {
@@ -116,6 +130,9 @@ export default function Employees() {
                 <div style={{ display:"flex", gap:8 }}>
                   <button style={S.viewBtn} onClick={() => navigate(`/employees/${emp.id}`)}>View →</button>
                   <button style={{ ...S.viewBtn, color:"#6366f1" }} onClick={() => openEdit(emp)}>Edit</button>
+                  {user?.id !== emp.id && (
+                    <button style={{ ...S.viewBtn, color:"#ef4444" }} onClick={() => setDeleteEmp(emp)}>Delete</button>
+                  )}
                 </div>
               </td>
             </tr>
@@ -203,6 +220,30 @@ export default function Employees() {
             <div style={S.row}>
               <button style={S.cancelBtn} onClick={() => { setShowModal(false); setError(""); setForm(BLANK_FORM); }}>Cancel</button>
               <button style={{ ...S.btn, opacity: saving ? 0.7:1 }} onClick={handleAdd} disabled={saving}>{saving ? "Creating…":"Create Employee"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteEmp && (
+        <div style={S.modal}>
+          <div style={{ ...S.modalBox, width: 400 }}>
+            <div style={{ fontSize: 36, textAlign: "center", marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", textAlign: "center", marginBottom: 8 }}>
+              Delete Employee?
+            </div>
+            <div style={{ color: "#64748b", fontSize: 13, textAlign: "center", marginBottom: 24 }}>
+              <strong>{deleteEmp.name}</strong> ({deleteEmp.email}) will be deactivated and removed from all dashboards. Their historical data is retained.
+            </div>
+            <div style={S.row}>
+              <button style={S.cancelBtn} onClick={() => setDeleteEmp(null)} disabled={deleting}>Cancel</button>
+              <button
+                style={{ ...S.btn, background: "#ef4444", opacity: deleting ? 0.7 : 1 }}
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting…" : "Yes, Delete"}
+              </button>
             </div>
           </div>
         </div>
