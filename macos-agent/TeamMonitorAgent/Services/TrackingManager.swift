@@ -171,8 +171,8 @@ class TrackingManager: ObservableObject {
         content.sound = .default
         let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req) { err in
-            if let err { print("[Notifications] Delivery failed: \(err)") }
-            else       { print("[Notifications] Sent: \(text)") }
+            if let err { TMLog("[Notifications] Delivery failed: \(err)") }
+            else       { TMLog("[Notifications] Sent: \(text)") }
         }
     }
 
@@ -214,7 +214,7 @@ class TrackingManager: ObservableObject {
         }
         RunLoop.main.add(t, forMode: .common)
         notTrackingTimer = t
-        print("[Notifications] Not-tracking reminder scheduled (fires every 5 min)")
+        TMLog("[Notifications] Not-tracking reminder scheduled (fires every 5 min)")
     }
 
     func cancelNotTrackingReminder() {
@@ -433,7 +433,7 @@ class TrackingManager: ObservableObject {
         //  The task chip just won't show after restore – acceptable trade-off.)
 
         startAllServices(sessionId: state.sessionId)
-        print("[TrackingManager] Restored session \(state.sessionId) with \(state.trackedMinutes) min")
+        TMLog("[TrackingManager] Restored session \(state.sessionId) with \(state.trackedMinutes) min")
     }
 
     // MARK: - Services

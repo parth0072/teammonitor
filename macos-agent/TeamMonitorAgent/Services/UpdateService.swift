@@ -41,12 +41,12 @@ class UpdateService: ObservableObject {
             latestVersion = remote
             if isNewer(remote, than: currentVersion) {
                 updateAvailable = true
-                print("[UpdateService] Update available: \(remote) (current: \(currentVersion))")
+                TMLog("[UpdateService] Update available: \(remote) (current: \(currentVersion))")
             } else {
-                print("[UpdateService] Up to date (\(currentVersion))")
+                TMLog("[UpdateService] Up to date (\(currentVersion))")
             }
         } catch {
-            print("[UpdateService] Version check failed: \(error.localizedDescription)")
+            TMLog("[UpdateService] Version check failed: \(error.localizedDescription)")
         }
     }
 
@@ -128,7 +128,7 @@ class UpdateService: ObservableObject {
         } catch {
             isDownloading = false
             installError  = error.localizedDescription
-            print("[UpdateService] Install failed: \(error)")
+            TMLog("[UpdateService] Install failed: \(error)")
         }
     }
 

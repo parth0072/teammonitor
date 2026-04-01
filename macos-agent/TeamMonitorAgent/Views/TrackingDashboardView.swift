@@ -17,7 +17,7 @@ struct TrackingDashboardView: View {
     @State var liveMinutes: Int = 0
 
     enum Sheet: Identifiable {
-        case idleAlert, manualEntry, reports, breakReminder, newTask, taskPicker, settings, notTrackingAlert
+        case idleAlert, manualEntry, reports, breakReminder, newTask, taskPicker, settings, notTrackingAlert, bugReport
         var id: Self { self }
     }
     @State var activeSheet: Sheet? = nil
@@ -98,6 +98,8 @@ struct TrackingDashboardView: View {
                 })
             case .settings:
                 SettingsView()
+            case .bugReport:
+                BugReportView()
             case .notTrackingAlert:
                 NotTrackingAlertView(manager: manager, onStart: {
                     manager.showNotTrackingAlert = false

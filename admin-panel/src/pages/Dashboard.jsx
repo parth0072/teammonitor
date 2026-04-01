@@ -556,7 +556,7 @@ function AdminDashboard() {
 
     setSessions(sess);
     setScreenshots(ss);
-    setEmployees(emps);
+    setEmployees(emps.filter(e => e.is_active !== 0));
 
     const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
     const last7 = Array.from({ length: 7 }, (_, i) => {

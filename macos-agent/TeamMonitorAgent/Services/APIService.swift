@@ -422,6 +422,16 @@ class APIService: ObservableObject {
         return try await get(path)
     }
 
+    // MARK: - Bug Reports
+
+    func submitBugReport(category: String, description: String, diagnostics: [String: Any]) async throws {
+        try await post("/bug-reports", body: [
+            "category":    category,
+            "description": description,
+            "diagnostics": diagnostics,
+        ])
+    }
+
     // MARK: - Helpers
 
     private func get<T: Decodable>(_ path: String) async throws -> T {

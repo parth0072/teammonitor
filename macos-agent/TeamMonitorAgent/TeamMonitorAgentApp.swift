@@ -45,10 +45,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // and shows the dialog only on first launch.
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error {
-                print("[Notifications] Auth error: \(error)")
+                TMLog("[Notifications] Auth error: \(error)")
                 return
             }
-            print("[Notifications] Permission granted: \(granted)")
+            TMLog("[Notifications] Permission granted: \(granted)")
             guard granted else { return }
             // Warmup: macOS sometimes silently drops the very first notification.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -71,7 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        print("[Notifications] willPresent fired — showing banner")
+        TMLog("[Notifications] willPresent fired — showing banner")
         completionHandler([.banner, .sound])
     }
 
@@ -85,10 +85,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             do {
                 if SMAppService.mainApp.status != .enabled {
                     try SMAppService.mainApp.register()
-                    print("✓ TeamMonitor registered for launch at login")
+                    TMLog("✓ TeamMonitor registered for launch at login")
                 }
             } catch {
-                print("Launch at login registration failed: \(error)")
+                TMLog("Launch at login registration failed: \(error)")
                 // Fallback: write a LaunchAgent plist
                 writeLaunchAgentPlist()
             }
@@ -124,7 +124,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         """
         try? FileManager.default.createDirectory(atPath: plistDir, withIntermediateDirectories: true)
         try? content.write(toFile: plistPath, atomically: true, encoding: .utf8)
-        print("✓ LaunchAgent plist written to \(plistPath)")
+        TMLog("✓ LaunchAgent plist written to \(plistPath)")
     }
 }
 

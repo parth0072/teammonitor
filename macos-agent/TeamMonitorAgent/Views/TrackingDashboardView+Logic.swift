@@ -17,7 +17,7 @@ extension TrackingDashboardView {
                 projects = try await p
             } catch {
                 tasksError = error.localizedDescription
-                print("[loadTasks] error: \(error)")
+                TMLog("[loadTasks] error: \(error)")
             }
             tasksLoading = false
             // Load Jira issues in parallel (non-blocking — failure is silent)
@@ -40,7 +40,7 @@ extension TrackingDashboardView {
                 // Jira errors are non-fatal; just hide the section
                 jiraConnected = false
                 jiraIssues    = []
-                print("[loadJiraIssues] \(error)")
+                TMLog("[loadJiraIssues] \(error)")
             }
             jiraLoading = false
         }

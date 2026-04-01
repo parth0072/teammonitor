@@ -31,6 +31,7 @@ router.use('/api/jira',        require('./routes/jira'));
 router.use('/api/timeline',    require('./routes/timeline'));
 router.use('/api/leaves',      require('./routes/leaves'));
 router.use('/api/productivity', require('./routes/productivity'));
+router.use('/api/bug-reports',  require('./routes/bug-reports'));
 
 // Health check
 router.get('/api/health', async (req, res) => {
@@ -111,6 +112,18 @@ async function runMigrations() {
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS jira_email        VARCHAR(150) DEFAULT NULL`,
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS jira_api_token    TEXT         DEFAULT NULL`,
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS screen_permission TINYINT(1)   DEFAULT 1`,
+
+    // Bug reports — submitted from the macOS agent
+    `CREATE TABLE IF NOT EXISTS bug_reports (
+       id          INT AUTO_INCREMENT PRIMARY KEY,
+       employee_id INT NOT NULL,
+       category    VARCHAR(50)  NOT NULL DEFAULT 'Other',
+       description TEXT         NOT NULL,
+       diagnostics JSON         DEFAULT NULL,
+       status      ENUM('open','in_progress','resolved') NOT NULL DEFAULT 'open',
+       created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
+       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+     )`,
   ];
   for (const sql of migrations) {
     try {

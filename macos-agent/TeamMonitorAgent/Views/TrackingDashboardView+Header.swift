@@ -22,6 +22,8 @@ extension TrackingDashboardView {
                 .buttonStyle(TLHeaderButtonStyle())
             Button("📋  Reports") { activeSheet = .reports }
                 .buttonStyle(TLHeaderButtonStyle())
+            Button("🐞  Report Issue") { activeSheet = .bugReport }
+                .buttonStyle(TLHeaderButtonStyle())
             Button { loadTasks() } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12, weight: .semibold))
