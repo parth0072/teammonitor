@@ -11,8 +11,6 @@ struct ToastMessage: Equatable {
 struct TrackingDashboardView: View {
     @EnvironmentObject var auth: AuthState
     @ObservedObject var manager = TrackingManager.shared
-    @ObservedObject var updater = UpdateService.shared
-
     private let liveClock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     @State var liveMinutes: Int = 0
 
@@ -47,7 +45,6 @@ struct TrackingDashboardView: View {
             VStack(spacing: 0) {
                 headerBar
                 statsBar
-                updateBanner
                 statusBanner
                 screenPermissionBanner
                 startTimerReminderBanner
@@ -133,8 +130,6 @@ struct TrackingDashboardView: View {
         .onAppear {
             liveMinutes = manager.trackedMinutes
             loadTasks()
-            // Check for updates once on launch (non-blocking)
-            Task { await UpdateService.shared.checkForUpdates() }
         }
         .onChange(of: manager.isTracking) { tracking in
             if tracking && APIService.shared.employee?.breakEnabled == true {
