@@ -154,12 +154,25 @@ export default function EmployeeDetail() {
           <div style={S.cardTitle}>Screenshots Today ({screenshots.length})</div>
           {screenshots.length===0 && <div style={{ color:"#94a3b8" }}>No screenshots today.</div>}
           <div style={S.ssGrid}>
-            {screenshots.map(ss => (
-              <div key={ss.id} style={S.ssCard}>
-                <img style={S.ssImg} src={ss.file_path} alt="Screenshot" />
-                <div style={S.ssTime}>{ss.captured_at ? format(new Date(ss.captured_at),"h:mm a") : "—"}</div>
-              </div>
-            ))}
+            {screenshots.map(ss => {
+              const token = sessionStorage.getItem('tm_token') || '';
+              const src = ss.file_path ? `${ss.file_path}?token=${encodeURIComponent(token)}` : null;
+              if (!src) return null;
+              return (
+                <div key={ss.id} style={S.ssCard} id={`ss-card-${ss.id}`}>
+                  <img
+                    style={S.ssImg}
+                    src={src}
+                    alt="Screenshot"
+                    onError={() => {
+                      const el = document.getElementById(`ss-card-${ss.id}`);
+                      if (el) el.style.display = 'none';
+                    }}
+                  />
+                  <div style={S.ssTime}>{ss.captured_at ? format(new Date(ss.captured_at),"h:mm a") : "—"}</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
