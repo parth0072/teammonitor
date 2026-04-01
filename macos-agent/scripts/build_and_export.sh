@@ -49,7 +49,7 @@ cat > build/ExportOptions.plist <<'PLIST'
 <plist version="1.0">
 <dict>
   <key>method</key>
-  <string>developer-id</string>
+  <string>development</string>
   <key>signingStyle</key>
   <string>automatic</string>
   <key>stripSwiftSymbols</key>

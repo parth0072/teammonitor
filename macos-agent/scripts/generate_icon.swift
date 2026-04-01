@@ -133,8 +133,9 @@ let xcassetsDir = base.appendingPathComponent(
     "TeamMonitorAgent/Assets.xcassets/AppIcon.appiconset"
 ).path
 
-// Generate 1024×1024 master
-let masterPath = "\(xcassetsDir)/icon_1024.png"
+// Generate 1024×1024 master (kept in scripts/, not xcassets — icon_512x512@2x covers 1024px)
+let scriptsDir = scriptDir.path
+let masterPath = "\(scriptsDir)/icon_1024_master.png"
 savePNG(makeIcon(size: 1024), to: masterPath)
 print("Generated master icon: \(masterPath)")
 
