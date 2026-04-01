@@ -4,12 +4,13 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { adminOnly } = require('../middleware/auth');
 
-// GET /api/productivity?days=7&employeeId=  (admin)
+// GET /api/productivity?days=7&employeeId=  (admin = all/filter; employee = own only)
 // Returns per-employee per-day productivity stats
-router.get('/', auth, adminOnly, async (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
-  const days       = Math.min(parseInt(req.query.days) || 7, 30);
-  const employeeId = req.query.employeeId;
+  const days = Math.min(parseInt(req.query.days) || 7, 30);
+  // Employees can only see their own data; admins can filter by employeeId or see all
+  const employeeId = req.user.role !== 'admin' ? req.user.id : req.query.employeeId;
 
   // Build date list (today back N days)
   const dateList = [];

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
+import { useAuth } from "../App";
 
 const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899","#06b6d4","#84cc16"];
 const STATUS_COLORS = { todo:"#64748b", in_progress:"#3b82f6", done:"#10b981" };
@@ -45,6 +46,9 @@ const btnSecondary = { background:"#f1f5f9", color:"#374151", border:"none", bor
 const btnDanger = { background:"#fee2e2", color:"#ef4444", border:"none", borderRadius:8, padding:"7px 14px", cursor:"pointer", fontSize:12, fontWeight:600 };
 
 export default function Projects() {
+  const { user }  = useAuth();
+  const isAdmin   = user?.role === "admin";
+
   const [projects,   setProjects]   = useState([]);
   const [employees,  setEmployees]  = useState([]);
   const [selected,   setSelected]   = useState(null);   // active project
@@ -61,13 +65,16 @@ export default function Projects() {
   const loadProjects = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, e] = await Promise.all([api.getProjects(), api.getEmployees()]);
+      const [p, e] = await Promise.all([
+        api.getProjects(),
+        isAdmin ? api.getEmployees().catch(() => []) : Promise.resolve([]),
+      ]);
       setProjects(p);
       setEmployees(e);
       if (p.length && !selected) setSelected(p[0]);
     } catch(e){ console.error(e); }
     setLoading(false);
-  }, []);
+  }, [isAdmin]);
 
   const loadTasks = useCallback(async (project) => {
     if (!project) return;
@@ -97,7 +104,7 @@ export default function Projects() {
       <div style={{ width:260, flexShrink:0, display:"flex", flexDirection:"column", gap:8 }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
           <span style={{ fontSize:18, fontWeight:700, color:"#1e293b" }}>Projects</span>
-          <button style={btnPrimary} onClick={() => setShowNewProject(true)}>+ New</button>
+          {isAdmin && <button style={btnPrimary} onClick={() => setShowNewProject(true)}>+ New</button>}
         </div>
 
         <div style={{ overflowY:"auto", flex:1 }}>
@@ -139,8 +146,8 @@ export default function Projects() {
                 <h2 style={{ fontSize:22, fontWeight:700, color:"#1e293b", margin:0 }}>{selected.name}</h2>
               </div>
               <div style={{ display:"flex", gap:8 }}>
-                <button style={btnSecondary} onClick={() => setEditProject(selected)}>✏ Edit</button>
-                <button style={btnPrimary}   onClick={() => setShowNewTask(true)}>+ Add Task</button>
+                {isAdmin && <button style={btnSecondary} onClick={() => setEditProject(selected)}>✏ Edit</button>}
+                <button style={btnPrimary} onClick={() => setShowNewTask(true)}>+ Add Task</button>
               </div>
             </div>
 
@@ -162,6 +169,7 @@ export default function Projects() {
                       )}
                       {statusGroups[status].map(task => (
                         <TaskCard key={task.id} task={task} employees={employees}
+                          isAdmin={isAdmin}
                           onEdit={() => setEditTask(task)}
                           onStatusChange={async (s) => {
                             await api.updateTask(task.id, { status: s });
@@ -195,12 +203,12 @@ export default function Projects() {
           onSave={async (data) => { await api.updateProject(editProject.id, data); loadProjects(); setEditProject(null); }} />
       )}
       {showNewTask && selected && (
-        <TaskForm title={`Add Task — ${selected.name}`} employees={employees} projectColor={selected.color}
+        <TaskForm title={`Add Task — ${selected.name}`} employees={employees} projectColor={selected.color} isAdmin={isAdmin}
           onClose={() => setShowNewTask(false)}
           onSave={async (data) => { await api.createTask(selected.id, data); loadTasks(selected); setShowNewTask(false); }} />
       )}
       {editTask && (
-        <TaskForm title="Edit Task" initial={editTask} employees={employees} projectColor={selected?.color || "#3b82f6"}
+        <TaskForm title="Edit Task" initial={editTask} employees={employees} projectColor={selected?.color || "#3b82f6"} isAdmin={isAdmin}
           onClose={() => setEditTask(null)}
           onSave={async (data) => { await api.updateTask(editTask.id, data); loadTasks(selected); setEditTask(null); }} />
       )}
@@ -210,7 +218,7 @@ export default function Projects() {
 
 // ── Task Card ──────────────────────────────────────────────────────────────────
 
-function TaskCard({ task, employees, onEdit, onStatusChange, onDelete }) {
+function TaskCard({ task, employees, isAdmin, onEdit, onStatusChange, onDelete }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ background:"#fff", borderRadius:10, padding:14, border:"1px solid #e2e8f0",
@@ -238,10 +246,12 @@ function TaskCard({ task, employees, onEdit, onStatusChange, onDelete }) {
             style={{ fontSize:11, padding:"3px 8px", background:"#f8fafc", border:"none", borderRadius:6, cursor:"pointer", color:"#475569" }}>
             Edit
           </button>
-          <button onClick={onDelete}
-            style={{ fontSize:11, padding:"3px 8px", background:"#fee2e2", border:"none", borderRadius:6, cursor:"pointer", color:"#ef4444" }}>
-            Del
-          </button>
+          {isAdmin && (
+            <button onClick={onDelete}
+              style={{ fontSize:11, padding:"3px 8px", background:"#fee2e2", border:"none", borderRadius:6, cursor:"pointer", color:"#ef4444" }}>
+              Del
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -285,7 +295,7 @@ function ProjectForm({ title, initial, onClose, onSave }) {
 
 // ── Task Form ──────────────────────────────────────────────────────────────────
 
-function TaskForm({ title, initial, employees, projectColor, onClose, onSave }) {
+function TaskForm({ title, initial, employees, projectColor, isAdmin, onClose, onSave }) {
   const [name,       setName]       = useState(initial?.name        || "");
   const [desc,       setDesc]       = useState(initial?.description || "");
   const [status,     setStatus]     = useState(initial?.status      || "todo");
@@ -303,7 +313,7 @@ function TaskForm({ title, initial, employees, projectColor, onClose, onSave }) 
           <label style={labelStyle}>Description</label>
           <textarea style={{ ...inputStyle, height:60, resize:"vertical" }} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Optional" />
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        <div style={{ display:"grid", gridTemplateColumns: isAdmin ? "1fr 1fr" : "1fr", gap:12 }}>
           <div>
             <label style={labelStyle}>Status</label>
             <select style={inputStyle} value={status} onChange={e=>setStatus(e.target.value)}>
@@ -312,13 +322,15 @@ function TaskForm({ title, initial, employees, projectColor, onClose, onSave }) 
               <option value="done">Done</option>
             </select>
           </div>
-          <div>
-            <label style={labelStyle}>Assign To</label>
-            <select style={inputStyle} value={assignedTo} onChange={e=>setAssignedTo(e.target.value)}>
-              <option value="">Unassigned</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          </div>
+          {isAdmin && (
+            <div>
+              <label style={labelStyle}>Assign To</label>
+              <select style={inputStyle} value={assignedTo} onChange={e=>setAssignedTo(e.target.value)}>
+                <option value="">Unassigned</option>
+                {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+          )}
         </div>
         <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:4 }}>
           <button style={btnSecondary} onClick={onClose}>Cancel</button>
