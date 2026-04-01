@@ -40,6 +40,7 @@ router.post('/login', async (req, res) => {
         idle_warning_minutes:  emp.idle_warning_minutes  ?? 2,
         idle_stop_minutes:     emp.idle_stop_minutes     ?? 5,
         screenshots_enabled:   emp.screenshots_enabled   ?? 1,
+        jira_enabled:          emp.jira_api_token ? 1 : 0,
       }
     });
   } catch (err) {

@@ -9,7 +9,8 @@ router.post('/punch-in', auth, async (req, res) => {
   try {
     const now    = new Date();
     const date   = now.toISOString().slice(0, 10);
-    const taskId = req.body.taskId || null;
+    const taskId       = req.body.taskId       || null;
+    const jiraIssueKey = req.body.jiraIssueKey || null;
 
     // Check if already punched in today
     const [existing] = await db.query(
@@ -17,16 +18,16 @@ router.post('/punch-in', auth, async (req, res) => {
       [req.user.id, date]
     );
     if (existing.length) {
-      // If switching task, update the active session's task
       if (taskId && existing[0].task_id !== taskId) {
-        await db.query('UPDATE sessions SET task_id=? WHERE id=?', [taskId, existing[0].id]);
+        await db.query('UPDATE sessions SET task_id=?, jira_issue_key=? WHERE id=?',
+          [taskId, jiraIssueKey, existing[0].id]);
       }
       return res.status(409).json({ error: 'Already punched in', sessionId: existing[0].id });
     }
 
     const [result] = await db.query(
-      "INSERT INTO sessions (employee_id, task_id, punch_in, status, date) VALUES (?,?,?,'active',?)",
-      [req.user.id, taskId, now, date]
+      "INSERT INTO sessions (employee_id, task_id, jira_issue_key, punch_in, status, date) VALUES (?,?,?,?,'active',?)",
+      [req.user.id, taskId, jiraIssueKey, now, date]
     );
 
     // Mark task as in_progress when punching in to it

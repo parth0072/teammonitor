@@ -33,7 +33,7 @@ const INTERVAL_OPTIONS = [
   { value:900,  label:"Every 15 minutes" },
   { value:1800, label:"Every 30 minutes" },
 ];
-const TABS = ["Overview","Screenshots","App Usage","Activity Log","Timeline","Settings","Manual Entry"];
+const TABS = ["Overview","Screenshots","App Usage","Activity Log","Timeline","Settings","Jira","Manual Entry"];
 
 export default function EmployeeDetail() {
   const { id } = useParams();
@@ -99,6 +99,65 @@ export default function EmployeeDetail() {
       setTimeout(() => setSettingsMsg(""), 3000);
     } catch(err) { setSettingsMsg("✗ " + err.message); }
     setSettingsSaving(false);
+  }
+
+  // Jira state
+  const [jiraUrl,      setJiraUrl]      = useState("");
+  const [jiraEmail,    setJiraEmail]    = useState("");
+  const [jiraToken,    setJiraToken]    = useState("");
+  const [jiraMsg,      setJiraMsg]      = useState("");
+  const [jiraSaving,   setJiraSaving]   = useState(false);
+  const [jiraTesting,  setJiraTesting]  = useState(false);
+  useEffect(() => {
+    if (!emp) return;
+    setJiraUrl(emp.jira_url   || "");
+    setJiraEmail(emp.jira_email || "");
+    // Never pre-fill the token — show placeholder if already set
+  }, [emp]);
+
+  async function testJira() {
+    setJiraTesting(true); setJiraMsg("");
+    try {
+      const r = await api.testJiraConnection({ jira_url: jiraUrl, jira_email: jiraEmail, jira_api_token: jiraToken });
+      setJiraMsg(`✓ Connected as ${r.displayName} (${r.email})`);
+    } catch(err) { setJiraMsg("✗ " + err.message); }
+    setJiraTesting(false);
+  }
+
+  async function saveJira() {
+    setJiraSaving(true); setJiraMsg("");
+    try {
+      await api.updateEmployee(id, {
+        name: emp.name, department: emp.department, role: emp.role, is_active: emp.is_active,
+        screenshot_interval: emp.screenshot_interval, break_enabled: emp.break_enabled,
+        break_interval_minutes: emp.break_interval_minutes, idle_warning_minutes: emp.idle_warning_minutes,
+        idle_stop_minutes: emp.idle_stop_minutes, screenshots_enabled: emp.screenshots_enabled,
+        jira_url: jiraUrl, jira_email: jiraEmail,
+        ...(jiraToken ? { jira_api_token: jiraToken } : {}),
+      });
+      setJiraMsg("✓ Jira settings saved"); setJiraToken("");
+      api.getEmployee(id).then(setEmp);
+      setTimeout(() => setJiraMsg(""), 3000);
+    } catch(err) { setJiraMsg("✗ " + err.message); }
+    setJiraSaving(false);
+  }
+
+  async function clearJira() {
+    if (!window.confirm("Remove Jira integration for this employee?")) return;
+    setJiraSaving(true);
+    try {
+      await api.updateEmployee(id, {
+        name: emp.name, department: emp.department, role: emp.role, is_active: emp.is_active,
+        screenshot_interval: emp.screenshot_interval, break_enabled: emp.break_enabled,
+        break_interval_minutes: emp.break_interval_minutes, idle_warning_minutes: emp.idle_warning_minutes,
+        idle_stop_minutes: emp.idle_stop_minutes, screenshots_enabled: emp.screenshots_enabled,
+        jira_clear: true,
+      });
+      setJiraUrl(""); setJiraEmail(""); setJiraToken("");
+      setJiraMsg("✓ Jira integration removed");
+      api.getEmployee(id).then(setEmp);
+    } catch(err) { setJiraMsg("✗ " + err.message); }
+    setJiraSaving(false);
   }
 
   // Manual entry state
@@ -339,6 +398,63 @@ export default function EmployeeDetail() {
       )}
 
       {tab===6 && (
+        <div style={S.card}>
+          <div style={S.cardTitle}>Jira Integration</div>
+          <p style={{ color:"#64748b", fontSize:14, marginBottom:24 }}>
+            Connect this employee's Jira account so they can punch in against Jira issues in the macOS agent.
+            The API token is stored encrypted and never shown again after saving.
+          </p>
+
+          {emp.jira_configured ? (
+            <div style={{ background:"#f0fdf4", border:"1px solid #86efac", borderRadius:8, padding:"12px 16px", marginBottom:20, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div>
+                <div style={{ fontWeight:600, color:"#16a34a", fontSize:13 }}>✓ Jira connected</div>
+                <div style={{ color:"#64748b", fontSize:12, marginTop:2 }}>{emp.jira_email} · {emp.jira_url}</div>
+              </div>
+              <button onClick={clearJira} disabled={jiraSaving}
+                style={{ background:"none", border:"1px solid #ef4444", color:"#ef4444", borderRadius:6, padding:"6px 14px", cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div style={{ background:"#fef9c3", border:"1px solid #fde047", borderRadius:8, padding:"10px 16px", marginBottom:20, fontSize:13, color:"#854d0e" }}>
+              No Jira integration configured
+            </div>
+          )}
+
+          {[
+            { label:"Jira Site URL", placeholder:"yourcompany.atlassian.net", value:jiraUrl,   onChange:e=>setJiraUrl(e.target.value) },
+            { label:"Jira Email",    placeholder:"user@company.com",           value:jiraEmail, onChange:e=>setJiraEmail(e.target.value) },
+            { label:"API Token",     placeholder: emp.jira_configured ? "Leave blank to keep existing token" : "Paste API token from id.atlassian.com",
+              value:jiraToken, onChange:e=>setJiraToken(e.target.value), type:"password" },
+          ].map(f => (
+            <div key={f.label} style={{ marginBottom:16 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:"#374151", display:"block", marginBottom:6 }}>{f.label}</label>
+              <input type={f.type||"text"} placeholder={f.placeholder} value={f.value} onChange={f.onChange}
+                style={{ width:"100%", boxSizing:"border-box", border:"1px solid #e2e8f0", borderRadius:8, padding:"9px 12px", fontSize:13 }} />
+            </div>
+          ))}
+
+          <p style={{ fontSize:12, color:"#64748b", marginBottom:16 }}>
+            Generate an API token at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noreferrer" style={{ color:"#3b82f6" }}>id.atlassian.com → API tokens</a>
+          </p>
+
+          {jiraMsg && <div style={{ marginBottom:12, fontSize:13, fontWeight:600, color: jiraMsg.startsWith("✓")?"#16a34a":"#ef4444" }}>{jiraMsg}</div>}
+
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={testJira} disabled={jiraTesting || !jiraUrl || !jiraEmail || !jiraToken}
+              style={{ background:"#f3f4f6", color:"#374151", border:"1px solid #e2e8f0", borderRadius:8, padding:"9px 20px", cursor:"pointer", fontSize:13, fontWeight:600, opacity:(!jiraUrl||!jiraEmail||!jiraToken)?0.5:1 }}>
+              {jiraTesting ? "Testing…" : "Test Connection"}
+            </button>
+            <button onClick={saveJira} disabled={jiraSaving || !jiraUrl || !jiraEmail}
+              style={{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"9px 24px", cursor:"pointer", fontSize:13, fontWeight:600, opacity:(!jiraUrl||!jiraEmail)?0.5:1 }}>
+              {jiraSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab===7 && (
         <div style={S.card}>
           <div style={S.cardTitle}>Add Manual Time Entry</div>
           <form onSubmit={submitManual} style={{ maxWidth:400 }}>

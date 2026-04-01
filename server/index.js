@@ -26,10 +26,10 @@ router.use('/api/employees',   require('./routes/employees'));
 router.use('/api/sessions',    require('./routes/sessions'));
 router.use('/api/activity',    require('./routes/activity'));
 router.use('/api/screenshots', require('./routes/screenshots'));
-router.use('/api/projects',     require('./routes/projects'));
-router.use('/api/jira',         require('./routes/jira'));
-router.use('/api/timeline',     require('./routes/timeline'));
-router.use('/api/leaves',       require('./routes/leaves'));
+router.use('/api/projects',    require('./routes/projects'));
+router.use('/api/jira',        require('./routes/jira'));
+router.use('/api/timeline',    require('./routes/timeline'));
+router.use('/api/leaves',      require('./routes/leaves'));
 router.use('/api/productivity', require('./routes/productivity'));
 
 // Health check
@@ -93,7 +93,7 @@ async function runMigrations() {
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS idle_stop_minutes      INT        NOT NULL DEFAULT 5`,
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS screenshots_enabled    TINYINT(1) NOT NULL DEFAULT 1`,
 
-    // Jira integration
+    // Jira integration — dedicated credentials table + issue key on tasks
     `CREATE TABLE IF NOT EXISTS jira_credentials (
        id               INT AUTO_INCREMENT PRIMARY KEY,
        employee_id      INT NOT NULL UNIQUE,

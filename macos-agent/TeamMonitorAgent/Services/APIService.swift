@@ -43,6 +43,7 @@ struct EmployeeInfo: Codable {
     let idleWarningMinutes:   Int
     let idleStopMinutes:      Int
     let screenshotsEnabled:   Bool
+    let jiraEnabled:          Bool
 
     enum CodingKeys: String, CodingKey {
         case id, name, email, role
@@ -52,24 +53,25 @@ struct EmployeeInfo: Codable {
         case idleWarningMinutes   = "idle_warning_minutes"
         case idleStopMinutes      = "idle_stop_minutes"
         case screenshotsEnabled   = "screenshots_enabled"
+        case jiraEnabled          = "jira_enabled"
     }
 
-    // Fallback decoder: old servers won't send the new fields; use safe defaults.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id                  = try c.decode(Int.self,    forKey: .id)
-        name                = try c.decode(String.self, forKey: .name)
-        email               = try c.decode(String.self, forKey: .email)
-        role                = try c.decode(String.self, forKey: .role)
-        screenshotInterval  = try c.decodeIfPresent(Int.self,  forKey: .screenshotInterval)   ?? 300
-        // New fields — default to safe values if server hasn't migrated yet
-        let rawBreak        = try c.decodeIfPresent(Int.self,  forKey: .breakEnabled)         ?? 0
-        breakEnabled        = rawBreak != 0
+        id                   = try c.decode(Int.self,    forKey: .id)
+        name                 = try c.decode(String.self, forKey: .name)
+        email                = try c.decode(String.self, forKey: .email)
+        role                 = try c.decode(String.self, forKey: .role)
+        screenshotInterval   = try c.decodeIfPresent(Int.self, forKey: .screenshotInterval)   ?? 300
+        let rawBreak         = try c.decodeIfPresent(Int.self, forKey: .breakEnabled)         ?? 0
+        breakEnabled         = rawBreak != 0
         breakIntervalMinutes = try c.decodeIfPresent(Int.self, forKey: .breakIntervalMinutes) ?? 60
-        idleWarningMinutes  = try c.decodeIfPresent(Int.self,  forKey: .idleWarningMinutes)   ?? 2
-        idleStopMinutes     = try c.decodeIfPresent(Int.self,  forKey: .idleStopMinutes)      ?? 5
-        let rawScreenshots  = try c.decodeIfPresent(Int.self,  forKey: .screenshotsEnabled)   ?? 1
-        screenshotsEnabled  = rawScreenshots != 0
+        idleWarningMinutes   = try c.decodeIfPresent(Int.self, forKey: .idleWarningMinutes)   ?? 2
+        idleStopMinutes      = try c.decodeIfPresent(Int.self, forKey: .idleStopMinutes)      ?? 5
+        let rawScreenshots   = try c.decodeIfPresent(Int.self, forKey: .screenshotsEnabled)   ?? 1
+        screenshotsEnabled   = rawScreenshots != 0
+        let rawJira          = try c.decodeIfPresent(Int.self, forKey: .jiraEnabled)          ?? 0
+        jiraEnabled          = rawJira != 0
     }
 }
 struct PunchInResponse: Decodable {
@@ -88,6 +90,21 @@ struct ProjectItem: Decodable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, name, description, color
         case taskCount = "task_count"
+    }
+}
+
+struct JiraIssue: Decodable, Identifiable, Hashable {
+    var id: String { key }
+    let key:         String
+    let summary:     String
+    let status:      String
+    let projectName: String
+    let issueType:   String
+    let priority:    String
+    enum CodingKeys: String, CodingKey {
+        case key, summary, status, priority
+        case projectName = "projectName"
+        case issueType   = "issueType"
     }
 }
 
@@ -228,7 +245,7 @@ class APIService: ObservableObject {
 
     // MARK: - Sessions
 
-    func punchIn(taskId: Int? = nil) async throws -> Int {
+    func punchIn(taskId: Int? = nil, jiraIssueKey: String? = nil) async throws -> Int {
         guard let token else { throw APIError.unauthorized }
         guard let url = URL(string: "\(API_BASE)/sessions/punch-in") else { throw APIError.badURL }
 
@@ -237,7 +254,8 @@ class APIService: ObservableObject {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         var bodyDict: [String: Any] = [:]
-        if let tid = taskId { bodyDict["taskId"] = tid }
+        if let tid = taskId          { bodyDict["taskId"]       = tid }
+        if let key = jiraIssueKey    { bodyDict["jiraIssueKey"] = key }
         req.httpBody = try JSONSerialization.data(withJSONObject: bodyDict)
 
         let (data, resp) = try await URLSession.shared.data(for: req)

@@ -103,6 +103,10 @@ export const api = {
   // Productivity
   getProductivity: (days, empId)   => request('GET', `/productivity?days=${days}${empId ? `&employeeId=${empId}` : ''}`),
 
+  // Jira
+  testJiraConnection: (data)  => request('POST', '/jira/test', data),
+  getJiraIssues:      ()      => request('GET',  '/jira/issues'),
+
   // Manual entry (admin)
   createManualEntry: (data) => request('POST', '/sessions/manual/admin', data),
 

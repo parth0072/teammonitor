@@ -71,7 +71,9 @@
       "Bash(swift scripts/generate_icon.swift)",
       "Bash(qlmanage -t -s 256 -o /tmp/ /Users/coda/Desktop/worklog/TeamMonitor/macos-agent/TeamMonitorAgent/Assets.xcassets/AppIcon.appiconset/icon_256x256@1x.png)",
       "Bash(chmod +x /Users/coda/Desktop/worklog/TeamMonitor/macos-agent/scripts/build_and_export.sh)",
-      "Bash(./scripts/build_and_export.sh)"
+      "Bash(./scripts/build_and_export.sh)",
+      "Bash(grep -r \"crypto\\\\|SECRET\" /Users/coda/Desktop/worklog/TeamMonitor/server/*.js)",
+      "Bash(grep -i \"secret\\\\|crypto\\\\|bcrypt\" /Users/coda/Desktop/worklog/TeamMonitor/server/routes/*.js)"
     ]
   }
 }
