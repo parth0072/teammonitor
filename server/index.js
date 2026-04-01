@@ -105,7 +105,12 @@ async function runMigrations() {
        connected_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
      )`,
-    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS jira_issue_key VARCHAR(50) DEFAULT NULL`,
+    `ALTER TABLE tasks     ADD COLUMN IF NOT EXISTS jira_issue_key    VARCHAR(50)  DEFAULT NULL`,
+    `ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS jira_issue_key    VARCHAR(50)  DEFAULT NULL`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS jira_url          VARCHAR(255) DEFAULT NULL`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS jira_email        VARCHAR(150) DEFAULT NULL`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS jira_api_token    TEXT         DEFAULT NULL`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS screen_permission TINYINT(1)   DEFAULT 1`,
   ];
   for (const sql of migrations) {
     try {
