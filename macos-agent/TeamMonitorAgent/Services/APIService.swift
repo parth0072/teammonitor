@@ -93,21 +93,6 @@ struct ProjectItem: Decodable, Identifiable, Hashable {
     }
 }
 
-struct JiraIssue: Decodable, Identifiable, Hashable {
-    var id: String { key }
-    let key:         String
-    let summary:     String
-    let status:      String
-    let projectName: String
-    let issueType:   String
-    let priority:    String
-    enum CodingKeys: String, CodingKey {
-        case key, summary, status, priority
-        case projectName = "projectName"
-        case issueType   = "issueType"
-    }
-}
-
 struct TaskItem: Decodable, Identifiable, Hashable {
     let id:              Int
     let projectId:       Int
