@@ -29,7 +29,8 @@ final class AppLogger {
             buffer = existing.components(separatedBy: "\n").filter { !$0.isEmpty }
         }
 
-        TMLog("─── AppLogger started (log: \(fileURL.path)) ───")
+        // Use print directly — TMLog would recurse into AppLogger.shared during init
+        print("[AppLogger] started — log: \(fileURL.path)")
     }
 
     // MARK: - Write
