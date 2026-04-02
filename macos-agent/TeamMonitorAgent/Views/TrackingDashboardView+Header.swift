@@ -18,6 +18,7 @@ extension TrackingDashboardView {
                             startPoint: .topLeading, endPoint: .bottomTrailing
                         ))
                         .frame(width: 34, height: 34)
+                        .shadow(color: DS.indigo.opacity(0.5), radius: 8, x: 0, y: 3)
                     Text("TM")
                         .font(.system(size: 13, weight: .black))
                         .foregroundColor(.white)
@@ -35,7 +36,10 @@ extension TrackingDashboardView {
             HStack(spacing: 9) {
                 ZStack {
                     Circle()
-                        .fill(DS.indigo.opacity(0.2))
+                        .fill(LinearGradient(
+                            colors: [DS.indigo.opacity(0.35), DS.indigoDark.opacity(0.25)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ))
                         .frame(width: 32, height: 32)
                     Text(userInitials)
                         .font(.system(size: 12, weight: .bold))
@@ -52,6 +56,14 @@ extension TrackingDashboardView {
                         .lineLimit(1)
                 }
                 Spacer()
+
+                // Live tracking indicator
+                if manager.isTracking && !manager.isOnBreak {
+                    Circle()
+                        .fill(DS.emerald)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: DS.emerald.opacity(0.6), radius: 4)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
@@ -60,19 +72,18 @@ extension TrackingDashboardView {
             .padding(.horizontal, 10)
             .padding(.bottom, 14)
 
-            // Primary navigation
+            // Primary navigation (no Notes)
             VStack(spacing: 2) {
                 sidebarNavItem(.tasks,    icon: "checklist",   label: "Tasks")
                 sidebarNavItem(.activity, icon: "waveform",    label: "Activity")
-                sidebarNavItem(.notes,    icon: "note.text",   label: "Notes")
             }
 
             sidebarDivider()
 
             // Quick actions
-            sidebarActionButton("clock.badge.plus",  label: "Manual Entry") { activeSheet = .manualEntry }
-            sidebarActionButton("chart.bar.fill",     label: "Reports")      { activeSheet = .reports }
-            sidebarActionButton("arrow.clockwise",    label: "Refresh")      { loadTasks() }
+            sidebarActionButton("square.and.pencil",  label: "Manual Entry") { activeSheet = .manualEntry }
+            sidebarActionButton("chart.bar.fill",      label: "Reports")      { activeSheet = .reports }
+            sidebarActionButton("arrow.clockwise",     label: "Refresh")      { loadTasks() }
 
             Spacer()
 
@@ -98,8 +109,8 @@ extension TrackingDashboardView {
             sidebarDivider()
 
             // Settings + sign out
-            sidebarActionButton("gearshape.fill", label: "Settings") { activeSheet = .settings }
-            sidebarActionButton("ant.fill",        label: "Report Issue") { activeSheet = .bugReport }
+            sidebarActionButton("gearshape.fill", label: "Settings")      { activeSheet = .settings }
+            sidebarActionButton("ant.fill",        label: "Report Issue")  { activeSheet = .bugReport }
             sidebarActionButton(
                 "rectangle.portrait.and.arrow.right",
                 label: "Sign Out",
@@ -122,7 +133,7 @@ extension TrackingDashboardView {
     @ViewBuilder
     private func sidebarNavItem(_ tab: DashTab, icon: String, label: String) -> some View {
         let isSelected = selectedTab == tab
-        Button { selectedTab = tab } label: {
+        Button { withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { selectedTab = tab } } label: {
             HStack(spacing: 9) {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .medium))
@@ -133,7 +144,10 @@ extension TrackingDashboardView {
                     .foregroundColor(isSelected ? DS.sidebarTextSel : DS.sidebarText)
                 Spacer()
                 if isSelected {
-                    Circle().fill(DS.indigo).frame(width: 5, height: 5)
+                    Capsule()
+                        .fill(DS.indigo)
+                        .frame(width: 3, height: 16)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 10)
@@ -183,7 +197,7 @@ extension TrackingDashboardView {
     func toastView(_ t: ToastMessage) -> some View {
         HStack(spacing: 10) {
             Image(systemName: t.isWarning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                .foregroundColor(t.isWarning ? DS.amber : DS.indigo)
+                .foregroundColor(t.isWarning ? DS.amber : DS.emerald)
                 .font(.system(size: 14))
             Text(t.text)
                 .font(.system(size: 13, weight: .medium))
@@ -196,9 +210,9 @@ extension TrackingDashboardView {
             }.buttonStyle(.plain)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(DS.surface)
+        .background(.regularMaterial)
         .cornerRadius(12)
-        .shadow(color: .black.opacity(0.1), radius: 16, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 6)
         .padding(.horizontal, 24)
     }
 }

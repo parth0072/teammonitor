@@ -40,7 +40,6 @@ struct TrackingDashboardView: View {
     enum DashTab: String, CaseIterable {
         case tasks    = "Tasks"
         case activity = "Activity"
-        case notes    = "Notes"
     }
 
     var body: some View {
@@ -54,10 +53,10 @@ struct TrackingDashboardView: View {
                 // ── Main content ──────────────────────────────────────────
                 VStack(spacing: 0) {
                     statusBanner
-                    screenPermissionBanner
                     startTimerReminderBanner
                     offlineBanner
                     timerHero
+                    statsBar
                     punchSection
                     idleWarning
                     tabContent

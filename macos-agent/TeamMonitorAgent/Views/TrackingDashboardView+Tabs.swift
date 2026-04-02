@@ -11,7 +11,6 @@ extension TrackingDashboardView {
         switch selectedTab {
         case .tasks:    tasksTabContent
         case .activity: activityTabContent
-        case .notes:    notesTabContent
         }
     }
 
@@ -21,13 +20,19 @@ extension TrackingDashboardView {
         VStack(spacing: 0) {
             // Search + new task toolbar
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundColor(DS.textMuted)
-                TextField("Search tasks…", text: $searchText)
-                    .font(.system(size: 13)).textFieldStyle(.plain)
-                    .foregroundColor(DS.text)
-                Spacer()
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundColor(DS.textMuted)
+                    TextField("Search tasks…", text: $searchText)
+                        .font(.system(size: 13)).textFieldStyle(.plain)
+                        .foregroundColor(DS.text)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 7)
+                .background(DS.bg)
+                .cornerRadius(8)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(DS.border, lineWidth: 1))
+
                 Button {
                     activeSheet = .newTask
                 } label: {
@@ -36,12 +41,15 @@ extension TrackingDashboardView {
                         Text("New Task").font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(DS.indigo)
-                    .cornerRadius(6)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(
+                        LinearGradient(colors: [DS.indigo, DS.indigoDark],
+                                       startPoint: .leading, endPoint: .trailing)
+                    )
+                    .cornerRadius(8)
                 }.buttonStyle(.plain)
             }
-            .padding(.horizontal, 16).padding(.vertical, 10)
+            .padding(.horizontal, 14).padding(.vertical, 10)
             .background(DS.surface)
             .overlay(Rectangle().frame(height: 1).foregroundColor(DS.border), alignment: .bottom)
 
@@ -54,14 +62,18 @@ extension TrackingDashboardView {
                     }
 
                     if tasksLoading {
-                        ProgressView()
-                            .padding(.vertical, 40)
-                            .frame(maxWidth: .infinity)
+                        VStack(spacing: 12) {
+                            LottieOrIcon(lottieName: "lf_loading", icon: "arrow.clockwise",
+                                         iconColor: DS.indigo, size: 72)
+                            Text("Loading tasks…")
+                                .font(.system(size: 12))
+                                .foregroundColor(DS.textMuted)
+                        }
+                        .frame(maxWidth: .infinity).padding(.vertical, 48)
                     } else if let err = tasksError {
-                        VStack(spacing: 10) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 26))
-                                .foregroundColor(DS.amber)
+                        VStack(spacing: 12) {
+                            LottieOrIcon(lottieName: "lf_error", icon: "exclamationmark.triangle.fill",
+                                         iconColor: DS.amber, size: 72)
                             Text("Could not load tasks")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(DS.text)
@@ -70,37 +82,55 @@ extension TrackingDashboardView {
                                 .foregroundColor(DS.textMuted)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 24)
-                            Button("Retry") { loadTasks() }
+                            Button { loadTasks() } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "arrow.clockwise").font(.system(size: 11))
+                                    Text("Retry")
+                                }
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 16).padding(.vertical, 6)
-                                .background(DS.indigo).cornerRadius(6).buttonStyle(.plain)
+                                .padding(.horizontal, 16).padding(.vertical, 7)
+                                .background(DS.indigo).cornerRadius(7)
+                            }.buttonStyle(.plain)
                         }
-                        .frame(maxWidth: .infinity).padding(.vertical, 40)
+                        .frame(maxWidth: .infinity).padding(.vertical, 48)
                     } else if filtered.isEmpty && !jiraConnected {
                         VStack(spacing: 10) {
-                            Image(systemName: "checklist")
-                                .font(.system(size: 28))
-                                .foregroundColor(DS.border)
-                            Text(myTasks.isEmpty ? "No tasks assigned yet" : "No tasks match search")
-                                .font(.system(size: 13))
-                                .foregroundColor(DS.textMuted)
+                            LottieOrIcon(lottieName: "empty_tasks", icon: "checklist",
+                                         iconColor: DS.indigo, size: 90)
+                            Text(myTasks.isEmpty ? "No tasks yet" : "No tasks match search")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(DS.text)
                             if myTasks.isEmpty {
-                                Text("Ask your admin to create a project and assign tasks, or tap + New Task")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(DS.textMuted.opacity(0.7))
+                                Text("Ask your admin to assign tasks,\nor create one with + New Task")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(DS.textMuted)
                                     .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 24)
                             }
+                            Button { loadTasks() } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "arrow.clockwise").font(.system(size: 11))
+                                    Text("Refresh")
+                                }
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(DS.indigo)
+                                .padding(.horizontal, 14).padding(.vertical, 6)
+                                .background(DS.indigoLight)
+                                .cornerRadius(7)
+                            }.buttonStyle(.plain)
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, 40)
                     } else {
-                        ForEach(filtered) { task in
+                        ForEach(Array(filtered.enumerated()), id: \.element.id) { idx, task in
                             TaskRow2(
                                 task: task,
                                 isActive: manager.currentTask?.id == task.id && manager.isTracking,
                                 onStart: { Task { await manager.punchIn(task: task) } }
                             )
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                         }
                     }
 
@@ -172,7 +202,7 @@ extension TrackingDashboardView {
                     .foregroundColor(DS.textSecond)
                 Spacer()
                 if !manager.isTracking {
-                    Text("Punch in to start tracking")
+                    Text("Punch in to start")
                         .font(.system(size: 11))
                         .foregroundColor(DS.textMuted)
                 }
@@ -185,14 +215,17 @@ extension TrackingDashboardView {
                 LazyVStack(spacing: 0) {
                     if manager.recentApps.isEmpty {
                         VStack(spacing: 10) {
-                            Image(systemName: "desktopcomputer")
-                                .font(.system(size: 28))
-                                .foregroundColor(DS.border)
+                            LottieOrIcon(
+                                lottieName: manager.isTracking ? "lf_tracking" : "empty_tasks",
+                                icon: manager.isTracking ? "record.circle" : "desktopcomputer",
+                                iconColor: manager.isTracking ? DS.emerald : DS.indigo,
+                                size: 80
+                            )
                             Text(manager.isTracking ? "Monitoring app usage…" : "Punch in to start monitoring")
                                 .font(.system(size: 13))
                                 .foregroundColor(DS.textMuted)
                         }
-                        .frame(maxWidth: .infinity).padding(.vertical, 40)
+                        .frame(maxWidth: .infinity).padding(.vertical, 48)
                     } else {
                         ForEach(manager.recentApps, id: \.self) { app in
                             AppActivityRow(appName: app, isActive: app == manager.currentApp)
@@ -202,23 +235,6 @@ extension TrackingDashboardView {
             }
             .background(DS.surface)
         }
-    }
-
-    // MARK: – Notes tab
-
-    var notesTabContent: some View {
-        VStack {
-            Image(systemName: "note.text")
-                .font(.system(size: 28))
-                .foregroundColor(DS.border)
-                .padding(.top, 40)
-            Text("Work notes coming soon")
-                .font(.system(size: 13))
-                .foregroundColor(DS.textMuted)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .background(DS.surface)
     }
 }
 
@@ -256,45 +272,28 @@ struct JiraIssueRow: View {
             RoundedRectangle(cornerRadius: 2)
                 .fill(Color(hex: "0052CC"))
                 .frame(width: 3, height: 36)
-
             VStack(alignment: .leading, spacing: 3) {
                 Text(issue.summary)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.text)
-                    .lineLimit(1)
+                    .foregroundColor(DS.text).lineLimit(1)
                 HStack(spacing: 6) {
-                    Text(issue.key)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Color(hex: "0052CC"))
+                    Text(issue.key).font(.system(size: 11, weight: .bold)).foregroundColor(Color(hex: "0052CC"))
                     Text("·").font(.system(size: 11)).foregroundColor(DS.border)
-                    Text(issue.projectName)
-                        .font(.system(size: 11)).foregroundColor(DS.textMuted)
+                    Text(issue.projectName).font(.system(size: 11)).foregroundColor(DS.textMuted)
                 }
             }
-
             Spacer()
-
             HStack(spacing: 6) {
                 Text(priorityIcon).font(.system(size: 11))
-
                 Text(issue.status)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(statusColor)
+                    .font(.system(size: 10, weight: .semibold)).foregroundColor(statusColor)
                     .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(statusBg)
-                    .cornerRadius(8)
-
+                    .background(statusBg).cornerRadius(8)
                 Button {
-                    if let url = URL(string: issue.url) {
-                        NSWorkspace.shared.open(url)
-                    }
+                    if let url = URL(string: issue.url) { NSWorkspace.shared.open(url) }
                 } label: {
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.system(size: 11))
-                        .foregroundColor(DS.textMuted)
-                }
-                .buttonStyle(.plain)
-                .help("Open \(issue.key) in Jira")
+                    Image(systemName: "arrow.up.right.square").font(.system(size: 11)).foregroundColor(DS.textMuted)
+                }.buttonStyle(.plain).help("Open \(issue.key) in Jira")
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)

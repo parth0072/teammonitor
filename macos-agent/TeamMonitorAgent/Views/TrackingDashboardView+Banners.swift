@@ -13,18 +13,19 @@ extension TrackingDashboardView {
     @ViewBuilder
     var statusBanner: some View {
         let msg = manager.statusMessage
-        if !msg.isEmpty && msg != "Ready" && msg != "Tracking active"
-            && msg != "Tracking resumed" && msg != "Session ended. Have a great day!" {
+        // Only surface error-level messages — all other statuses are shown in the timer hero
+        if msg.hasPrefix("Error") || msg.hasPrefix("Failed") {
             HStack(spacing: 8) {
-                Image(systemName: msg.hasPrefix("Error") ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                    .foregroundColor(msg.hasPrefix("Error") ? .red : .blue)
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(DS.red)
                 Text(msg)
                     .font(.system(size: 12))
-                    .foregroundColor(msg.hasPrefix("Error") ? .red : Color(hex: "374151"))
+                    .foregroundColor(DS.red)
                 Spacer()
             }
             .padding(.horizontal, 16).padding(.vertical, 6)
-            .background(msg.hasPrefix("Error") ? Color.red.opacity(0.08) : Color.blue.opacity(0.06))
+            .background(DS.red.opacity(0.08))
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
@@ -115,6 +116,7 @@ extension TrackingDashboardView {
             .padding(.horizontal, 16).padding(.vertical, 10)
             .background(Color(hex: "ede9fe"))
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "ddd6fe")), alignment: .bottom)
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
@@ -134,6 +136,7 @@ extension TrackingDashboardView {
             .padding(.horizontal, 16).padding(.vertical, 6)
             .background(Color(hex: "fef3c7"))
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "fde68a")), alignment: .bottom)
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 }

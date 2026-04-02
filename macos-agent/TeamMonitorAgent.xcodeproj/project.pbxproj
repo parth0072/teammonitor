@@ -38,6 +38,11 @@
 		AA000033 /* Views/NotTrackingAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Views/NotTrackingAlertView.swift */; };
 		AA000035 /* Services/AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000035 /* Services/AppLogger.swift */; };
 		AA000036 /* Views/BugReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000036 /* Views/BugReportView.swift */; };
+		AA000037 /* Views/LottieView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000037 /* Views/LottieView.swift */; };
+		AA000038 /* lf_loading.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000038 /* lf_loading.json */; };
+		AA000039 /* empty_tasks.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000039 /* empty_tasks.json */; };
+		AA000040 /* lf_tracking.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000040 /* lf_tracking.json */; };
+		CF840E032F7E306800CBD462 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = CF840E022F7E306800CBD462 /* Lottie */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +77,10 @@
 		AB000033 /* Views/NotTrackingAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/NotTrackingAlertView.swift; sourceTree = "<group>"; };
 		AB000035 /* Services/AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppLogger.swift; sourceTree = "<group>"; };
 		AB000036 /* Views/BugReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/BugReportView.swift; sourceTree = "<group>"; };
+		AB000037 /* Views/LottieView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LottieView.swift; sourceTree = "<group>"; };
+		AB000038 /* lf_loading.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = lf_loading.json; sourceTree = "<group>"; };
+		AB000039 /* empty_tasks.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = empty_tasks.json; sourceTree = "<group>"; };
+		AB000040 /* lf_tracking.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = lf_tracking.json; sourceTree = "<group>"; };
 		AB000099 /* TeamMonitorAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeamMonitorAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -80,6 +89,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CF840E032F7E306800CBD462 /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -134,6 +144,9 @@
 				ACSERVICES /* Services */,
 				ACMODELS /* Models */,
 				AB000012 /* Assets.xcassets */,
+				AB000038 /* lf_loading.json */,
+				AB000039 /* empty_tasks.json */,
+				AB000040 /* lf_tracking.json */,
 			);
 			path = TeamMonitorAgent;
 			sourceTree = "<group>";
@@ -160,6 +173,7 @@
 				AB000032 /* Views/SettingsView.swift */,
 				AB000033 /* Views/NotTrackingAlertView.swift */,
 				AB000036 /* Views/BugReportView.swift */,
+				AB000037 /* Views/LottieView.swift */,
 			);
 			name = Views;
 			sourceTree = "<group>";
@@ -208,6 +222,9 @@
 				Base,
 			);
 			mainGroup = ACROOT;
+			packageReferences = (
+				CF840E012F7E306700CBD462 /* XCRemoteSwiftPackageReference "lottie-spm" */,
+			);
 			productRefGroup = ACPROD /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -223,6 +240,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA000012 /* Assets.xcassets in Resources */,
+				AA000038 /* lf_loading.json in Resources */,
+				AA000039 /* empty_tasks.json in Resources */,
+				AA000040 /* lf_tracking.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -263,6 +283,7 @@
 				AA000033 /* Views/NotTrackingAlertView.swift in Sources */,
 				AA000035 /* Services/AppLogger.swift in Sources */,
 				AA000036 /* Views/BugReportView.swift in Sources */,
+				AA000037 /* Views/LottieView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -382,6 +403,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CF840E012F7E306700CBD462 /* XCRemoteSwiftPackageReference "lottie-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CF840E022F7E306800CBD462 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CF840E012F7E306700CBD462 /* XCRemoteSwiftPackageReference "lottie-spm" */;
+			productName = Lottie;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = ACPROJECT /* Project object */;
 }

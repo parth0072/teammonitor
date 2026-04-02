@@ -49,16 +49,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 return
             }
             TMLog("[Notifications] Permission granted: \(granted)")
-            guard granted else { return }
-            // Warmup: macOS sometimes silently drops the very first notification.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                let content   = UNMutableNotificationContent()
-                content.title = "TeamMonitor is running"
-                content.body  = "You'll get reminders if you forget to start tracking."
-                content.sound = .default
-                let req = UNNotificationRequest(identifier: "tm-welcome", content: content, trigger: nil)
-                UNUserNotificationCenter.current().add(req) { _ in }
-            }
         }
 
         // Register to launch automatically at login
