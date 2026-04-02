@@ -76,9 +76,16 @@ unzip -q "$TMP_DIR/${APP_NAME}.zip" -d "$TMP_DIR/" \
 APP_SRC=$(find "$TMP_DIR" -name "${APP_NAME}.app" -maxdepth 3 | head -1)
 [ -z "$APP_SRC" ] && error "${APP_NAME}.app not found in zip."
 
-# ── 5. Remove quarantine ──────────────────────────────────────────────────────
+# ── 5. Remove quarantine & re-sign locally ───────────────────────────────────
 info "Removing quarantine flag..."
-xattr -rd com.apple.quarantine "$APP_SRC" 2>/dev/null || true
+xattr -cr "$APP_SRC" 2>/dev/null || true
+
+# Re-sign all nested frameworks/binaries with a local ad-hoc signature so
+# macOS Gatekeeper/dyld accepts them on this machine (no Apple ID needed).
+info "Signing app for this machine..."
+find "$APP_SRC/Contents/Frameworks" -name "*.framework" -o -name "*.dylib" 2>/dev/null \
+  | while read -r f; do codesign --force --deep --sign - "$f" 2>/dev/null || true; done
+codesign --force --deep --sign - "$APP_SRC" 2>/dev/null || true
 
 # ── 6. Install to /Applications (needs sudo) ─────────────────────────────────
 info "Installing to $INSTALL_DIR..."
@@ -92,7 +99,11 @@ if [ -d "$DEST" ]; then
 fi
 
 sudo cp -R "$APP_SRC" "$INSTALL_DIR/"
-sudo xattr -rd com.apple.quarantine "$DEST" 2>/dev/null || true
+# Clear all extended attributes on installed bundle and re-sign for this machine
+sudo xattr -cr "$DEST" 2>/dev/null || true
+find "$DEST/Contents/Frameworks" -name "*.framework" -o -name "*.dylib" 2>/dev/null \
+  | while read -r f; do sudo codesign --force --deep --sign - "$f" 2>/dev/null || true; done
+sudo codesign --force --deep --sign - "$DEST" 2>/dev/null || true
 echo "  Installed ${LATEST_TAG} to $DEST ✓"
 
 # ── 7. LaunchAgent – auto-start on login ─────────────────────────────────────

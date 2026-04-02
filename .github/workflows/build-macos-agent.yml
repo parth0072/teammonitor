@@ -36,7 +36,14 @@ jobs:
             macos-agent/TeamMonitorAgent.xcodeproj/project.pbxproj
           echo "Patched project.pbxproj to version $VERSION"
 
-      - name: Build app (unsigned)
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild \
+            -resolvePackageDependencies \
+            -project macos-agent/TeamMonitorAgent.xcodeproj \
+            -scheme TeamMonitorAgent
+
+      - name: Build app (ad-hoc signed)
         run: |
           xcodebuild \
             -project macos-agent/TeamMonitorAgent.xcodeproj \
@@ -46,7 +53,7 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=YES \
             CODE_SIGNING_ALLOWED=YES \
-            OTHER_CODE_SIGN_FLAGS="--deep" \
+            OTHER_CODE_SIGN_FLAGS="--deep --options=runtime" \
             ONLY_ACTIVE_ARCH=NO \
             clean build
 
@@ -56,9 +63,14 @@ jobs:
           echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
           echo "Found: $APP_PATH"
 
-      - name: Remove quarantine & zip
+      - name: Sign frameworks + zip
         run: |
-          xattr -rd com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+          # Sign each embedded framework individually first, then the app
+          find "$APP_PATH/Contents/Frameworks" -name "*.framework" -o -name "*.dylib" 2>/dev/null \
+            | while read -r f; do codesign --force --deep --sign - "$f" 2>/dev/null || true; done
+          codesign --force --deep --sign - "$APP_PATH"
+          # Clear any quarantine xattrs that crept in during build
+          xattr -cr "$APP_PATH" 2>/dev/null || true
           cd "$(dirname "$APP_PATH")"
           zip -r "$GITHUB_WORKSPACE/TeamMonitorAgent.zip" TeamMonitorAgent.app
           echo "ZIP_PATH=$GITHUB_WORKSPACE/TeamMonitorAgent.zip" >> $GITHUB_ENV
