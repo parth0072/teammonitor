@@ -77,6 +77,24 @@ router.get('/status', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/jira/test  – verify credentials without saving (used by admin EmployeeDetail panel)
+router.post('/test', auth, async (req, res) => {
+  try {
+    const { jira_url, jira_email, jira_api_token } = req.body;
+    if (!jira_url || !jira_email || !jira_api_token)
+      return res.status(400).json({ error: 'jira_url, jira_email and jira_api_token are required' });
+
+    let myself;
+    try {
+      myself = await jiraFetch(jira_url, jira_email, jira_api_token, '/myself');
+    } catch (err) {
+      return res.status(401).json({ error: 'Could not connect to Jira: ' + err.message });
+    }
+
+    res.json({ ok: true, displayName: myself.displayName, email: myself.emailAddress });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/jira/connect  – save + verify credentials
 router.post('/connect', auth, async (req, res) => {
   try {
