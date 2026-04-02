@@ -20,7 +20,6 @@ extension TrackingDashboardView {
                 TMLog("[loadTasks] error: \(error)")
             }
             tasksLoading = false
-            // Load Jira issues in parallel (non-blocking — failure is silent)
             loadJiraIssues()
         }
     }
@@ -37,7 +36,6 @@ extension TrackingDashboardView {
                     jiraIssues = []
                 }
             } catch {
-                // Jira errors are non-fatal; just hide the section
                 jiraConnected = false
                 jiraIssues    = []
                 TMLog("[loadJiraIssues] \(error)")
@@ -80,17 +78,6 @@ extension TrackingDashboardView {
         breakTimer = nil
     }
 
-    // MARK: – Relaunch
-
-    func relaunchApp() {
-        let url  = Bundle.main.bundleURL
-        let task = Process()
-        task.launchPath = "/usr/bin/open"
-        task.arguments  = [url.path]
-        try? task.run()
-        NSApp.terminate(nil)
-    }
-
     // MARK: – Computed helpers
 
     var reminderCountdownText: String {
@@ -105,12 +92,32 @@ extension TrackingDashboardView {
     }
 
     var timerStatusColor: Color {
-        if !manager.isTracking { return Color(hex: "9ca3af") }
-        if manager.isIdle      { return Color(hex: "f59e0b") }
-        return Color(hex: "16a34a")
+        if !manager.isTracking { return DS.textMuted }
+        if manager.isIdle      { return DS.amber }
+        return DS.emerald
     }
 
+    /// "8h 42m" format for the hero timer
+    func formatTimer(_ minutes: Int) -> String {
+        let h = minutes / 60
+        let m = minutes % 60
+        if h > 0 { return "\(h)h \(m)m" }
+        return "\(m)m"
+    }
+
+    /// Legacy format kept for any callers that still use it
     func formatHoursMinutes(_ totalMinutes: Int) -> String {
-        String(format: "%02d hours %02d minutes", totalMinutes / 60, totalMinutes % 60)
+        String(format: "%02dh %02dm", totalMinutes / 60, totalMinutes % 60)
+    }
+
+    /// Two-letter initials from name (or first letter of email)
+    var userInitials: String {
+        let name = auth.employeeName
+        if !name.isEmpty {
+            let parts = name.split(separator: " ").prefix(2)
+            let initials = parts.compactMap { $0.first.map(String.init) }.joined()
+            if !initials.isEmpty { return initials.uppercased() }
+        }
+        return String(auth.email.prefix(1)).uppercased()
     }
 }

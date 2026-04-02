@@ -7,14 +7,14 @@ struct TaskRow2: View {
     let isActive: Bool
     let onStart:  () -> Void
 
-    var statusColor: Color {
+    private var statusColor: Color {
         switch task.status {
-        case "in_progress": return Color(hex: "3b82f6")
-        case "done":        return Color(hex: "10b981")
-        default:            return Color(hex: "9ca3af")
+        case "in_progress": return DS.indigo
+        case "done":        return DS.emerald
+        default:            return DS.textMuted
         }
     }
-    var statusLabel: String {
+    private var statusLabel: String {
         switch task.status {
         case "in_progress": return "In Progress"
         case "done":        return "Done"
@@ -24,46 +24,60 @@ struct TaskRow2: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            // Project color bar
             RoundedRectangle(cornerRadius: 2)
                 .fill(Color(hex: task.projectColor))
-                .frame(width: 4, height: 36)
+                .frame(width: 3, height: 38)
 
-            VStack(alignment: .leading, spacing: 3) {
+            // Task info
+            VStack(alignment: .leading, spacing: 4) {
                 Text(task.name)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Color(hex: "111827"))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(isActive ? DS.indigo : DS.text)
+                    .lineLimit(1)
                 HStack(spacing: 6) {
                     Text(task.projectName)
-                        .font(.system(size: 11)).foregroundColor(Color(hex: "6b7280"))
+                        .font(.system(size: 11))
+                        .foregroundColor(DS.textMuted)
                     Text("·")
-                        .font(.system(size: 11)).foregroundColor(Color(hex: "d1d5db"))
+                        .font(.system(size: 11))
+                        .foregroundColor(DS.border)
                     Text(statusLabel)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(statusColor)
                 }
             }
 
             Spacer()
 
+            // Right badge / action
             if isActive {
                 HStack(spacing: 4) {
-                    Circle().fill(Color(hex: "16a34a")).frame(width: 6, height: 6)
-                    Text("Active").font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color(hex: "16a34a"))
+                    Circle().fill(DS.emerald).frame(width: 6, height: 6)
+                    Text("Active")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(DS.emerald)
                 }
                 .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(Color(hex: "dcfce7")).cornerRadius(10)
+                .background(DS.emeraldLight)
+                .cornerRadius(10)
             } else if task.status != "done" {
-                Button("▶ Start") { onStart() }
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white)
+                Button { onStart() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.fill").font(.system(size: 9))
+                        Text("Start").font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(DS.indigo)
                     .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(Color(hex: "3b82f6")).cornerRadius(5)
-                    .buttonStyle(.plain)
+                    .background(DS.indigoLight)
+                    .cornerRadius(6)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(DS.indigo.opacity(0.2), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-        .background(isActive ? Color(hex: "f0fdf4") : Color.white)
-        .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "f3f4f6")), alignment: .bottom)
+        .padding(.horizontal, 16).padding(.vertical, 11)
+        .background(isActive ? DS.indigoLight.opacity(0.5) : DS.surface)
+        .overlay(Rectangle().frame(height: 1).foregroundColor(DS.bg), alignment: .bottom)
     }
 }

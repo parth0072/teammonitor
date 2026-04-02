@@ -20,11 +20,11 @@ struct TrackingDashboardView: View {
     }
     @State var activeSheet: Sheet? = nil
 
-    @State var selectedTab:    DashTab = .tasks
-    @State var searchText             = ""
-    @State var workStatus             = "WFO"
+    @State var selectedTab:   DashTab = .tasks
+    @State var searchText            = ""
+    @State var workStatus            = "WFO"
 
-    @State var myTasks:       [TaskItem]   = []
+    @State var myTasks:       [TaskItem]    = []
     @State var projects:      [ProjectItem] = []
     @State var tasksLoading:  Bool          = false
     @State var tasksError:    String?       = nil
@@ -33,30 +33,38 @@ struct TrackingDashboardView: View {
     @State var jiraConnected: Bool         = false
     @State var jiraLoading:   Bool         = false
 
-    @State var toast:          ToastMessage? = nil
-    @State var toastTimer:     Timer?        = nil
+    @State var toast:      ToastMessage? = nil
+    @State var toastTimer: Timer?        = nil
+    @State var breakTimer: Timer?        = nil
 
-    @State var breakTimer: Timer? = nil
-
-    enum DashTab: String { case tasks = "My Tasks", activity = "App Activity", notes = "Work Notes" }
+    enum DashTab: String, CaseIterable {
+        case tasks    = "Tasks"
+        case activity = "Activity"
+        case notes    = "Notes"
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            VStack(spacing: 0) {
-                headerBar
-                statsBar
-                statusBanner
-                screenPermissionBanner
-                startTimerReminderBanner
-                offlineBanner
-                taskButton
-                actionButtons
-                idleWarning
-                tabBar
-                tabContent
+            HStack(spacing: 0) {
+                // ── Dark sidebar ──────────────────────────────────────────
+                sidebar
+
+                Rectangle().fill(DS.sidebarBorder).frame(width: 1)
+
+                // ── Main content ──────────────────────────────────────────
+                VStack(spacing: 0) {
+                    statusBanner
+                    screenPermissionBanner
+                    startTimerReminderBanner
+                    offlineBanner
+                    timerHero
+                    punchSection
+                    idleWarning
+                    tabContent
+                }
+                .background(DS.bg)
             }
-            .background(Color(hex: "f3f4f6"))
-            .frame(minWidth: 700, minHeight: 580)
+            .frame(minWidth: 720, minHeight: 560)
 
             if let t = toast {
                 toastView(t)
@@ -77,14 +85,8 @@ struct TrackingDashboardView: View {
             case .breakReminder:
                 BreakReminderView(
                     minutesWorked: manager.trackedMinutes,
-                    onSnooze: {
-                        activeSheet = nil
-                        scheduleBreakReminder(interval: 15 * 60)
-                    },
-                    onDismiss: {
-                        activeSheet = nil
-                        scheduleBreakReminder()
-                    }
+                    onSnooze: { activeSheet = nil; scheduleBreakReminder(interval: 15 * 60) },
+                    onDismiss: { activeSheet = nil; scheduleBreakReminder() }
                 )
             case .newTask:
                 NewTaskView(projects: projects, onCreated: { loadTasks() })
@@ -101,11 +103,8 @@ struct TrackingDashboardView: View {
                 NotTrackingAlertView(manager: manager, onStart: {
                     manager.showNotTrackingAlert = false
                     activeSheet = nil
-                    if myTasks.isEmpty {
-                        Task { await manager.punchIn() }
-                    } else {
-                        activeSheet = .taskPicker
-                    }
+                    if myTasks.isEmpty { Task { await manager.punchIn() } }
+                    else { activeSheet = .taskPicker }
                 })
             }
         }
