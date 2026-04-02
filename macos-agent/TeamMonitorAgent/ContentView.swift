@@ -12,6 +12,9 @@ struct ContentView: View {
         }
         .frame(minWidth: 700, minHeight: 580)
         .onAppear { restoreSession() }
+        .onReceive(NotificationCenter.default.publisher(for: .sessionExpired)) { _ in
+            auth.isLoggedIn = false
+        }
     }
 
     /// If a token + employee were saved to Keychain on a previous login,
