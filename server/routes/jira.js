@@ -201,7 +201,7 @@ router.get('/issues', auth, async (req, res) => {
       ? `project = "${projectKey}" AND assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC`
       : `assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC`;
 
-    const data = await jiraFetch(c.site_url, c.email, c.api_token, '/search', 'POST', {
+    const data = await jiraFetch(c.site_url, c.email, c.api_token, '/search/jql', 'POST', {
       jql,
       maxResults: 50,
       fields: ['summary', 'status', 'priority', 'project', 'issuetype', 'assignee', 'description'],
@@ -234,7 +234,7 @@ router.post('/sync', auth, async (req, res) => {
       return res.status(400).json({ error: 'projectKey and teamMonitorProjectId required' });
 
     const jql = `project = "${projectKey}" AND assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC`;
-    const data = await jiraFetch(c.site_url, c.email, c.api_token, '/search', 'POST', {
+    const data = await jiraFetch(c.site_url, c.email, c.api_token, '/search/jql', 'POST', {
       jql,
       maxResults: 50,
       fields: ['summary', 'status', 'description'],
