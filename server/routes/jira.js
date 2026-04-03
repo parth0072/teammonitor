@@ -127,7 +127,8 @@ router.post('/connect', auth, async (req, res) => {
     try {
       myself = await jiraFetch(siteUrl, email, apiToken, '/myself');
     } catch (err) {
-      return res.status(400).json({ error: err.message });
+      const targetUrl = `${normalizeUrl(siteUrl)}/rest/api/3/myself`;
+      return res.status(400).json({ error: `${err.message} (tried: ${targetUrl}, email: ${email})` });
     }
 
     const empId          = resolveEmployeeId(req);
