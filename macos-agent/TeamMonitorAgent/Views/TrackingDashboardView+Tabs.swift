@@ -33,6 +33,21 @@ extension TrackingDashboardView {
                 .cornerRadius(8)
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(DS.border, lineWidth: 1))
 
+                Button { loadTasks() } label: {
+                    Image(systemName: tasksLoading ? "arrow.clockwise" : "arrow.clockwise")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(DS.textMuted)
+                        .rotationEffect(.degrees(tasksLoading ? 360 : 0))
+                        .animation(tasksLoading ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: tasksLoading)
+                        .padding(7)
+                        .background(DS.bg)
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(DS.border, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .help("Refresh tasks & Jira issues")
+                .disabled(tasksLoading)
+
                 Button {
                     activeSheet = .newTask
                 } label: {
