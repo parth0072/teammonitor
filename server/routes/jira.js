@@ -106,7 +106,7 @@ router.post('/test', auth, async (req, res) => {
     try {
       myself = await jiraFetch(jira_url, jira_email, jira_api_token, '/myself');
     } catch (err) {
-      return res.status(401).json({ error: 'Could not connect to Jira: ' + err.message });
+      return res.status(400).json({ error: 'Could not connect to Jira: ' + err.message });
     }
 
     res.json({ ok: true, displayName: myself.displayName, email: myself.emailAddress });
@@ -125,7 +125,7 @@ router.post('/connect', auth, async (req, res) => {
     try {
       myself = await jiraFetch(siteUrl, email, apiToken, '/myself');
     } catch (err) {
-      return res.status(401).json({ error: 'Could not connect to Jira: ' + err.message });
+      return res.status(400).json({ error: 'Could not connect to Jira: ' + err.message });
     }
 
     const empId          = resolveEmployeeId(req);
