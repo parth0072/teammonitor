@@ -103,8 +103,7 @@ async function runMigrations() {
        api_token        TEXT NOT NULL,
        jira_account_id  VARCHAR(100) DEFAULT NULL,
        display_name     VARCHAR(150) DEFAULT NULL,
-       connected_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+       connected_at     DATETIME DEFAULT CURRENT_TIMESTAMP
      )`,
     `ALTER TABLE tasks     ADD COLUMN IF NOT EXISTS jira_issue_key    VARCHAR(50)  DEFAULT NULL`,
     `ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS jira_issue_key    VARCHAR(50)  DEFAULT NULL`,
@@ -136,13 +135,15 @@ async function runMigrations() {
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`TeamMonitor server running on port ${PORT}`);
-  console.log(`Health: http://localhost:${PORT}/teammonitor/api/health`);
+async function start() {
+  await runMigrations();
+  app.listen(PORT, () => {
+    console.log(`TeamMonitor server running on port ${PORT}`);
+    console.log(`Health: http://localhost:${PORT}/teammonitor/api/health`);
 
-  runMigrations();
-
-  // Run cleanup once on startup, then every 24 hours
-  cleanupOldScreenshots();
-  setInterval(cleanupOldScreenshots, 24 * 60 * 60 * 1000);
-});
+    // Run cleanup once on startup, then every 24 hours
+    cleanupOldScreenshots();
+    setInterval(cleanupOldScreenshots, 24 * 60 * 60 * 1000);
+  });
+}
+start().catch(err => { console.error('[startup] Fatal:', err.message); process.exit(1); });

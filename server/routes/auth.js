@@ -13,10 +13,7 @@ router.post('/login', async (req, res) => {
 
   try {
     const [rows] = await db.query(
-      `SELECT e.*, IF(j.id IS NOT NULL, 1, 0) AS jira_enabled
-       FROM employees e
-       LEFT JOIN jira_credentials j ON j.employee_id = e.id
-       WHERE e.email = ?`,
+      'SELECT * FROM employees WHERE email = ?',
       [email]
     );
     const emp = rows[0];
@@ -25,6 +22,15 @@ router.post('/login', async (req, res) => {
 
     const valid = await bcrypt.compare(password, emp.password);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
+    // Check Jira in a separate query so a missing table never breaks login
+    let jira_enabled = 0;
+    try {
+      const [jr] = await db.query(
+        'SELECT id FROM jira_credentials WHERE employee_id = ? LIMIT 1', [emp.id]
+      );
+      jira_enabled = jr.length > 0 ? 1 : 0;
+    } catch (_) { /* table may not exist yet — default to 0 */ }
 
     const token = jwt.sign(
       { id: emp.id, email: emp.email, role: emp.role, name: emp.name },
@@ -46,7 +52,7 @@ router.post('/login', async (req, res) => {
         idle_warning_minutes:  emp.idle_warning_minutes  ?? 2,
         idle_stop_minutes:     emp.idle_stop_minutes     ?? 5,
         screenshots_enabled:   emp.screenshots_enabled   ?? 1,
-        jira_enabled:          emp.jira_enabled ?? 0,
+        jira_enabled,
       }
     });
   } catch (err) {
