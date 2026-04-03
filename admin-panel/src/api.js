@@ -23,7 +23,7 @@ async function request(method, path, body, isForm = false) {
 
   if (res.status === 401) {
     sessionStorage.removeItem('tm_token');
-    window.location.href = '/login';
+    window.location.href = (import.meta.env.BASE_URL || '/') + 'login';
     return;
   }
 
