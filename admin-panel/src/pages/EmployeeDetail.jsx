@@ -45,6 +45,8 @@ export default function EmployeeDetail() {
   const [appSummary, setAppSummary]   = useState([]);
   const [activity, setActivity]       = useState([]);
   const [sessions, setSessions]       = useState([]);
+  const [taskHours, setTaskHours]         = useState([]);
+  const [taskHoursDate, setTaskHoursDate] = useState(today);
 
   useEffect(() => {
     api.getEmployee(id).then(setEmp);
@@ -53,6 +55,10 @@ export default function EmployeeDetail() {
     api.getActivity(today, id).then(setActivity);
     api.getSessions(today).then(rows => setSessions(rows.filter(s => String(s.employee_id) === String(id))));
   }, [id, today]);
+
+  useEffect(() => {
+    api.getTaskHours(id, taskHoursDate).then(setTaskHours).catch(() => setTaskHours([]));
+  }, [id, taskHoursDate]);
 
   const totalSecs = appSummary.reduce((a, r) => a + (r.total_seconds||0), 0);
 
@@ -182,7 +188,7 @@ export default function EmployeeDetail() {
         {TABS.map((t,i) => <button key={t} style={{ ...S.tab, ...(tab===i?S.tabActive:{}) }} onClick={()=>setTab(i)}>{t}</button>)}
       </div>
 
-      {tab===0 && (
+      {tab===0 && (<>
         <div style={S.card}>
           <div style={S.cardTitle}>Today's Overview</div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:20 }}>
@@ -194,7 +200,60 @@ export default function EmployeeDetail() {
             ))}
           </div>
         </div>
-      )}
+
+        {/* Task Hours Breakdown */}
+        <div style={S.card}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+            <div style={S.cardTitle}>Hours by Task</div>
+            <input
+              type="date"
+              value={taskHoursDate}
+              onChange={e => setTaskHoursDate(e.target.value)}
+              style={{ border:"1px solid #e2e8f0", borderRadius:8, padding:"6px 10px", fontSize:13, color:"#1e293b" }}
+            />
+          </div>
+
+          {taskHours.length === 0 ? (
+            <div style={{ color:"#94a3b8", fontSize:14 }}>No tracked time for this date.</div>
+          ) : (() => {
+            const maxMins = Math.max(...taskHours.map(r => r.total_minutes || 0));
+            const totalMins = taskHours.reduce((a, r) => a + (r.total_minutes || 0), 0);
+            return (<>
+              {taskHours.map((row, i) => {
+                const pct = maxMins > 0 ? Math.round(((row.total_minutes || 0) / maxMins) * 100) : 0;
+                const sharePct = totalMins > 0 ? Math.round(((row.total_minutes || 0) / totalMins) * 100) : 0;
+                return (
+                  <div key={i} style={{ marginBottom:16 }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0 }}>
+                        {row.jira_issue_key && !row.task_id && (
+                          <span style={{ fontSize:11, fontWeight:700, color:"#0052CC", background:"#EFF6FF", padding:"2px 7px", borderRadius:4, flexShrink:0 }}>
+                            {row.jira_issue_key}
+                          </span>
+                        )}
+                        <span style={{ fontSize:14, fontWeight:500, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {row.task_name}
+                        </span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0, marginLeft:12 }}>
+                        <span style={{ fontSize:12, color:"#94a3b8" }}>{sharePct}%</span>
+                        <span style={{ fontSize:13, fontWeight:600, color:"#1e293b", minWidth:52, textAlign:"right" }}>{fmtHM(row.total_minutes || 0)}</span>
+                      </div>
+                    </div>
+                    <div style={{ background:"#f1f5f9", borderRadius:4, height:8 }}>
+                      <div style={{ height:8, borderRadius:4, background:COLORS[i % COLORS.length], width:`${pct}%`, transition:"width 0.3s" }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{ borderTop:"1px solid #e2e8f0", marginTop:8, paddingTop:12, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontSize:13, fontWeight:600, color:"#64748b" }}>Total</span>
+                <span style={{ fontSize:15, fontWeight:700, color:"#1e293b" }}>{fmtHM(totalMins)}</span>
+              </div>
+            </>);
+          })()}
+        </div>
+      </>)}
 
       {tab===1 && (
         <div style={S.card}>

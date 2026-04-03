@@ -178,6 +178,37 @@ router.get('/stats/employee', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/sessions/task-hours?employeeId=&date=YYYY-MM-DD  – hours grouped by task
+router.get('/task-hours', auth, adminOnly, async (req, res) => {
+  try {
+    const { employeeId, date } = req.query;
+    if (!employeeId) return res.status(400).json({ error: 'employeeId required' });
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+    const [rows] = await db.query(
+      `SELECT
+         CASE
+           WHEN t.name IS NOT NULL THEN t.name
+           WHEN s.jira_issue_key IS NOT NULL THEN s.jira_issue_key
+           ELSE 'No Task'
+         END AS task_name,
+         s.task_id,
+         s.jira_issue_key,
+         SUM(CASE WHEN s.status='active'
+               THEN TIMESTAMPDIFF(MINUTE, s.punch_in, NOW())
+               ELSE COALESCE(s.total_minutes, 0)
+             END) AS total_minutes,
+         COUNT(*) AS session_count
+       FROM sessions s
+       LEFT JOIN tasks t ON s.task_id = t.id
+       WHERE s.employee_id = ? AND s.date = ?
+       GROUP BY s.task_id, s.jira_issue_key, t.name
+       ORDER BY total_minutes DESC`,
+      [employeeId, targetDate]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/sessions/stats?days=7  – daily hours for chart
 router.get('/stats', auth, adminOnly, async (req, res) => {
   try {
