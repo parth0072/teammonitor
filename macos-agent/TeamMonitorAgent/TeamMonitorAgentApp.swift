@@ -134,15 +134,17 @@ struct MenuBarLabel: View {
     @ObservedObject private var manager = TrackingManager.shared
 
     var body: some View {
-        if manager.isTracking {
+        if manager.isTracking || manager.todayMinutes > 0 {
             HStack(spacing: 4) {
                 if manager.isOnBreak {
                     // Amber pause dot
                     Circle().fill(Color.orange).frame(width: 7, height: 7)
-                } else {
+                } else if manager.isTracking {
                     Circle().fill(.green).frame(width: 7, height: 7)
+                } else {
+                    Circle().fill(Color.gray).frame(width: 7, height: 7)
                 }
-                Text(formatHM(manager.trackedMinutes))
+                Text(formatHM(manager.todayMinutes))
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
             }
         } else {
@@ -165,8 +167,8 @@ struct MenuBarView: View {
         // Status line
         if manager.isTracking {
             Text(manager.isOnBreak
-                 ? "⏸ On Break – \(formatHM(manager.trackedMinutes))"
-                 : "● Tracking – \(formatHM(manager.trackedMinutes))")
+                 ? "⏸ On Break – \(formatHM(manager.todayMinutes))"
+                 : "● Tracking – \(formatHM(manager.todayMinutes))")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(manager.isOnBreak ? .orange : .green)
         } else {
