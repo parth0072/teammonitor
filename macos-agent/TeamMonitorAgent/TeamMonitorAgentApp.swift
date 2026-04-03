@@ -34,6 +34,16 @@ struct TeamMonitorAgentApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Single-instance guard: if another copy is already running, activate it and quit.
+        let bundleId = Bundle.main.bundleIdentifier ?? ""
+        let running  = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId)
+        if running.count > 1,
+           let existing = running.first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
+            existing.activate(options: .activateIgnoringOtherApps)
+            NSApp.terminate(nil)
+            return
+        }
+
         // Set delegate BEFORE requesting auth so foreground notifications work.
         UNUserNotificationCenter.current().delegate = self
 

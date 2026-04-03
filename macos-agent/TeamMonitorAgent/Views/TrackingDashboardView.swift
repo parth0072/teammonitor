@@ -119,14 +119,7 @@ struct TrackingDashboardView: View {
             else if activeSheet == .notTrackingAlert { activeSheet = nil }
         }
         .onReceive(liveClock) { _ in
-            guard manager.isTracking, !manager.isOnBreak else {
-                liveMinutes = manager.trackedMinutes; return
-            }
-            if let resume = manager.lastResumeTime {
-                liveMinutes = manager.trackedMinutes + Int(Date().timeIntervalSince(resume)) / 60
-            } else {
-                liveMinutes = manager.trackedMinutes
-            }
+            liveMinutes = manager.trackedMinutes
         }
         .onAppear {
             liveMinutes = manager.trackedMinutes

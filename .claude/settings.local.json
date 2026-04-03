@@ -73,7 +73,23 @@
       "Bash(chmod +x /Users/coda/Desktop/worklog/TeamMonitor/macos-agent/scripts/build_and_export.sh)",
       "Bash(./scripts/build_and_export.sh)",
       "Bash(grep -r \"crypto\\\\|SECRET\" /Users/coda/Desktop/worklog/TeamMonitor/server/*.js)",
-      "Bash(grep -i \"secret\\\\|crypto\\\\|bcrypt\" /Users/coda/Desktop/worklog/TeamMonitor/server/routes/*.js)"
+      "Bash(grep -i \"secret\\\\|crypto\\\\|bcrypt\" /Users/coda/Desktop/worklog/TeamMonitor/server/routes/*.js)",
+      "Read(//opt/homebrew/Cellar/node/25.8.0/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Read(//Users/coda/.nvm/versions/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//opt/homebrew/opt/**)",
+      "Bash(PATH=\"/opt/homebrew/opt/node@25/bin:$PATH\" npm run build)",
+      "Bash(rm -rf server/public/*)",
+      "Bash(cp -r admin-panel/dist/. server/public/)",
+      "Bash(node -e \"require\\(''./routes/jira''\\)\")",
+      "Bash(PATH=\"/opt/homebrew/opt/node@25/bin:$PATH\" node -e \"require\\(''./routes/jira''\\)\")",
+      "Bash(grep -r \"base\\\\|BASE_URL\\\\|basename\" /Users/coda/Desktop/worklog/TeamMonitor/admin-panel/vite.config.*)",
+      "Bash(ls /Users/coda/Desktop/worklog/TeamMonitor/server/.env*)",
+      "Bash(PATH=\"/opt/homebrew/opt/node@25/bin:$PATH\" node test-jira.js \"codamusic.atlassian.net\" \"test@example.com\" \"dummytoken\")",
+      "Bash(curl -s -X POST http://localhost:3001/teammonitor/api/auth/bootstrap -H \"Content-Type: application/json\" -d '{\"\"\"\"name\"\"\"\":\"\"\"\"Test\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"test@test.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"test123\"\"\"\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(pkill -f \"node index.js\")"
     ]
   }
 }
