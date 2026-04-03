@@ -92,9 +92,9 @@ export const api = {
   setLeaveBalance:  (data)         => request('PUT', '/leaves/balances', data),
 
   // Jira integration (per-employee)
-  getJiraStatus:    ()                          => request('GET',    '/jira/status'),
-  connectJira:      (siteUrl, email, apiToken)  => request('POST',   '/jira/connect', { siteUrl, email, apiToken }),
-  disconnectJira:   ()                          => request('DELETE', '/jira/disconnect'),
+  getJiraStatus:    (employeeId)                          => request('GET',    `/jira/status${employeeId ? `?employeeId=${employeeId}` : ''}`),
+  connectJira:      (siteUrl, email, apiToken, employeeId) => request('POST',   '/jira/connect', { siteUrl, email, apiToken, ...(employeeId ? { employeeId } : {}) }),
+  disconnectJira:   (employeeId)                          => request('DELETE', `/jira/disconnect${employeeId ? `?employeeId=${employeeId}` : ''}`),
   getJiraProjects:  ()                          => request('GET',    '/jira/projects'),
   getJiraIssues:    (projectKey)                => request('GET',    `/jira/issues${projectKey ? `?projectKey=${projectKey}` : ''}`),
   syncJira:         (projectKey, teamMonitorProjectId) =>

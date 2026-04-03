@@ -261,7 +261,7 @@ class TrackingManager: ObservableObject {
 
     // MARK: - Punch In
 
-    func punchIn(task: TaskItem? = nil) async {
+    func punchIn(task: TaskItem? = nil, jiraIssue: JiraIssue? = nil) async {
         cancelNotTrackingReminder()
         showStartReminder        = false
         showNotTrackingAlert     = false
@@ -275,7 +275,7 @@ class TrackingManager: ObservableObject {
         statusMessage = "Starting session…"
 
         do {
-            let sessionId  = try await api.punchIn(taskId: task?.id)
+            let sessionId  = try await api.punchIn(taskId: task?.id, jiraIssueKey: jiraIssue?.key)
             currentSessionId = sessionId
             currentTask      = task
             punchInTime      = Date()

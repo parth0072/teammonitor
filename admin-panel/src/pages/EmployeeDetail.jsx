@@ -102,18 +102,18 @@ export default function EmployeeDetail() {
   }
 
   // Jira state
+  const [jiraStatus,   setJiraStatus]   = useState(null); // { connected, siteUrl, email, displayName }
   const [jiraUrl,      setJiraUrl]      = useState("");
   const [jiraEmail,    setJiraEmail]    = useState("");
   const [jiraToken,    setJiraToken]    = useState("");
   const [jiraMsg,      setJiraMsg]      = useState("");
   const [jiraSaving,   setJiraSaving]   = useState(false);
   const [jiraTesting,  setJiraTesting]  = useState(false);
-  useEffect(() => {
-    if (!emp) return;
-    setJiraUrl(emp.jira_url   || "");
-    setJiraEmail(emp.jira_email || "");
-    // Never pre-fill the token — show placeholder if already set
-  }, [emp]);
+
+  function loadJiraStatus() {
+    api.getJiraStatus(id).then(setJiraStatus).catch(() => setJiraStatus({ connected: false }));
+  }
+  useEffect(() => { if (tab === 6) loadJiraStatus(); }, [tab, id]);
 
   async function testJira() {
     setJiraTesting(true); setJiraMsg("");
@@ -125,18 +125,12 @@ export default function EmployeeDetail() {
   }
 
   async function saveJira() {
+    if (!jiraToken) { setJiraMsg("✗ API token is required"); return; }
     setJiraSaving(true); setJiraMsg("");
     try {
-      await api.updateEmployee(id, {
-        name: emp.name, department: emp.department, role: emp.role, is_active: emp.is_active,
-        screenshot_interval: emp.screenshot_interval, break_enabled: emp.break_enabled,
-        break_interval_minutes: emp.break_interval_minutes, idle_warning_minutes: emp.idle_warning_minutes,
-        idle_stop_minutes: emp.idle_stop_minutes, screenshots_enabled: emp.screenshots_enabled,
-        jira_url: jiraUrl, jira_email: jiraEmail,
-        ...(jiraToken ? { jira_api_token: jiraToken } : {}),
-      });
-      setJiraMsg("✓ Jira settings saved"); setJiraToken("");
-      api.getEmployee(id).then(setEmp);
+      await api.connectJira(jiraUrl, jiraEmail, jiraToken, id);
+      setJiraMsg("✓ Jira connected"); setJiraToken("");
+      loadJiraStatus();
       setTimeout(() => setJiraMsg(""), 3000);
     } catch(err) { setJiraMsg("✗ " + err.message); }
     setJiraSaving(false);
@@ -146,16 +140,10 @@ export default function EmployeeDetail() {
     if (!window.confirm("Remove Jira integration for this employee?")) return;
     setJiraSaving(true);
     try {
-      await api.updateEmployee(id, {
-        name: emp.name, department: emp.department, role: emp.role, is_active: emp.is_active,
-        screenshot_interval: emp.screenshot_interval, break_enabled: emp.break_enabled,
-        break_interval_minutes: emp.break_interval_minutes, idle_warning_minutes: emp.idle_warning_minutes,
-        idle_stop_minutes: emp.idle_stop_minutes, screenshots_enabled: emp.screenshots_enabled,
-        jira_clear: true,
-      });
+      await api.disconnectJira(id);
       setJiraUrl(""); setJiraEmail(""); setJiraToken("");
       setJiraMsg("✓ Jira integration removed");
-      api.getEmployee(id).then(setEmp);
+      loadJiraStatus();
     } catch(err) { setJiraMsg("✗ " + err.message); }
     setJiraSaving(false);
   }

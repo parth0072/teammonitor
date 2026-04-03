@@ -90,9 +90,12 @@ struct TrackingDashboardView: View {
             case .newTask:
                 NewTaskView(projects: projects, onCreated: { loadTasks() })
             case .taskPicker:
-                TaskPickerView(tasks: myTasks, onPick: { task in
+                TaskPickerView(tasks: myTasks, jiraIssues: jiraIssues, onPick: { task in
                     activeSheet = nil
                     Task { await manager.punchIn(task: task) }
+                }, onPickJira: { issue in
+                    activeSheet = nil
+                    Task { await manager.punchIn(jiraIssue: issue) }
                 })
             case .settings:
                 SettingsView()
@@ -102,7 +105,7 @@ struct TrackingDashboardView: View {
                 NotTrackingAlertView(manager: manager, onStart: {
                     manager.showNotTrackingAlert = false
                     activeSheet = nil
-                    if myTasks.isEmpty { Task { await manager.punchIn() } }
+                    if myTasks.isEmpty && jiraIssues.isEmpty { Task { await manager.punchIn() } }
                     else { activeSheet = .taskPicker }
                 })
             }

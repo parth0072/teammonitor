@@ -12,7 +12,13 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
   try {
-    const [rows] = await db.query('SELECT * FROM employees WHERE email = ?', [email]);
+    const [rows] = await db.query(
+      `SELECT e.*, IF(j.id IS NOT NULL, 1, 0) AS jira_enabled
+       FROM employees e
+       LEFT JOIN jira_credentials j ON j.employee_id = e.id
+       WHERE e.email = ?`,
+      [email]
+    );
     const emp = rows[0];
     if (!emp) return res.status(401).json({ error: 'Invalid credentials' });
     if (!emp.is_active) return res.status(403).json({ error: 'Account is deactivated' });
@@ -40,7 +46,7 @@ router.post('/login', async (req, res) => {
         idle_warning_minutes:  emp.idle_warning_minutes  ?? 2,
         idle_stop_minutes:     emp.idle_stop_minutes     ?? 5,
         screenshots_enabled:   emp.screenshots_enabled   ?? 1,
-        jira_enabled:          emp.jira_api_token ? 1 : 0,
+        jira_enabled:          emp.jira_enabled ?? 0,
       }
     });
   } catch (err) {

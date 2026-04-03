@@ -214,7 +214,7 @@ extension TrackingDashboardView {
                     color: DS.indigo,
                     style: .gradient
                 ) {
-                    if myTasks.isEmpty { Task { await manager.punchIn() } }
+                    if myTasks.isEmpty && jiraIssues.isEmpty { Task { await manager.punchIn() } }
                     else { activeSheet = .taskPicker }
                 }
             }

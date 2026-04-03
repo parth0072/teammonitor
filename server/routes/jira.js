@@ -10,9 +10,14 @@ const { encrypt, decrypt } = require('../utils/encrypt');
 // ── Jira REST API v3 helper ───────────────────────────────────────────────────
 // Uses Node's built-in https so no extra dependencies needed.
 
+function normalizeUrl(siteUrl) {
+  const s = siteUrl.trim().replace(/\/$/, '');
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+}
+
 function jiraFetch(siteUrl, email, apiToken, path, method = 'GET', body = null) {
   return new Promise((resolve, reject) => {
-    const endpoint = new URL(`${siteUrl.replace(/\/$/, '')}/rest/api/3${path}`);
+    const endpoint = new URL(`${normalizeUrl(siteUrl)}/rest/api/3${path}`);
     const creds    = Buffer.from(`${email}:${apiToken}`).toString('base64');
     const bodyStr  = body ? JSON.stringify(body) : null;
 
@@ -60,12 +65,25 @@ async function getCreds(employeeId) {
   return row;
 }
 
+// ── Helper: resolve which employee ID to act on ───────────────────────────────
+// Admin can pass ?employeeId= (GET) or body.employeeId (POST/DELETE) to act on
+// behalf of another employee. Non-admins always get their own ID.
+
+function resolveEmployeeId(req) {
+  if (req.user.role === 'admin') {
+    const id = req.body?.employeeId || req.query?.employeeId;
+    if (id) return parseInt(id);
+  }
+  return req.user.id;
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 // GET /api/jira/status  – is this employee connected?
 router.get('/status', auth, async (req, res) => {
   try {
-    const c = await getCreds(req.user.id);
+    const empId = resolveEmployeeId(req);
+    const c = await getCreds(empId);
     if (!c) return res.json({ connected: false });
     res.json({
       connected:   true,
@@ -110,12 +128,12 @@ router.post('/connect', auth, async (req, res) => {
       return res.status(401).json({ error: 'Could not connect to Jira: ' + err.message });
     }
 
-    const cleanUrl      = siteUrl.replace(/\/$/, '');
+    const empId          = resolveEmployeeId(req);
+    const cleanUrl       = normalizeUrl(siteUrl);
     const encryptedToken = encrypt(apiToken);
 
-    // Upsert: check if row exists first (works for both MySQL and SQLite)
     const [existing] = await db.query(
-      'SELECT id FROM jira_credentials WHERE employee_id = ?', [req.user.id]
+      'SELECT id FROM jira_credentials WHERE employee_id = ?', [empId]
     );
     if (existing.length > 0) {
       await db.query(
@@ -123,14 +141,14 @@ router.post('/connect', auth, async (req, res) => {
             SET site_url=?, email=?, api_token=?, jira_account_id=?, display_name=?,
                 connected_at=CURRENT_TIMESTAMP
           WHERE employee_id=?`,
-        [cleanUrl, email, encryptedToken, myself.accountId, myself.displayName, req.user.id]
+        [cleanUrl, email, encryptedToken, myself.accountId, myself.displayName, empId]
       );
     } else {
       await db.query(
         `INSERT INTO jira_credentials
            (employee_id, site_url, email, api_token, jira_account_id, display_name)
          VALUES (?,?,?,?,?,?)`,
-        [req.user.id, cleanUrl, email, encryptedToken, myself.accountId, myself.displayName]
+        [empId, cleanUrl, email, encryptedToken, myself.accountId, myself.displayName]
       );
     }
 
@@ -141,7 +159,8 @@ router.post('/connect', auth, async (req, res) => {
 // DELETE /api/jira/disconnect
 router.delete('/disconnect', auth, async (req, res) => {
   try {
-    await db.query('DELETE FROM jira_credentials WHERE employee_id = ?', [req.user.id]);
+    const empId = resolveEmployeeId(req);
+    await db.query('DELETE FROM jira_credentials WHERE employee_id = ?', [empId]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
