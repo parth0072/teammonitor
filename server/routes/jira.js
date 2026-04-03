@@ -116,7 +116,9 @@ router.post('/test', auth, async (req, res) => {
 // POST /api/jira/connect  – save + verify credentials
 router.post('/connect', auth, async (req, res) => {
   try {
-    const { siteUrl, email, apiToken } = req.body;
+    const siteUrl  = (req.body.siteUrl  || '').trim();
+    const email    = (req.body.email    || '').trim();
+    const apiToken = (req.body.apiToken || '').trim();
     if (!siteUrl || !email || !apiToken)
       return res.status(400).json({ error: 'siteUrl, email and apiToken are required' });
 
@@ -125,7 +127,7 @@ router.post('/connect', auth, async (req, res) => {
     try {
       myself = await jiraFetch(siteUrl, email, apiToken, '/myself');
     } catch (err) {
-      return res.status(400).json({ error: 'Could not connect to Jira: ' + err.message });
+      return res.status(400).json({ error: err.message });
     }
 
     const empId          = resolveEmployeeId(req);
