@@ -120,9 +120,18 @@ extension TrackingDashboardView {
     var statsBar: some View {
         HStack(spacing: 0) {
             statCard(
+                icon: "clock.arrow.circlepath",
+                value: (manager.isTracking && !manager.isOnBreak && manager.minutesSinceResume > 0)
+                    ? formatTimer(manager.minutesSinceResume)
+                    : "—",
+                label: "Since Resume",
+                color: DS.indigo
+            )
+            Divider().frame(height: 36)
+            statCard(
                 icon: "clock.fill",
                 value: liveMinutes > 0 ? formatTimer(liveMinutes) : "—",
-                label: "Today",
+                label: "Today Total",
                 color: DS.indigo
             )
             Divider().frame(height: 36)
@@ -138,13 +147,6 @@ extension TrackingDashboardView {
                 value: manager.isOnBreak ? "Break" : (manager.isTracking ? "Live" : "Idle"),
                 label: "Status",
                 color: manager.isOnBreak ? DS.amber : (manager.isTracking ? DS.emerald : DS.textMuted)
-            )
-            Divider().frame(height: 36)
-            statCard(
-                icon: "checklist",
-                value: "\(myTasks.count)",
-                label: "My Tasks",
-                color: DS.indigo
             )
         }
         .padding(.vertical, 10)
