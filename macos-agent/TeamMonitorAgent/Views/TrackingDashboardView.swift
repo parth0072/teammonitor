@@ -32,6 +32,7 @@ struct TrackingDashboardView: View {
     @State var jiraIssues:    [JiraIssue]  = []
     @State var jiraConnected: Bool         = false
     @State var jiraLoading:   Bool         = false
+    @State var jiraLoadedAt:  Date?        = nil
 
     @State var toast:      ToastMessage? = nil
     @State var toastTimer: Timer?        = nil
@@ -119,10 +120,10 @@ struct TrackingDashboardView: View {
             else if activeSheet == .notTrackingAlert { activeSheet = nil }
         }
         .onReceive(liveClock) { _ in
-            liveMinutes = manager.trackedMinutes
+            liveMinutes = manager.todayMinutes
         }
         .onAppear {
-            liveMinutes = manager.trackedMinutes
+            liveMinutes = manager.todayMinutes
             loadTasks()
         }
         .onChange(of: manager.isTracking) { tracking in

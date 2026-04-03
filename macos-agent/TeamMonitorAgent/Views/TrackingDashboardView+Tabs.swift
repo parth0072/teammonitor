@@ -195,7 +195,7 @@ extension TrackingDashboardView {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color(hex: "0052CC"))
             Spacer()
-            Button { loadJiraIssues() } label: {
+            Button { loadJiraIssues(forceRefresh: true) } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 10))
                     .foregroundColor(DS.textMuted)

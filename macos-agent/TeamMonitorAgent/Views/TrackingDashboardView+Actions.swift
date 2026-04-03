@@ -46,31 +46,60 @@ extension TrackingDashboardView {
             }
             .padding(.horizontal, 20)
 
-            // Task chip (below timer)
-            if let task = manager.currentTask, manager.isTracking, !manager.isOnBreak {
-                HStack(spacing: 8) {
-                    Button { activeSheet = .taskPicker } label: {
+            // Active task / Jira issue chip (shown while tracking or on break)
+            if manager.isTracking || manager.isOnBreak {
+                if let task = manager.currentTask {
+                    HStack(spacing: 8) {
+                        Button { activeSheet = .taskPicker } label: {
+                            HStack(spacing: 6) {
+                                Circle().fill(Color(hex: task.projectColor)).frame(width: 7, height: 7)
+                                Text(task.name)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(DS.textSecond)
+                                    .lineLimit(1)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundColor(DS.textMuted)
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(DS.bg)
+                            .cornerRadius(20)
+                            .overlay(RoundedRectangle(cornerRadius: 20).stroke(DS.border, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20).padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                } else if let issue = manager.currentJiraIssue {
+                    HStack(spacing: 8) {
                         HStack(spacing: 6) {
-                            Circle().fill(Color(hex: task.projectColor)).frame(width: 7, height: 7)
-                            Text(task.name)
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color(hex: "0052CC"))
+                                    .frame(width: 14, height: 14)
+                                Text("J")
+                                    .font(.system(size: 8, weight: .black))
+                                    .foregroundColor(.white)
+                            }
+                            Text(issue.key)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(Color(hex: "0052CC"))
+                            Text(issue.summary)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(DS.textSecond)
                                 .lineLimit(1)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(DS.textMuted)
                         }
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .background(DS.bg)
                         .cornerRadius(20)
-                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(DS.border, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color(hex: "BFDBFE"), lineWidth: 1))
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
-                    Spacer()
+                    .padding(.horizontal, 20).padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .padding(.horizontal, 20).padding(.top, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            } else if !manager.isTracking && manager.trackedMinutes == 0 {
+            } else if manager.todayMinutes == 0 {
                 HStack {
                     Text("Ready to start — tap Start Tracking below")
                         .font(.system(size: 11))

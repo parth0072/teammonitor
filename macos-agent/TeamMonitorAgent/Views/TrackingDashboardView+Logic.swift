@@ -24,14 +24,22 @@ extension TrackingDashboardView {
         }
     }
 
-    func loadJiraIssues() {
+    func loadJiraIssues(forceRefresh: Bool = false) {
+        // Skip network call if cache is fresh (< 5 minutes) and not forced
+        if !forceRefresh,
+           let loaded = jiraLoadedAt,
+           Date().timeIntervalSince(loaded) < 300,
+           !jiraIssues.isEmpty {
+            return
+        }
         Task { @MainActor in
             jiraLoading = true
             do {
                 let statusResp = try await APIService.shared.getJiraStatus()
                 jiraConnected  = statusResp.connected
                 if statusResp.connected {
-                    jiraIssues = try await APIService.shared.getJiraIssues()
+                    jiraIssues   = try await APIService.shared.getJiraIssues()
+                    jiraLoadedAt = Date()
                 } else {
                     jiraIssues = []
                 }
