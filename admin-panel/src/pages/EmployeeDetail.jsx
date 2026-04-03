@@ -57,7 +57,9 @@ export default function EmployeeDetail() {
   }, [id, today]);
 
   useEffect(() => {
-    api.getTaskHours(id, taskHoursDate).then(setTaskHours).catch(() => setTaskHours([]));
+    api.getTaskHours(id, taskHoursDate)
+      .then(rows => setTaskHours(rows.map(r => ({ ...r, total_minutes: Number(r.total_minutes) || 0 }))))
+      .catch(() => setTaskHours([]));
   }, [id, taskHoursDate]);
 
   const totalSecs = appSummary.reduce((a, r) => a + (r.total_seconds||0), 0);
