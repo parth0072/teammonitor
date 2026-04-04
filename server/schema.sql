@@ -108,6 +108,17 @@ CREATE TABLE IF NOT EXISTS screenshots (
 );
 -- If already created, run: ALTER TABLE screenshots MODIFY COLUMN session_id INT DEFAULT NULL;
 
+-- Custom productivity policy — admin-defined app categorization rules
+CREATE TABLE IF NOT EXISTS productivity_rules (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  app_name   VARCHAR(200) NOT NULL,
+  category   ENUM('productive','neutral','unproductive') NOT NULL DEFAULT 'neutral',
+  created_by INT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_app (app_name),
+  FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS idle_logs (
   id               INT AUTO_INCREMENT PRIMARY KEY,
   employee_id      INT NOT NULL,

@@ -1,33 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
 import { useAuth } from "../App";
-import { format, subDays } from "date-fns";
-
-// App categorization
-const PRODUCTIVE_KEYWORDS = [
-  "code", "xcode", "visual studio", "intellij", "pycharm", "webstorm", "android studio",
-  "sublime", "atom", "vim", "neovim", "emacs", "terminal", "iterm", "hyper", "warp",
-  "figma", "sketch", "adobe", "photoshop", "illustrator", "affinity",
-  "word", "excel", "powerpoint", "pages", "numbers", "keynote", "notion", "obsidian",
-  "slack", "teams", "zoom", "meet", "webex", "mail", "outlook", "spark",
-  "jira", "linear", "asana", "trello", "basecamp", "clickup",
-  "postman", "insomnia", "tableplus", "sequel", "datagrip", "dbeaver",
-  "docker", "github desktop", "sourcetree", "git", "filezilla",
-  "safari", "chrome", "firefox", "edge", "arc",
-];
-const UNPRODUCTIVE_KEYWORDS = [
-  "youtube", "netflix", "spotify", "apple music", "twitch", "hulu", "disney",
-  "twitter", "facebook", "instagram", "tiktok", "snapchat", "reddit", "pinterest",
-  "steam", "epic games", "minecraft", "fortnite", "valorant", "league of legends",
-  "whatsapp", "telegram", "signal", "imessage",
-];
-
-function categorize(appName = "") {
-  const lower = appName.toLowerCase();
-  if (UNPRODUCTIVE_KEYWORDS.some(k => lower.includes(k))) return "unproductive";
-  if (PRODUCTIVE_KEYWORDS.some(k => lower.includes(k)))   return "productive";
-  return "neutral";
-}
+import { format } from "date-fns";
 
 const CAT = {
   productive:   { label: "Productive",   color: "#16a34a", bg: "#dcfce7" },
@@ -38,8 +12,22 @@ const CAT = {
 const fmtH = m => { m = Math.round(Number(m) || 0); const h = Math.floor(m / 60), mn = m % 60; return h > 0 ? `${h}h ${mn}m` : `${mn}m`; };
 const fmtS = s => { s = Math.round(Number(s) || 0); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
 
-function ScoreRing({ score, size = 72 }) {
-  if (score === null) return <div style={{ width: size, height: size, borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#94a3b8" }}>—</div>;
+// Fallback categorizer using hardcoded keywords (used when no DB rule exists for an app)
+const PRODUCTIVE_KW   = ["code","xcode","visual studio","intellij","pycharm","webstorm","android studio","sublime","atom","vim","neovim","emacs","terminal","iterm","hyper","warp","figma","sketch","adobe","photoshop","illustrator","affinity","word","excel","powerpoint","pages","numbers","keynote","notion","obsidian","slack","teams","zoom","meet","webex","mail","outlook","spark","jira","linear","asana","trello","basecamp","clickup","postman","insomnia","tableplus","sequel","datagrip","dbeaver","docker","github desktop","sourcetree","git","filezilla"];
+const UNPRODUCTIVE_KW = ["youtube","netflix","spotify","apple music","twitch","hulu","disney","twitter","facebook","instagram","tiktok","snapchat","reddit","pinterest","steam","epic games","minecraft","fortnite","valorant","league of legends","whatsapp","telegram","signal","imessage"];
+
+function categorizeApp(appName, rulesMap) {
+  const lower = (appName || "").toLowerCase();
+  if (rulesMap[lower]) return rulesMap[lower];
+  if (UNPRODUCTIVE_KW.some(k => lower.includes(k))) return "unproductive";
+  if (PRODUCTIVE_KW.some(k => lower.includes(k)))   return "productive";
+  return "neutral";
+}
+
+function ScoreRing({ score, size = 72, isCustom = false }) {
+  if (score === null) return (
+    <div style={{ width: size, height: size, borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#94a3b8" }}>—</div>
+  );
   const color = score >= 75 ? "#16a34a" : score >= 50 ? "#f59e0b" : "#dc2626";
   const r = (size / 2) - 6;
   const circ = 2 * Math.PI * r;
@@ -48,8 +36,9 @@ function ScoreRing({ score, size = 72 }) {
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={6} />
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
-          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round" />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={isCustom ? 6 : 5}
+          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+          strokeDashoffset={isCustom ? 0 : undefined} />
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size > 60 ? 16 : 13, fontWeight: 700, color }}>
         {score}%
@@ -78,9 +67,9 @@ function MiniBar({ days_data, metric = "score" }) {
   );
 }
 
-function AppCategoryBar({ topApps }) {
+function AppCategoryBar({ topApps, rulesMap }) {
   const cats = { productive: 0, neutral: 0, unproductive: 0 };
-  for (const a of topApps) cats[categorize(a.app_name)] += a.secs;
+  for (const a of topApps) cats[categorizeApp(a.app_name, rulesMap)] += a.secs;
   const total = cats.productive + cats.neutral + cats.unproductive || 1;
   return (
     <div style={{ marginTop: 10 }}>
@@ -100,31 +89,193 @@ function AppCategoryBar({ topApps }) {
   );
 }
 
+// ── Policy Manager ──────────────────────────────────────────────────────────
+function PolicyManager({ rules, onRulesChange, topAppsAcrossAll }) {
+  const [newApp,     setNewApp]     = useState("");
+  const [newCat,     setNewCat]     = useState("productive");
+  const [saving,     setSaving]     = useState(false);
+  const [search,     setSearch]     = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+
+  // Build unique app list from all employees' top apps for quick-add suggestions
+  useEffect(() => {
+    const seen = new Set(rules.map(r => r.app_name.toLowerCase()));
+    const sugg = topAppsAcrossAll
+      .filter(a => !seen.has(a.toLowerCase()))
+      .slice(0, 20);
+    setSuggestions(sugg);
+  }, [rules, topAppsAcrossAll]);
+
+  const addRule = async (appName, category) => {
+    const name = (appName || newApp).trim();
+    const cat  = category || newCat;
+    if (!name) return;
+    setSaving(true);
+    try {
+      await api.createProductivityRule({ app_name: name, category: cat });
+      setNewApp("");
+      await onRulesChange();
+    } catch (e) { alert(e.message); }
+    setSaving(false);
+  };
+
+  const updateCat = async (id, category) => {
+    try {
+      await api.updateProductivityRule(id, { category });
+      await onRulesChange();
+    } catch (e) { alert(e.message); }
+  };
+
+  const deleteRule = async (id) => {
+    try {
+      await api.deleteProductivityRule(id);
+      await onRulesChange();
+    } catch (e) { alert(e.message); }
+  };
+
+  const filtered = rules.filter(r => r.app_name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", padding: 24, marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>Productivity Policy</div>
+          <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>
+            Classify apps as productive, neutral, or unproductive. The score uses your rules; unclassified apps fall back to keyword matching.
+          </div>
+        </div>
+        <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 8, background: "#f0fdf4", color: "#16a34a" }}>
+          {rules.length} {rules.length === 1 ? "rule" : "rules"}
+        </span>
+      </div>
+
+      {/* Add rule form */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input
+          value={newApp}
+          onChange={e => setNewApp(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && addRule()}
+          placeholder="App name (e.g. Slack, YouTube)"
+          style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, outline: "none" }}
+        />
+        <select value={newCat} onChange={e => setNewCat(e.target.value)}
+          style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, background: "#fff", cursor: "pointer" }}>
+          <option value="productive">Productive</option>
+          <option value="neutral">Neutral</option>
+          <option value="unproductive">Unproductive</option>
+        </select>
+        <button onClick={() => addRule()} disabled={saving || !newApp.trim()}
+          style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#3b82f6", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving || !newApp.trim() ? 0.5 : 1 }}>
+          Add Rule
+        </button>
+      </div>
+
+      {/* Quick-add from seen apps */}
+      {suggestions.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8 }}>Quick-add from employee apps:</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {suggestions.slice(0, 12).map(app => (
+              <div key={app} style={{ display: "flex", alignItems: "center", gap: 0, borderRadius: 8, border: "1px solid #e2e8f0", overflow: "hidden", fontSize: 12 }}>
+                <span style={{ padding: "4px 8px", background: "#f8fafc", color: "#374151", fontWeight: 500 }}>{app}</span>
+                {["productive","neutral","unproductive"].map(cat => (
+                  <button key={cat} onClick={() => addRule(app, cat)}
+                    style={{ padding: "4px 7px", border: "none", borderLeft: "1px solid #e2e8f0", background: "#fff", color: CAT[cat].color, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                    {cat === "productive" ? "P" : cat === "neutral" ? "N" : "U"}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Rules list */}
+      {rules.length > 0 && (
+        <>
+          {rules.length > 6 && (
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search rules…"
+              style={{ width: "100%", padding: "7px 12px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, marginBottom: 10, boxSizing: "border-box", outline: "none" }} />
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 320, overflowY: "auto" }}>
+            {filtered.map(rule => (
+              <div key={rule.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#1e293b" }}>{rule.app_name}</span>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {["productive","neutral","unproductive"].map(cat => (
+                    <button key={cat} onClick={() => updateCat(rule.id, cat)}
+                      style={{ padding: "3px 10px", borderRadius: 6, border: `1.5px solid ${rule.category === cat ? CAT[cat].color : "#e2e8f0"}`,
+                        background: rule.category === cat ? CAT[cat].bg : "#fff",
+                        color: rule.category === cat ? CAT[cat].color : "#94a3b8",
+                        fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                      {CAT[cat].label}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => deleteRule(rule.id)}
+                  style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 16, padding: "0 4px", lineHeight: 1 }}>×</button>
+              </div>
+            ))}
+            {filtered.length === 0 && <div style={{ color: "#94a3b8", fontSize: 13, padding: 8 }}>No rules match "{search}".</div>}
+          </div>
+        </>
+      )}
+
+      {rules.length === 0 && (
+        <div style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: "16px 0" }}>
+          No rules yet. Add one above or use quick-add from seen apps.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Component ──────────────────────────────────────────────────────────
 export default function Productivity() {
   const { user }  = useAuth();
   const isAdmin   = user?.role === "admin";
-  const [days,       setDays]       = useState(7);
-  const [data,       setData]       = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [expanded,   setExpanded]   = useState(null);
-  const [sortBy,     setSortBy]     = useState("score"); // score | hours
+  const [days,        setDays]        = useState(7);
+  const [data,        setData]        = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [expanded,    setExpanded]    = useState(null);
+  const [sortBy,      setSortBy]      = useState("score");
+  const [rules,       setRules]       = useState([]);
+  const [showPolicy,  setShowPolicy]  = useState(false);
+
+  // Build a map of app_name.toLowerCase() → category for fast lookup
+  const rulesMap = {};
+  for (const r of rules) rulesMap[r.app_name.toLowerCase()] = r.category;
+
+  const loadRules = useCallback(async () => {
+    if (!isAdmin) return;
+    try { setRules(await api.getProductivityRules()); } catch (_) {}
+  }, [isAdmin]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Employees always get their own data; admins get all
       setData(await api.getProductivity(days, isAdmin ? undefined : user?.id));
-    }
-    catch (e) { console.error(e); }
+    } catch (e) { console.error(e); }
     setLoading(false);
   }, [days, isAdmin, user?.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadRules(); }, [load, loadRules]);
+
+  // Collect all unique app names seen across all employees for quick-add
+  const topAppsAcrossAll = React.useMemo(() => {
+    if (!data) return [];
+    const seen = {};
+    for (const emp of data.employees) {
+      for (const a of emp.topApps) seen[a.app_name] = (seen[a.app_name] || 0) + a.secs;
+    }
+    return Object.entries(seen).sort((a, b) => b[1] - a[1]).map(([name]) => name);
+  }, [data]);
 
   if (loading) return <div style={{ color: "#64748b", padding: 40 }}>Loading…</div>;
   if (!data)   return <div style={{ color: "#ef4444", padding: 40 }}>Failed to load productivity data.</div>;
 
-  const { employees, dateList } = data;
+  const { employees, dateList, hasCustomPolicy } = data;
 
   const sorted = [...employees].sort((a, b) => {
     if (sortBy === "score") return (b.avgScore ?? -1) - (a.avgScore ?? -1);
@@ -144,12 +295,27 @@ export default function Productivity() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 }}>{isAdmin ? "Productivity Monitor" : "My Productivity"}</h1>
-          <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 }}>
+            {isAdmin ? "Productivity Monitor" : "My Productivity"}
+          </h1>
+          <div style={{ color: "#64748b", fontSize: 13, marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
             {isAdmin ? "Activity & productivity scores" : "Your activity & productivity scores"} for last {days} days
+            {hasCustomPolicy && (
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>
+                Custom Policy Active
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {isAdmin && (
+            <button onClick={() => setShowPolicy(v => !v)}
+              style={{ padding: "7px 14px", borderRadius: 7, border: `1px solid ${showPolicy ? "#3b82f6" : "#e2e8f0"}`,
+                cursor: "pointer", fontSize: 13, fontWeight: 600,
+                background: showPolicy ? "#eff6ff" : "#fff", color: showPolicy ? "#3b82f6" : "#374151" }}>
+              ⚙ Policy {rules.length > 0 ? `(${rules.length})` : ""}
+            </button>
+          )}
           {[7, 14, 30].map(d => (
             <button key={d} onClick={() => setDays(d)}
               style={{ padding: "7px 16px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
@@ -161,13 +327,22 @@ export default function Productivity() {
         </div>
       </div>
 
+      {/* Policy Manager (admin only, toggle) */}
+      {isAdmin && showPolicy && (
+        <PolicyManager
+          rules={rules}
+          onRulesChange={async () => { await loadRules(); await load(); }}
+          topAppsAcrossAll={topAppsAcrossAll}
+        />
+      )}
+
       {/* Team summary cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 28 }}>
         {[
           { label: "Team Avg Score",     value: teamAvgScore !== null ? `${teamAvgScore}%` : "—", color: teamAvgScore >= 75 ? "#16a34a" : teamAvgScore >= 50 ? "#f59e0b" : "#dc2626", bg: "#f0fdf4", icon: "📈" },
           { label: "Total Hours Tracked",value: fmtH(teamTotalHours),                             color: "#2563eb", bg: "#eff6ff", icon: "⏱" },
           { label: "Employees Tracked",  value: employees.filter(e => e.totalTracked > 0).length, color: "#7c3aed", bg: "#f5f3ff", icon: "👥" },
-          { label: "Period",             value: `${days} days`,                                    color: "#0f766e", bg: "#f0fdfa", icon: "📅" },
+          { label: "Score Method",       value: hasCustomPolicy ? "App Rules" : "Idle-based",     color: "#0f766e", bg: "#f0fdfa", icon: "🎯" },
         ].map(c => (
           <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: "18px 20px", border: "1px solid #e2e8f0" }}>
             <div style={{ fontSize: 13, color: "#64748b", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
@@ -194,37 +369,29 @@ export default function Productivity() {
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {sorted.map((emp, rank) => {
           const isOpen = expanded === emp.id;
-          const scoreColor = emp.avgScore >= 75 ? "#16a34a" : emp.avgScore >= 50 ? "#f59e0b" : "#dc2626";
           return (
             <div key={emp.id} style={{ background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0", overflow: "hidden" }}>
               {/* Summary row */}
               <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", cursor: "pointer" }}
                 onClick={() => setExpanded(isOpen ? null : emp.id)}>
 
-                {/* Rank */}
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: rank === 0 ? "#fbbf24" : rank === 1 ? "#94a3b8" : rank === 2 ? "#cd7c2f" : "#e2e8f0",
-                  color: rank < 3 ? "#fff" : "#64748b", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%",
+                  background: rank === 0 ? "#fbbf24" : rank === 1 ? "#94a3b8" : rank === 2 ? "#cd7c2f" : "#e2e8f0",
+                  color: rank < 3 ? "#fff" : "#64748b",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
                   {rank + 1}
                 </div>
 
-                {/* Avatar */}
                 <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#3b82f6", color: "#fff",
                   display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, flexShrink: 0 }}>
                   {(emp.name || "?").split(" ").map(x => x[0]).join("").toUpperCase().slice(0, 2)}
                 </div>
 
-                {/* Name + dept */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: "#1e293b" }}>{emp.name}</div>
                   <div style={{ fontSize: 12, color: "#94a3b8" }}>{emp.department || "—"}</div>
                 </div>
 
-                {/* Hours bar */}
-                <div style={{ width: 120, display: "none" }}>
-                  <MiniBar days_data={emp.days_data} metric="tracked_minutes" />
-                </div>
-
-                {/* Stats */}
                 <div style={{ display: "flex", gap: 20, alignItems: "center", flexShrink: 0 }}>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: "#2563eb" }}>{fmtH(emp.totalTracked)}</div>
@@ -234,7 +401,7 @@ export default function Productivity() {
                     <div style={{ fontSize: 15, fontWeight: 700, color: "#f59e0b" }}>{fmtS(emp.totalIdle)}</div>
                     <div style={{ fontSize: 11, color: "#94a3b8" }}>Idle</div>
                   </div>
-                  <ScoreRing score={emp.avgScore} size={60} />
+                  <ScoreRing score={emp.avgScore} size={60} isCustom={hasCustomPolicy} />
                   <div style={{ width: 70, flexShrink: 0 }}>
                     <MiniBar days_data={emp.days_data} metric="score" />
                     <div style={{ fontSize: 10, color: "#cbd5e1", marginTop: 2, textAlign: "center" }}>trend</div>
@@ -278,13 +445,14 @@ export default function Productivity() {
                     {/* Top apps + category */}
                     <div style={{ background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #e2e8f0" }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: "#1e293b", marginBottom: 4 }}>Top Apps Used</div>
-                      <AppCategoryBar topApps={emp.topApps} />
+                      <AppCategoryBar topApps={emp.topApps} rulesMap={rulesMap} />
                       <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
                         {emp.topApps.length === 0
                           ? <div style={{ color: "#94a3b8", fontSize: 13 }}>No app data.</div>
                           : emp.topApps.map((a, i) => {
-                            const cat = categorize(a.app_name);
-                            const maxS = emp.topApps[0].secs;
+                            const cat    = categorizeApp(a.app_name, rulesMap);
+                            const hasRule = !!rulesMap[a.app_name.toLowerCase()];
+                            const maxS   = emp.topApps[0].secs;
                             return (
                               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <div style={{ fontSize: 12, color: "#374151", width: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.app_name}</div>
@@ -292,7 +460,12 @@ export default function Productivity() {
                                   <div style={{ height: "100%", width: `${(a.secs / maxS) * 100}%`, background: CAT[cat].color, borderRadius: 3 }} />
                                 </div>
                                 <div style={{ fontSize: 11, color: "#64748b", width: 40, textAlign: "right" }}>{fmtS(a.secs)}</div>
-                                <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, background: CAT[cat].bg, color: CAT[cat].color }}>{CAT[cat].label}</span>
+                                <span title={hasRule ? "Custom rule" : "Keyword match"}
+                                  style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
+                                    background: CAT[cat].bg, color: CAT[cat].color,
+                                    border: hasRule ? `1px solid ${CAT[cat].color}` : "1px solid transparent" }}>
+                                  {CAT[cat].label}
+                                </span>
                               </div>
                             );
                           })}

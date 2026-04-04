@@ -112,6 +112,16 @@ async function runMigrations() {
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS jira_api_token    TEXT         DEFAULT NULL`,
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS screen_permission TINYINT(1)   DEFAULT 1`,
 
+    // Custom productivity policy — admin-defined app categorization rules
+    `CREATE TABLE IF NOT EXISTS productivity_rules (
+       id         INT AUTO_INCREMENT PRIMARY KEY,
+       app_name   VARCHAR(200) NOT NULL,
+       category   ENUM('productive','neutral','unproductive') NOT NULL DEFAULT 'neutral',
+       created_by INT NOT NULL,
+       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+       UNIQUE KEY uniq_app (app_name)
+     )`,
+
     // Bug reports — submitted from the macOS agent
     `CREATE TABLE IF NOT EXISTS bug_reports (
        id          INT AUTO_INCREMENT PRIMARY KEY,

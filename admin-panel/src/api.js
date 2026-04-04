@@ -105,6 +105,10 @@ export const api = {
 
   // Productivity
   getProductivity: (days, empId)   => request('GET', `/productivity?days=${days}${empId ? `&employeeId=${empId}` : ''}`),
+  getProductivityRules:    ()             => request('GET',    '/productivity/rules'),
+  createProductivityRule:  (data)         => request('POST',   '/productivity/rules', data),
+  updateProductivityRule:  (id, data)     => request('PUT',    `/productivity/rules/${id}`, data),
+  deleteProductivityRule:  (id)           => request('DELETE', `/productivity/rules/${id}`),
 
   // Manual entry (admin)
   createManualEntry: (data) => request('POST', '/sessions/manual/admin', data),
