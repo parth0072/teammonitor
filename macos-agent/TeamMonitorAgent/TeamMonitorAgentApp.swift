@@ -9,8 +9,9 @@ struct TeamMonitorAgentApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Main window
-        WindowGroup("TeamMonitor", id: "main") {
+        // Single-instance main window (Window vs WindowGroup prevents duplicate windows
+        // when "Open TeamMonitor…" is clicked from the menu bar multiple times)
+        Window("TeamMonitor", id: "main") {
             ContentView()
                 .frame(minWidth: 700, minHeight: 580)
         }
