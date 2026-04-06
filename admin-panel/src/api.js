@@ -6,7 +6,7 @@ const BASE = window.location.hostname === 'localhost'
   : '/teammonitor/api';
 
 function getToken() {
-  return sessionStorage.getItem('tm_token');
+  return localStorage.getItem('tm_token');
 }
 
 async function request(method, path, body, isForm = false) {
@@ -22,7 +22,7 @@ async function request(method, path, body, isForm = false) {
   });
 
   if (res.status === 401) {
-    sessionStorage.removeItem('tm_token');
+    localStorage.removeItem('tm_token');
     window.location.href = (import.meta.env.BASE_URL || '/') + 'login';
     return;
   }
@@ -120,6 +120,6 @@ export const api = {
   getEmployeeStats: (empId, days) => request('GET', `/sessions/stats/employee?employeeId=${empId}&days=${days}`),
 };
 
-export function saveToken(token) { sessionStorage.setItem('tm_token', token); }
-export function clearToken()     { sessionStorage.removeItem('tm_token'); }
+export function saveToken(token) { localStorage.setItem('tm_token', token); }
+export function clearToken()     { localStorage.removeItem('tm_token'); }
 export function hasToken()       { return !!getToken(); }

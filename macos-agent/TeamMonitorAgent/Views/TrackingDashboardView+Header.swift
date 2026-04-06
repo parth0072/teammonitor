@@ -117,7 +117,7 @@ extension TrackingDashboardView {
                 danger: true
             ) {
                 Task {
-                    if manager.isTracking { await manager.punchOut() }
+                    if manager.isTracking { try? await manager.punchOut() }
                     APIService.shared.logout()
                     await MainActor.run { auth.isLoggedIn = false }
                 }

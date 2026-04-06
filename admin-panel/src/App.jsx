@@ -58,7 +58,7 @@ function Sidebar() {
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin";
   const navItems = isAdmin ? ADMIN_NAV : EMPLOYEE_NAV;
-  const handleLogout = () => { clearToken(); setUser(null); navigate("/login"); };
+  const handleLogout = () => { clearToken(); window.location.href = (import.meta.env.BASE_URL || '/') + 'login'; };
 
   return (
     <div style={S.sidebar}>
