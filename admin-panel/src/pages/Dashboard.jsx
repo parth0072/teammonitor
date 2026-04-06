@@ -297,7 +297,7 @@ function EmployeeCard({ employee, session, lastScreenshot }) {
       <div style={{ position: "relative", height: 90, background: active ? "#F0FDF4" : C.light, overflow: "hidden" }}>
         {lastScreenshot?.file_path ? (
           <img
-            src={lastScreenshot.file_path}
+            src={`${lastScreenshot.file_path}?token=${encodeURIComponent(sessionStorage.getItem("tm_token") || "")}`}
             alt="screenshot"
             style={{ width: "100%", height: "100%", objectFit: "cover", opacity: active ? 1 : 0.55 }}
           />
