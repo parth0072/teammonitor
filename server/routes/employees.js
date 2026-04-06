@@ -9,6 +9,8 @@ const { encrypt, decrypt } = require('../utils/encrypt');
 const EMP_COLS = `id, name, email, department, role, is_active,
   screenshot_interval, break_enabled, break_interval_minutes,
   idle_warning_minutes, idle_stop_minutes, screenshots_enabled,
+  slow_work_alert_enabled, slow_work_alert_minutes,
+  force_update_version, force_update_url,
   jira_url, jira_email,
   CASE WHEN jira_api_token IS NOT NULL THEN 1 ELSE 0 END AS jira_configured,
   created_at`;
@@ -36,6 +38,8 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
     name, department, role, is_active, password,
     screenshot_interval, break_enabled, break_interval_minutes,
     idle_warning_minutes, idle_stop_minutes, screenshots_enabled,
+    slow_work_alert_enabled, slow_work_alert_minutes,
+    force_update_version, force_update_url,
     jira_url, jira_email, jira_api_token,
     jira_clear,
   } = req.body;
@@ -65,7 +69,9 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
         screenshot_interval=?,
         break_enabled=?, break_interval_minutes=?,
         idle_warning_minutes=?, idle_stop_minutes=?,
-        screenshots_enabled=?
+        screenshots_enabled=?,
+        slow_work_alert_enabled=?, slow_work_alert_minutes=?,
+        force_update_version=?, force_update_url=?
         ${jiraTokenSql}
        WHERE id=?`,
       [
@@ -76,6 +82,10 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
         parseInt(idle_warning_minutes) || 2,
         parseInt(idle_stop_minutes) || 5,
         screenshots_enabled ? 1 : 0,
+        slow_work_alert_enabled ? 1 : 0,
+        parseInt(slow_work_alert_minutes) || 10,
+        force_update_version || null,
+        force_update_url || null,
         ...jiraTokenVal,
         req.params.id,
       ]

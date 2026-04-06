@@ -4,8 +4,7 @@
 --  Table structure is preserved. Run on a fresh start.
 --
 --  How to run:
---    Option A: phpMyAdmin → select your DB → SQL tab → paste & run
---    Option B: mysql -u USER -p DB_NAME < reset_database.sql
+--    phpMyAdmin → select your DB → SQL tab → paste ALL of this → Go
 -- ============================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -21,10 +20,10 @@ TRUNCATE TABLE projects;
 TRUNCATE TABLE jira_credentials;
 TRUNCATE TABLE employees;
 
--- Reset leave tables if they exist
-TRUNCATE TABLE leave_requests;
-TRUNCATE TABLE leave_balances;
-TRUNCATE TABLE leave_types;
+-- Leave tables (may or may not exist — safe to ignore errors)
+DROP TABLE IF EXISTS leave_requests;
+DROP TABLE IF EXISTS leave_balances;
+DROP TABLE IF EXISTS leave_types;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -41,8 +40,5 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- DROP TABLE IF EXISTS tasks;
 -- DROP TABLE IF EXISTS projects;
 -- DROP TABLE IF EXISTS jira_credentials;
--- DROP TABLE IF EXISTS leave_requests;
--- DROP TABLE IF EXISTS leave_balances;
--- DROP TABLE IF EXISTS leave_types;
 -- DROP TABLE IF EXISTS employees;
 -- After dropping, restart the Node server — runMigrations() will recreate all tables automatically.

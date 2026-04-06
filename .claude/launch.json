@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "admin-panel"],
       "port": 3000
+    },
+    {
+      "name": "TeamMonitor Website",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": ["-e", "require('http').createServer((req,res)=>{const fs=require('fs'),path=require('path');let f=path.join('website',req.url==='/'?'index.html':req.url);try{res.end(fs.readFileSync(f))}catch(e){res.writeHead(404);res.end()}}).listen(4000)"],
+      "port": 4000
     }
   ]
 }

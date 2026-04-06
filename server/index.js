@@ -32,6 +32,7 @@ router.use('/api/timeline',    require('./routes/timeline'));
 router.use('/api/leaves',      require('./routes/leaves'));
 router.use('/api/productivity', require('./routes/productivity'));
 router.use('/api/bug-reports',  require('./routes/bug-reports'));
+router.use('/api/reports',      require('./routes/reports'));
 
 // Health check
 router.get('/api/health', async (req, res) => {

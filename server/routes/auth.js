@@ -100,7 +100,9 @@ router.get('/me', auth, async (req, res) => {
   const [rows] = await db.query(
     `SELECT id, name, email, role, department,
             screenshot_interval, break_enabled, break_interval_minutes,
-            idle_warning_minutes, idle_stop_minutes, screenshots_enabled
+            idle_warning_minutes, idle_stop_minutes, screenshots_enabled,
+            slow_work_alert_enabled, slow_work_alert_minutes,
+            force_update_version, force_update_url
      FROM employees WHERE id = ?`,
     [req.user.id]
   );

@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS employees (
   idle_warning_minutes   INT DEFAULT 2,            -- minutes of inactivity before warning
   idle_stop_minutes      INT DEFAULT 5,            -- minutes of inactivity before auto-stop
   screenshots_enabled    TINYINT(1) DEFAULT 1,     -- capture screenshots (admin can disable)
+  slow_work_alert_enabled  TINYINT(1) DEFAULT 0,  -- admin: alert employee when low activity detected
+  slow_work_alert_minutes  INT DEFAULT 10,         -- minutes of low activity before alert fires
+  force_update_version   VARCHAR(20) DEFAULT NULL, -- admin: min required app version (e.g. "1.4.0")
+  force_update_url       VARCHAR(500) DEFAULT NULL,-- download URL shown in force-update sheet
   created_at             DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 -- If already created, run these in phpMyAdmin:
@@ -23,6 +27,10 @@ CREATE TABLE IF NOT EXISTS employees (
 -- ALTER TABLE employees ADD COLUMN break_interval_minutes INT DEFAULT 60;
 -- ALTER TABLE employees ADD COLUMN idle_warning_minutes INT DEFAULT 2;
 -- ALTER TABLE employees ADD COLUMN idle_stop_minutes INT DEFAULT 5;
+-- ALTER TABLE employees ADD COLUMN slow_work_alert_enabled TINYINT(1) DEFAULT 0;
+-- ALTER TABLE employees ADD COLUMN slow_work_alert_minutes INT DEFAULT 10;
+-- ALTER TABLE employees ADD COLUMN force_update_version VARCHAR(20) DEFAULT NULL;
+-- ALTER TABLE employees ADD COLUMN force_update_url VARCHAR(500) DEFAULT NULL;
 -- ALTER TABLE employees ADD COLUMN screenshots_enabled TINYINT(1) DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS projects (

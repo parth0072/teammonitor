@@ -89,7 +89,17 @@
       "Bash(PATH=\"/opt/homebrew/opt/node@25/bin:$PATH\" node test-jira.js \"codamusic.atlassian.net\" \"test@example.com\" \"dummytoken\")",
       "Bash(curl -s -X POST http://localhost:3001/teammonitor/api/auth/bootstrap -H \"Content-Type: application/json\" -d '{\"\"\"\"name\"\"\"\":\"\"\"\"Test\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"test@test.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"test123\"\"\"\"}')",
       "Bash(python3 -m json.tool)",
-      "Bash(pkill -f \"node index.js\")"
+      "Bash(pkill -f \"node index.js\")",
+      "Bash(export PATH=\"/usr/local/bin:/opt/homebrew/bin:$PATH\")",
+      "Bash(/usr/local/bin/npm run:*)",
+      "Bash(/opt/homebrew/Cellar/node/25.8.0/bin/node /usr/local/bin/npm run build)",
+      "Bash(/opt/homebrew/Cellar/node/25.8.0/bin/node /opt/homebrew/Cellar/node/25.8.0/bin/npm run build)",
+      "Bash(PATH=\"/opt/homebrew/Cellar/node/25.8.0/bin:/usr/local/bin:$PATH\" npm run build)",
+      "WebFetch(domain:hubstaff.com)",
+      "WebFetch(domain:www.timedoctor.com)",
+      "WebFetch(domain:www.teramind.co)",
+      "WebFetch(domain:www.activtrak.com)",
+      "WebFetch(domain:toggl.com)"
     ]
   }
 }
