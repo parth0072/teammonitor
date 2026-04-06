@@ -225,6 +225,26 @@ class APIService: ObservableObject {
         return resp.employee
     }
 
+    /// Fetches fresh employee settings from the server and updates the local cache.
+    /// Call this before starting a session so admin-changed settings (screenshots,
+    /// idle timers, intervals) take effect without requiring a logout/login.
+    @discardableResult
+    func refreshEmployee() async -> EmployeeInfo? {
+        guard let token else { return nil }
+        guard let url = URL(string: "\(API_BASE)/auth/me") else { return nil }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let emp = try? JSONDecoder().decode(EmployeeInfo.self, from: data)
+        else { return nil }
+        self.employee = emp
+        if let str = String(data: (try? JSONEncoder().encode(emp)) ?? Data(), encoding: .utf8) {
+            Keychain.save(str, key: "employee_info")
+        }
+        return emp
+    }
+
     func logout() {
         token    = nil
         employee = nil

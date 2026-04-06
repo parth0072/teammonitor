@@ -272,6 +272,10 @@ class TrackingManager: ObservableObject {
         statusMessage = "Starting session…"
 
         do {
+            // Refresh settings from server so admin changes (screenshots, intervals, etc.)
+            // take effect without requiring a logout/login.
+            await api.refreshEmployee()
+
             let sessionId    = try await api.punchIn(taskId: task?.id, jiraIssueKey: jiraIssue?.key)
             currentSessionId = sessionId
             currentTask      = task
