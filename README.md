@@ -1,127 +1,168 @@
 # TeamMonitor
 
-Employee monitoring system with macOS agent + Firebase-backed admin panel.
+Employee monitoring and time-tracking system with a macOS agent, React admin panel, and Node.js/MySQL backend.
+
+**Production URL:** https://api.alphabyteinnovation.com/teammonitor/
 
 ---
 
-## ⚡ Quick Start (3 steps)
-
-### Step 1 — Run setup (once)
-```bash
-cd TeamMonitor
-bash setup.sh
-```
-This will ask for your Firebase credentials, install npm packages, create all config files, and create your first admin user.
-
-### Step 2 — Start the Admin Panel
-```bash
-bash START_ADMIN.sh
-# Opens at http://localhost:3000
-```
-
-### Step 3 — Open macOS Agent in Xcode
-```bash
-bash OPEN_XCODE.sh
-# Press ⌘R in Xcode to build and run
-```
-
----
-
-## What's included
+## Architecture
 
 ```
 TeamMonitor/
-├── setup.sh              ← Run this first (interactive Firebase setup)
-├── START_ADMIN.sh        ← Starts the admin web panel
-├── OPEN_XCODE.sh         ← Opens macOS agent in Xcode
-│
-├── admin-panel/          ← React + Vite + Firebase web app
-│   ├── src/
-│   │   ├── firebase.js
-│   │   ├── App.jsx       ← Auth routing + sidebar
-│   │   └── pages/
-│   │       ├── Login.jsx
-│   │       ├── Dashboard.jsx     ← Stats + 7-day chart + live sessions
-│   │       ├── Employees.jsx     ← Employee list + add employee
-│   │       ├── EmployeeDetail.jsx← Screenshots, app usage, activity log
-│   │       ├── Screenshots.jsx   ← Filterable screenshot gallery
-│   │       └── Attendance.jsx    ← Punch-in/out records
-│   ├── .env.example
-│   ├── vite.config.js
-│   └── package.json
-│
-└── macos-agent/
-    ├── TeamMonitorAgent.xcodeproj  ← Open in Xcode (Firebase SDK auto-resolves)
-    └── TeamMonitorAgent/
-        ├── TeamMonitorAgentApp.swift
-        ├── ContentView.swift
-        ├── Info.plist
-        ├── TeamMonitorAgent.entitlements
-        ├── Assets.xcassets
-        ├── GoogleService-Info.plist  ← Created by setup.sh
-        ├── Services/
-        │   ├── FirebaseService.swift      ← All Firestore + Storage writes
-        │   ├── ScreenshotService.swift    ← CGWindowListCreateImage every 5 min
-        │   ├── AppTrackingService.swift   ← NSWorkspace + Accessibility API
-        │   ├── IdleDetectionService.swift ← IOKit HIDIdleTime
-        │   └── TrackingManager.swift      ← Coordinates all services
-        ├── Views/
-        │   ├── LoginView.swift
-        │   └── TrackingDashboardView.swift
-        └── Models/
-            └── TrackingModels.swift
+├── admin-panel/          # React 18 + Vite web app (pre-built into server/public/)
+├── server/               # Node.js + Express REST API (MySQL in prod, SQLite in dev)
+└── macos-agent/          # Swift/SwiftUI menu bar app for employee machines
 ```
 
 ---
 
-## Firebase Setup (if not using setup.sh)
+## Components
 
-1. [Create Firebase project](https://console.firebase.google.com)
-2. Enable **Authentication** → Email/Password
-3. Enable **Firestore Database** (production mode)
-4. Enable **Storage**
-5. Add a **Web app** → copy config → paste in `admin-panel/.env`
-6. Add an **Apple (macOS) app** → download `GoogleService-Info.plist` → place in `macos-agent/TeamMonitorAgent/`
+### macOS Agent
+A native menu bar app that runs on employee machines. It:
+- Tracks active application usage (NSWorkspace)
+- Detects idle time (IOKit HIDIdleTime)
+- Captures periodic screenshots (encrypted AES-256-GCM before upload)
+- Syncs with Jira for issue-linked time tracking
+- Punches in/out sessions via the REST API
 
-### Firestore Security Rules
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
+Download the latest release from [GitHub Releases](https://github.com/parth0072/teammonitor/releases). The app is ad-hoc signed — right-click → Open on first launch if macOS blocks it.
+
+### Admin Panel
+A React web app for admins and employees.
+
+| Page | Access | Description |
+|------|--------|-------------|
+| Dashboard | All | KPI cards, 7-day chart, live session board |
+| Activity | All | Real-time session activity feed |
+| Productivity | All | Hour logs, productivity scores, custom policy |
+| Projects | All | Kanban board + Jira integration |
+| Reports | All | Analytics, app usage, hours by employee |
+| Screenshots | All | Filterable screenshot gallery (encrypted) |
+| Attendance | All | Punch-in/out records |
+| Employees | Admin | Employee list + add/edit/delete |
+| Timelines | Admin | Session timeline view |
+| Leaves | All | Leave requests and balances |
+
+### Backend (server/)
+Express REST API with JWT authentication and MySQL.
+
+- Auth: `POST /api/auth/login`, `POST /api/auth/register`, `GET /api/auth/me`
+- Sessions: punch-in/out, heartbeat, task hours, stats
+- Screenshots: AES-256-GCM encrypted upload and serve
+- Productivity: scores + custom app categorization rules
+- Projects/Tasks, Employees, Attendance, Leaves, Jira integration
+
+DB migrations run automatically on server startup — no manual SQL needed when pulling new code.
+
+---
+
+## Setup (Server)
+
+### Requirements
+- Node.js 18+
+- MySQL database
+
+### Steps
+
+```bash
+cd server
+npm install
 ```
 
-### Storage Rules
+Create `server/.env`:
 ```
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
+JWT_SECRET=your_secret_here
+DB_HOST=localhost
+DB_USER=your_db_user
+DB_PASS=your_db_password
+DB_NAME=teammonitor
+SCREENSHOT_ENCRYPTION_KEY=64_hex_chars_random_key
+BASE_URL=https://yourdomain.com
+PORT=3001
+```
+
+Generate a screenshot encryption key:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Start the server:
+```bash
+node index.js
+```
+
+On first run, use the `/setup` page in the admin panel to create the initial admin account.
+
+---
+
+## Setup (Admin Panel — local dev)
+
+```bash
+cd admin-panel
+npm install
+npm run dev
+# Opens at http://localhost:3000
 ```
 
 ---
 
-## macOS Permissions Required
+## Deployment (cPanel)
 
-The agent app needs two permissions (macOS will prompt automatically):
-- **Screen Recording** — for screenshots (System Settings → Privacy & Security → Screen Recording)
-- **Accessibility** — for reading window titles (System Settings → Privacy & Security → Accessibility)
+The React app is **pre-built and committed** to `server/public/`. cPanel serves it as static files alongside the Node.js API.
+
+```bash
+# After editing admin-panel/src/**:
+cd admin-panel
+npm run build
+rm -rf ../server/public/*
+cp -r dist/. ../server/public/
+cd ..
+git add admin-panel/src/ server/public/
+git commit -m "feat: description + rebuild admin panel"
+git push origin main
+```
+
+On the server:
+```bash
+bash deploy.sh   # runs git pull + npm install
+# then restart Node app in cPanel
+```
 
 ---
 
-## Customization
+## macOS Agent Release
 
-| What | File | Setting |
-|------|------|---------|
-| Screenshot interval | `ScreenshotService.swift` | `captureIntervalSeconds = 300` |
-| Idle threshold | `IdleDetectionService.swift` | `idleThresholdSeconds = 300` |
-| App poll rate | `TrackingManager.swift` | `appTracker.start(pollInterval: 30)` |
-| Screenshot quality | `ScreenshotService.swift` | `jpegData(compressionFactor: 0.7)` |
+Push a git tag to trigger an automated GitHub Actions build:
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+The workflow builds `TeamMonitorAgent.app`, zips it, and publishes a GitHub Release at [github.com/parth0072/teammonitor/releases](https://github.com/parth0072/teammonitor/releases) in ~5–10 minutes.
+
+---
+
+## macOS Permissions
+
+The agent requires two permissions (macOS will prompt on first use):
+- **Screen Recording** — System Settings → Privacy & Security → Screen Recording
+- **Accessibility** — System Settings → Privacy & Security → Accessibility
+
+---
+
+## Resetting the Database
+
+To wipe all data and start fresh, run `server/reset_database.sql` in phpMyAdmin → SQL tab.
+Then run `server/schema.sql` to recreate the tables, or just restart the Node app (migrations run automatically).
+
+---
+
+## Roles
+
+| Role | Access |
+|------|--------|
+| `admin` | Full access — manage employees, projects, view all data |
+| `employee` | Own data only — own sessions, screenshots, tasks, Jira |
