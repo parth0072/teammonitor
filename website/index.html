@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TeamMonitor — Know What's Happening in Your Team</title>
+  <meta name="description" content="Real-time employee activity monitoring, time tracking, encrypted screenshots, and productivity analytics. Secure. Native macOS agent." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:    #3b82f6;
+      --blue-d:  #2563eb;
+      --orange:  #f97316;
+      --dark:    #0f172a;
+      --dark2:   #1e293b;
+      --dark3:   #334155;
+      --slate:   #64748b;
+      --light:   #f1f5f9;
+      --white:   #ffffff;
+      --border:  rgba(255,255,255,0.1);
+      --radius:  12px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--dark);
+      color: var(--white);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Nav ─────────────────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+      height: 68px;
+      background: rgba(15,23,42,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.3s;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 1.2rem;
+      text-decoration: none;
+      color: var(--white);
+    }
+
+    .nav-logo .logo-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--blue), #818cf8);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 0.92rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--white); }
+
+    .nav-cta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    .btn-primary:hover {
+      background: var(--blue-d);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(59,130,246,0.4);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--white);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    .btn-orange {
+      background: var(--orange);
+      color: var(--white);
+    }
+
+    .btn-orange:hover {
+      background: #ea6d0a;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(249,115,22,0.4);
+    }
+
+    .btn-lg {
+      padding: 14px 32px;
+      font-size: 1rem;
+      border-radius: 10px;
+    }
+
+    /* ── Hero ────────────────────────────────────────────────────────── */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      padding: 120px 5% 80px;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.25) 0%, transparent 60%),
+                  radial-gradient(ellipse 40% 40% at 80% 60%, rgba(129,140,248,0.12) 0%, transparent 50%),
+                  var(--dark);
+    }
+
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 100% 100% at 50% 0%, black 40%, transparent 80%);
+    }
+
+    .hero-inner {
+      position: relative;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(59,130,246,0.15);
+      border: 1px solid rgba(59,130,246,0.3);
+      color: #93c5fd;
+      padding: 6px 14px;
+      border-radius: 100px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 24px;
+      letter-spacing: 0.02em;
+    }
+
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      background: #3b82f6;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.4); }
+    }
+
+    .hero-title {
+      font-size: clamp(2.4rem, 4.5vw, 3.8rem);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+    }
+
+    .hero-title .grad {
+      background: linear-gradient(135deg, #60a5fa, #818cf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 1.15rem;
+      color: #94a3b8;
+      line-height: 1.7;
+      margin-bottom: 36px;
+      max-width: 480px;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 32px;
+    }
+
+    .hero-stat { }
+
+    .hero-stat .number {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--white);
+    }
+
+    .hero-stat .label {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    .hero-visual {
+      position: relative;
+    }
+
+    /* Dashboard mockup */
+    .dashboard-card {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+      animation: float 6s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-12px); }
+    }
+
+    .card-topbar {
+      background: #0f172a;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .dot-btn { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #22c55e; }
+
+    .card-title-bar {
+      flex: 1;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #475569;
+    }
+
+    .card-body { padding: 20px; }
+
+    .dash-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .dash-title { font-size: 0.85rem; font-weight: 700; color: #e2e8f0; }
+    .dash-date { font-size: 0.75rem; color: #475569; }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .kpi-box {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 12px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .kpi-val { font-size: 1.2rem; font-weight: 800; color: #f1f5f9; }
+    .kpi-lbl { font-size: 0.68rem; color: #64748b; margin-top: 2px; }
+    .kpi-green { color: #22c55e; }
+    .kpi-blue  { color: #60a5fa; }
+    .kpi-orange{ color: #fb923c; }
+
+    .activity-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .activity-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .av {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 700; flex-shrink: 0;
+    }
+
+    .av-blue   { background: rgba(59,130,246,0.3); color: #60a5fa; }
+    .av-green  { background: rgba(34,197,94,0.3);  color: #4ade80; }
+    .av-purple { background: rgba(168,85,247,0.3); color: #c084fc; }
+    .av-orange { background: rgba(249,115,22,0.3); color: #fb923c; }
+
+    .act-name { font-size: 0.76rem; font-weight: 600; color: #e2e8f0; flex: 1; }
+    .act-app  { font-size: 0.7rem; color: #64748b; }
+
+    .act-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 100px;
+    }
+
+    .badge-green { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .badge-blue  { background: rgba(59,130,246,0.15); color: #60a5fa; }
+
+    .progress-bar {
+      height: 4px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 100px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 100px;
+      background: linear-gradient(90deg, #3b82f6, #818cf8);
+    }
+
+    /* Floating mini-cards */
+    .float-card {
+      position: absolute;
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 14px 18px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    .float-card-1 {
+      right: -40px;
+      top: 60px;
+      animation: float2 5s ease-in-out infinite;
+    }
+
+    .float-card-2 {
+      left: -30px;
+      bottom: 80px;
+      animation: float3 7s ease-in-out infinite;
+    }
+
+    @keyframes float2 {
+      0%, 100% { transform: translateY(0) rotate(2deg); }
+      50% { transform: translateY(-8px) rotate(2deg); }
+    }
+
+    @keyframes float3 {
+      0%, 100% { transform: translateY(0) rotate(-1deg); }
+      50% { transform: translateY(-10px) rotate(-1deg); }
+    }
+
+    .fc-label { font-size: 0.7rem; color: #64748b; margin-bottom: 4px; }
+    .fc-value { font-size: 1.3rem; font-weight: 800; color: #f1f5f9; }
+    .fc-sub { font-size: 0.7rem; color: #22c55e; margin-top: 2px; }
+
+    /* ── Trust Bar ───────────────────────────────────────────────────── */
+    #trust {
+      padding: 32px 5%;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .trust-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+
+    .trust-label { font-size: 0.82rem; color: #475569; font-weight: 500; }
+
+    .trust-pills {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .trust-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+
+    .trust-pill .icon { font-size: 1rem; }
+
+    /* ── Section base ────────────────────────────────────────────────── */
+    section { padding: 96px 5%; }
+
+    .section-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-tag {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #60a5fa;
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      font-size: clamp(1.8rem, 3vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+
+    .section-sub {
+      font-size: 1.05rem;
+      color: #64748b;
+      max-width: 560px;
+      line-height: 1.7;
+    }
+
+    /* ── Features ────────────────────────────────────────────────────── */
+    #features { background: #0f172a; }
+
+    .features-header { margin-bottom: 64px; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--dark2);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 28px 24px;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--blue), #818cf8);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(59,130,246,0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .feature-card:hover::before { opacity: 1; }
+
+    .feature-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 18px;
+    }
+
+    .fi-blue   { background: rgba(59,130,246,0.15); }
+    .fi-purple { background: rgba(168,85,247,0.15); }
+    .fi-green  { background: rgba(34,197,94,0.15); }
+    .fi-orange { background: rgba(249,115,22,0.15); }
+    .fi-pink   { background: rgba(236,72,153,0.15); }
+    .fi-cyan   { background: rgba(6,182,212,0.15); }
+    .fi-yellow { background: rgba(234,179,8,0.15); }
+    .fi-red    { background: rgba(239,68,68,0.15); }
+
+    .feature-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin-bottom: 10px;
+    }
+
+    .feature-desc {
+      font-size: 0.875rem;
+      color: #64748b;
+      line-height: 1.65;
+    }
+
+    /* ── How it works ────────────────────────────────────────────────── */
+    #how {
+      background: var(--dark);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .how-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 60% at 0% 100%, rgba(59,130,246,0.08) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .how-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      margin-top: 64px;
+      position: relative;
+    }
+
+    .how-grid::before {
+      content: '';
+      position: absolute;
+      top: 36px; left: 18%;
+      right: 18%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--blue), transparent);
+    }
+
+    .how-step {
+      text-align: center;
+      position: relative;
+    }
+
+    .how-num {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), #818cf8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 900;
+      margin: 0 auto 24px;
+      box-shadow: 0 0 40px rgba(59,130,246,0.4);
+    }
+
+    .how-step-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #f1f5f9;
+    }
+
+    .how-step-desc {
+      font-size: 0.9rem;
+      color: #64748b;
+      line-height: 1.65;
+    }
+
+    /* ── Security ────────────────────────────────────────────────────── */
+    #security {
+      background: #0f172a;
+    }
+
+    .security-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+      margin-top: 24px;
+    }
+
+    .security-points { display: flex; flex-direction: column; gap: 24px; }
+
+    .sec-point {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .sec-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      background: rgba(59,130,246,0.12);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .sec-title { font-size: 1rem; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
+    .sec-desc  { font-size: 0.875rem; color: #64748b; line-height: 1.6; }
+
+    .security-visual {
+      background: var(--dark2);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 32px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.4);
+    }
+
+    .enc-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .enc-icon-lg {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(129,140,248,0.3));
+      border: 1px solid rgba(59,130,246,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .enc-title { font-size: 1rem; font-weight: 700; }
+    .enc-sub { font-size: 0.8rem; color: #64748b; }
+
+    .enc-flow { display: flex; flex-direction: column; gap: 12px; }
+
+    .enc-step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(15,23,42,0.8);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.82rem;
+    }
+
+    .enc-step-num {
+      width: 24px; height: 24px;
+      background: rgba(59,130,246,0.2);
+      color: #60a5fa;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 700; flex-shrink: 0;
+    }
+
+    .enc-step-text { color: #94a3b8; flex: 1; }
+    .enc-step-badge {
+      font-size: 0.65rem; font-weight: 700;
+      padding: 3px 8px; border-radius: 100px;
+      background: rgba(34,197,94,0.15); color: #4ade80;
+    }
+
+    /* ── Productivity ──────────────────────────────────────────────────*/
+    #productivity {
+      background: var(--dark);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .prod-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 50% 70% at 100% 50%, rgba(168,85,247,0.08) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .prod-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+      margin-top: 24px;
+    }
+
+    .prod-visual {
+      background: var(--dark2);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.4);
+    }
+
+    .prod-visual-title { font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 20px; }
+
+    .app-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .app-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .app-name { font-size: 0.8rem; color: #94a3b8; width: 120px; flex-shrink: 0; }
+    .app-bar-wrap { flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 100px; overflow: hidden; }
+    .app-bar-fill { height: 100%; border-radius: 100px; }
+    .app-time { font-size: 0.75rem; color: #64748b; width: 48px; text-align: right; }
+
+    .prod-score-ring {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      background: rgba(15,23,42,0.6);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-top: 20px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .ring-wrap {
+      position: relative;
+      width: 72px; height: 72px; flex-shrink: 0;
+    }
+
+    .ring-svg { width: 72px; height: 72px; transform: rotate(-90deg); }
+    .ring-bg { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 6; }
+    .ring-fill { fill: none; stroke: #22c55e; stroke-width: 6; stroke-linecap: round;
+                 stroke-dasharray: 188; stroke-dashoffset: 38; }
+
+    .ring-num {
+      position: absolute;
+      inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; font-weight: 800; color: #f1f5f9;
+    }
+
+    .score-info .score-title { font-size: 0.9rem; font-weight: 700; color: #e2e8f0; }
+    .score-info .score-sub   { font-size: 0.78rem; color: #64748b; margin-top: 4px; }
+
+    .prod-features { display: flex; flex-direction: column; gap: 20px; }
+
+    .pf {
+      display: flex;
+      gap: 14px;
+    }
+
+    .pf-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+
+    .pf-title { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
+    .pf-desc  { font-size: 0.86rem; color: #64748b; line-height: 1.6; }
+
+    /* ── Integrations ──────────────────────────────────────────────── */
+    #integrations {
+      background: #0f172a;
+      text-align: center;
+    }
+
+    .int-header { margin-bottom: 56px; }
+    .int-header .section-sub { margin: 0 auto; }
+
+    .int-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+
+    .int-card {
+      background: var(--dark2);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 14px;
+      padding: 28px 20px;
+      text-align: center;
+      transition: all 0.3s;
+    }
+
+    .int-card:hover {
+      border-color: rgba(59,130,246,0.3);
+      transform: translateY(-3px);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+    }
+
+    .int-icon { font-size: 2.2rem; margin-bottom: 12px; }
+    .int-name { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; }
+    .int-desc { font-size: 0.8rem; color: #64748b; }
+
+    /* ── CTA ─────────────────────────────────────────────────────────── */
+    #cta {
+      background: var(--dark);
+      text-align: center;
+    }
+
+    .cta-box {
+      background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(129,140,248,0.1));
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 24px;
+      padding: 80px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-box::before {
+      content: '';
+      position: absolute;
+      top: -50%; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(59,130,246,0.2) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-title {
+      font-size: clamp(2rem, 3.5vw, 3rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .cta-sub {
+      font-size: 1.1rem;
+      color: #64748b;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .cta-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    .cta-note { font-size: 0.8rem; color: #475569; margin-top: 20px; }
+
+    /* ── Footer ──────────────────────────────────────────────────────── */
+    footer {
+      background: #0a101f;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 56px 5% 32px;
+    }
+
+    .footer-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .footer-top {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand .nav-logo { margin-bottom: 16px; display: inline-flex; }
+    .footer-brand p { font-size: 0.875rem; color: #475569; line-height: 1.65; max-width: 260px; }
+
+    .footer-col h4 {
+      font-size: 0.82rem; font-weight: 700; color: #94a3b8;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .footer-col a { font-size: 0.875rem; color: #475569; text-decoration: none; transition: color 0.2s; }
+    .footer-col a:hover { color: var(--white); }
+
+    .footer-bottom {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .footer-copy { font-size: 0.82rem; color: #334155; }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      font-size: 0.82rem;
+      color: #334155;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: #94a3b8; }
+
+    /* ── Mobile ──────────────────────────────────────────────────────── */
+    .mobile-menu-btn {
+      display: none;
+      background: none;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: var(--white);
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 1.1rem;
+    }
+
+    @media (max-width: 1024px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .int-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 900px) {
+      .hero-inner { grid-template-columns: 1fr; text-align: center; }
+      .hero-sub { margin: 0 auto 36px; }
+      .hero-actions { justify-content: center; }
+      .hero-stats { justify-content: center; }
+      .hero-visual { display: none; }
+
+      .how-grid { grid-template-columns: 1fr; }
+      .how-grid::before { display: none; }
+
+      .security-grid { grid-template-columns: 1fr; }
+      .prod-grid { grid-template-columns: 1fr; }
+
+      .footer-top { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      .nav-links { display: none; }
+      .mobile-menu-btn { display: block; }
+
+      .features-grid { grid-template-columns: 1fr; }
+      .int-grid { grid-template-columns: 1fr 1fr; }
+
+      .footer-top { grid-template-columns: 1fr; }
+
+      .trust-inner { flex-direction: column; gap: 16px; }
+
+      section { padding: 64px 5%; }
+    }
+
+    /* ── Fade-in animation ───────────────────────────────────────────── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ─────────────────────────────────────────────────────── -->
+<nav>
+  <a href="#" class="nav-logo">
+    <div class="logo-icon">📊</div>
+    TeamMonitor
+  </a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#security">Security</a></li>
+    <li><a href="#integrations">Integrations</a></li>
+  </ul>
+  <div class="nav-cta">
+    <a href="https://github.com/parth0072/teammonitor/releases" target="_blank" class="btn btn-secondary">Download Agent</a>
+    <a href="https://api.alphabyteinnovation.com/teammonitor/" target="_blank" class="btn btn-primary">Open Admin Panel →</a>
+  </div>
+  <button class="mobile-menu-btn" onclick="document.querySelector('.nav-links').style.display = document.querySelector('.nav-links').style.display === 'flex' ? 'none' : 'flex'">☰</button>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Real-time monitoring · Now available for macOS
+      </div>
+      <h1 class="hero-title">
+        Know What's<br>
+        <span class="grad">Happening in</span><br>
+        Your Team
+      </h1>
+      <p class="hero-sub">
+        Real-time activity tracking, encrypted screenshots, productivity analytics, and time management — all in one secure platform your team can trust.
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/parth0072/teammonitor/releases" target="_blank" class="btn btn-primary btn-lg">
+          ⬇ Download for macOS
+        </a>
+        <a href="https://api.alphabyteinnovation.com/teammonitor/" target="_blank" class="btn btn-secondary btn-lg">
+          Open Admin Panel
+        </a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="number">100%</div>
+          <div class="label">Encrypted & private</div>
+        </div>
+        <div class="hero-stat">
+          <div class="number">AES-256</div>
+          <div class="label">Encrypted screenshots</div>
+        </div>
+        <div class="hero-stat">
+          <div class="number">Real-time</div>
+          <div class="label">Live activity feed</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard mockup -->
+    <div class="hero-visual" style="position: relative; padding: 20px;">
+      <div class="float-card float-card-1">
+        <div class="fc-label">Active Right Now</div>
+        <div class="fc-value">8 employees</div>
+        <div class="fc-sub">↑ 3 joined today</div>
+      </div>
+
+      <div class="dashboard-card">
+        <div class="card-topbar">
+          <div class="dot-btn dot-red"></div>
+          <div class="dot-btn dot-yellow"></div>
+          <div class="dot-btn dot-green"></div>
+          <div class="card-title-bar">TeamMonitor — Live Dashboard</div>
+        </div>
+        <div class="card-body">
+          <div class="dash-header">
+            <div>
+              <div class="dash-title">Team Activity</div>
+              <div class="dash-date">Monday, Apr 6 · Live</div>
+            </div>
+            <div style="background:rgba(34,197,94,0.15);color:#4ade80;font-size:0.7rem;font-weight:700;padding:4px 10px;border-radius:100px;">● Live</div>
+          </div>
+          <div class="kpi-row">
+            <div class="kpi-box">
+              <div class="kpi-val kpi-green">8</div>
+              <div class="kpi-lbl">Active Now</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-val kpi-blue">87%</div>
+              <div class="kpi-lbl">Avg Productivity</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-val kpi-orange">42h</div>
+              <div class="kpi-lbl">Hours Today</div>
+            </div>
+          </div>
+          <div class="activity-list">
+            <div class="activity-row">
+              <div class="av av-blue">JD</div>
+              <div>
+                <div class="act-name">James Davis</div>
+                <div class="act-app">VS Code · 3h 24m</div>
+                <div class="progress-bar"><div class="progress-fill" style="width:92%"></div></div>
+              </div>
+              <span class="act-badge badge-green">92%</span>
+            </div>
+            <div class="activity-row">
+              <div class="av av-green">SM</div>
+              <div>
+                <div class="act-name">Sarah Miller</div>
+                <div class="act-app">Figma · 2h 11m</div>
+                <div class="progress-bar"><div class="progress-fill" style="width:85%"></div></div>
+              </div>
+              <span class="act-badge badge-green">85%</span>
+            </div>
+            <div class="activity-row">
+              <div class="av av-purple">AK</div>
+              <div>
+                <div class="act-name">Alex Kim</div>
+                <div class="act-app">Slack · 1h 47m</div>
+                <div class="progress-bar"><div class="progress-fill" style="width:71%"></div></div>
+              </div>
+              <span class="act-badge badge-blue">71%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="float-card float-card-2">
+        <div class="fc-label">Productivity Today</div>
+        <div class="fc-value" style="color: #4ade80;">87%</div>
+        <div class="fc-sub">↑ 5% vs yesterday</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Trust Bar ─────────────────────────────────────────────────── -->
+<div id="trust">
+  <div class="trust-inner">
+    <span class="trust-label">Built with</span>
+    <div class="trust-pills">
+      <div class="trust-pill"><span class="icon">🍎</span> Native macOS App</div>
+      <div class="trust-pill"><span class="icon">🔒</span> AES-256-GCM Encryption</div>
+      <div class="trust-pill"><span class="icon">🔑</span> Private & Secure</div>
+      <div class="trust-pill"><span class="icon">⚡</span> Real-time Updates</div>
+      <div class="trust-pill"><span class="icon">🔗</span> Jira Integration</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Features ──────────────────────────────────────────────────── -->
+<section id="features">
+  <div class="section-inner">
+    <div class="features-header fade-in">
+      <div class="section-tag">Features</div>
+      <h2 class="section-title">Everything you need to<br>manage your team effectively</h2>
+      <p class="section-sub">From real-time monitoring to detailed analytics — TeamMonitor gives you complete visibility into how work gets done.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card fade-in">
+        <div class="feature-icon fi-blue">📊</div>
+        <h3 class="feature-title">Live Activity Dashboard</h3>
+        <p class="feature-desc">See every employee's current status, active application, and session duration in real-time. Know exactly who's working and on what.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon fi-purple">📸</div>
+        <h3 class="feature-title">Encrypted Screenshots</h3>
+        <p class="feature-desc">Periodic screenshots are captured on employee machines, encrypted with AES-256-GCM before upload, and decrypted only when viewed by admins.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon fi-green">🖥️</div>
+        <h3 class="feature-title">App Usage Tracking</h3>
+        <p class="feature-desc">Automatically tracks which applications employees use and for how long. Categorize apps as productive or unproductive with custom rules.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon fi-orange">⚡</div>
+        <h3 class="feature-title">Productivity Scoring</h3>
+        <p class="feature-desc">Automatic productivity scores based on app usage and idle time. Define your own policy — mark apps as productive or unproductive per your team's workflow.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon fi-cyan">⏱️</div>
+        <h3 class="feature-title">Time & Attendance</h3>
+        <p class="feature-desc">Accurate punch-in/out tracking with idle detection. Session durations account for idle time so you see actual working hours, not just logged hours.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon fi-pink">📈</div>
+        <h3 class="feature-title">Reports & Analytics</h3>
+        <p class="feature-desc">Weekly hour charts, app usage breakdowns, per-employee analytics, longest sessions, and productivity trends — all in one reports view.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon fi-yellow">📋</div>
+        <h3 class="feature-title">Projects & Tasks</h3>
+        <p class="feature-desc">Kanban-style project and task management. Employees track time against specific tasks, giving you a clear picture of where hours are really going.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon fi-red">🏖️</div>
+        <h3 class="feature-title">Leave Management</h3>
+        <p class="feature-desc">Employees submit leave requests, admins approve or deny them. Leave balances tracked automatically alongside attendance records.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How it works ──────────────────────────────────────────────── -->
+<section id="how">
+  <div class="how-bg"></div>
+  <div class="section-inner">
+    <div style="text-align:center" class="fade-in">
+      <div class="section-tag">How it works</div>
+      <h2 class="section-title">Up and running in minutes</h2>
+      <p class="section-sub" style="margin: 0 auto;">Three simple steps and your whole team is being tracked automatically.</p>
+    </div>
+    <div class="how-grid">
+      <div class="how-step fade-in">
+        <div class="how-num">1</div>
+        <h3 class="how-step-title">Deploy the backend</h3>
+        <p class="how-step-desc">Host the Node.js server on your own cPanel, VPS, or cloud. Point it at a MySQL database. Set two environment variables and you're live.</p>
+      </div>
+      <div class="how-step fade-in">
+        <div class="how-num">2</div>
+        <h3 class="how-step-title">Install the macOS agent</h3>
+        <p class="how-step-desc">Download TeamMonitorAgent.app and install it on each employee's Mac. It runs silently in the menu bar and starts tracking on punch-in.</p>
+      </div>
+      <div class="how-step fade-in">
+        <div class="how-num">3</div>
+        <h3 class="how-step-title">Monitor from anywhere</h3>
+        <p class="how-step-desc">Open the admin panel in any browser. See live sessions, screenshots, productivity scores, and detailed reports across your entire team.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Security ──────────────────────────────────────────────────── -->
+<section id="security">
+  <div class="section-inner">
+    <div class="security-grid">
+      <div class="fade-in">
+        <div class="section-tag">Security & Privacy</div>
+        <h2 class="section-title">Your data never leaves<br>your server</h2>
+        <p class="section-sub" style="margin-bottom: 40px;">TeamMonitor keeps your data encrypted and private. No third-party surveillance, no data sharing. You own every byte.</p>
+
+        <div class="security-points">
+          <div class="sec-point">
+            <div class="sec-icon">🔐</div>
+            <div>
+              <div class="sec-title">AES-256-GCM encrypted screenshots</div>
+              <div class="sec-desc">Screenshots are encrypted before being written to disk using a key only you control. Even server admins can't view them without the key.</div>
+            </div>
+          </div>
+          <div class="sec-point">
+            <div class="sec-icon">🛡️</div>
+            <div>
+              <div class="sec-title">JWT authentication</div>
+              <div class="sec-desc">Every API request requires a signed JWT token. Employees can only access their own data — admins control everything else.</div>
+            </div>
+          </div>
+          <div class="sec-point">
+            <div class="sec-icon">🗄️</div>
+            <div>
+              <div class="sec-title">Secure MySQL storage</div>
+              <div class="sec-desc">All session data, activity logs, and screenshots are stored in a dedicated MySQL database. No vendor lock-in, no shared infrastructure.</div>
+            </div>
+          </div>
+          <div class="sec-point">
+            <div class="sec-icon">🔒</div>
+            <div>
+              <div class="sec-title">Role-based access control</div>
+              <div class="sec-desc">Admins see everything. Employees see only their own data. Granular permissions for screenshots, leave management, and reports.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="security-visual fade-in">
+        <div class="enc-header">
+          <div class="enc-icon-lg">🔐</div>
+          <div>
+            <div class="enc-title">Screenshot Encryption Flow</div>
+            <div class="enc-sub">AES-256-GCM end-to-end</div>
+          </div>
+        </div>
+        <div class="enc-flow">
+          <div class="enc-step">
+            <div class="enc-step-num">1</div>
+            <div class="enc-step-text">macOS agent captures screenshot with CGWindowListCreateImage</div>
+            <span class="enc-step-badge">On-device</span>
+          </div>
+          <div class="enc-step">
+            <div class="enc-step-num">2</div>
+            <div class="enc-step-text">JPEG compressed, uploaded to server over HTTPS</div>
+            <span class="enc-step-badge">In transit</span>
+          </div>
+          <div class="enc-step">
+            <div class="enc-step-num">3</div>
+            <div class="enc-step-text">Server generates 12-byte IV, encrypts with AES-256-GCM</div>
+            <span class="enc-step-badge">Encrypted</span>
+          </div>
+          <div class="enc-step">
+            <div class="enc-step-num">4</div>
+            <div class="enc-step-text">Encrypted .enc file written to disk — plaintext never stored</div>
+            <span class="enc-step-badge">At rest</span>
+          </div>
+          <div class="enc-step">
+            <div class="enc-step-num">5</div>
+            <div class="enc-step-text">Decrypted on-the-fly when admin views, served with short-lived token</div>
+            <span class="enc-step-badge">Secure view</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Productivity ──────────────────────────────────────────────── -->
+<section id="productivity">
+  <div class="prod-bg"></div>
+  <div class="section-inner">
+    <div class="prod-grid">
+      <div class="prod-visual fade-in">
+        <div class="prod-visual-title">App Usage & Productivity Score</div>
+
+        <div class="app-row">
+          <div class="app-dot" style="background:#3b82f6"></div>
+          <div class="app-name">VS Code</div>
+          <div class="app-bar-wrap"><div class="app-bar-fill" style="width:78%;background:linear-gradient(90deg,#3b82f6,#818cf8)"></div></div>
+          <div class="app-time">3h 8m</div>
+        </div>
+        <div class="app-row">
+          <div class="app-dot" style="background:#a855f7"></div>
+          <div class="app-name">Figma</div>
+          <div class="app-bar-wrap"><div class="app-bar-fill" style="width:52%;background:linear-gradient(90deg,#a855f7,#ec4899)"></div></div>
+          <div class="app-time">2h 5m</div>
+        </div>
+        <div class="app-row">
+          <div class="app-dot" style="background:#22c55e"></div>
+          <div class="app-name">Chrome</div>
+          <div class="app-bar-wrap"><div class="app-bar-fill" style="width:38%;background:linear-gradient(90deg,#22c55e,#84cc16)"></div></div>
+          <div class="app-time">1h 32m</div>
+        </div>
+        <div class="app-row">
+          <div class="app-dot" style="background:#f59e0b"></div>
+          <div class="app-name">Slack</div>
+          <div class="app-bar-wrap"><div class="app-bar-fill" style="width:22%;background:linear-gradient(90deg,#f59e0b,#f97316)"></div></div>
+          <div class="app-time">53m</div>
+        </div>
+        <div class="app-row">
+          <div class="app-dot" style="background:#ef4444"></div>
+          <div class="app-name">YouTube</div>
+          <div class="app-bar-wrap"><div class="app-bar-fill" style="width:8%;background:linear-gradient(90deg,#ef4444,#f97316)"></div></div>
+          <div class="app-time">18m</div>
+        </div>
+
+        <div class="prod-score-ring">
+          <div class="ring-wrap">
+            <svg class="ring-svg" viewBox="0 0 72 72">
+              <circle class="ring-bg" cx="36" cy="36" r="30"/>
+              <circle class="ring-fill" cx="36" cy="36" r="30"/>
+            </svg>
+            <div class="ring-num">80%</div>
+          </div>
+          <div class="score-info">
+            <div class="score-title">Productivity Score</div>
+            <div class="score-sub">Based on your custom app policy.<br>Productive: 6h 21m · Unproductive: 18m</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="prod-features fade-in">
+        <div class="section-tag">Productivity</div>
+        <h2 class="section-title" style="margin-bottom:16px">Custom productivity<br>policies per team</h2>
+        <p class="section-sub" style="margin-bottom: 40px;">Not every team uses the same apps. Define your own rules — mark Figma as productive for designers, coding tools for engineers.</p>
+
+        <div class="pf">
+          <div class="pf-icon fi-green">⚙️</div>
+          <div>
+            <div class="pf-title">Custom app rules</div>
+            <div class="pf-desc">Label any app as Productive, Unproductive, or Neutral. Rules apply globally across all employees. Update them any time.</div>
+          </div>
+        </div>
+        <div class="pf">
+          <div class="pf-icon fi-blue">🎯</div>
+          <div>
+            <div class="pf-title">Accurate scoring</div>
+            <div class="pf-desc">When custom rules are active, score = productive time ÷ (productive + unproductive). Neutral apps don't dilute the score.</div>
+          </div>
+        </div>
+        <div class="pf">
+          <div class="pf-icon fi-purple">💡</div>
+          <div>
+            <div class="pf-title">Idle-aware tracking</div>
+            <div class="pf-desc">IOKit idle detection removes AFK time from session totals. Hours tracked reflect actual work, not time the computer was left on.</div>
+          </div>
+        </div>
+        <div class="pf">
+          <div class="pf-icon fi-orange">📊</div>
+          <div>
+            <div class="pf-title">Historical trends</div>
+            <div class="pf-desc">Compare productivity week over week. Spot patterns in app usage, session lengths, and team habits across any date range.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Integrations ──────────────────────────────────────────────── -->
+<section id="integrations">
+  <div class="section-inner">
+    <div class="int-header fade-in">
+      <div class="section-tag">Integrations</div>
+      <h2 class="section-title">Works with your existing stack</h2>
+      <p class="section-sub">Connect your tools to make TeamMonitor even more powerful. Link time tracking directly to the work being done.</p>
+    </div>
+
+    <div class="int-grid">
+      <div class="int-card fade-in">
+        <div class="int-icon">🔷</div>
+        <div class="int-name">Jira</div>
+        <div class="int-desc">Connect per-employee Jira accounts. Browse and assign issues directly from the macOS agent. Track time against specific Jira tickets.</div>
+      </div>
+      <div class="int-card fade-in">
+        <div class="int-icon">🍎</div>
+        <div class="int-name">macOS Native</div>
+        <div class="int-desc">Pure Swift/SwiftUI app. No Electron, no browser wrapper. Lightweight menu bar agent with minimal CPU and memory footprint.</div>
+      </div>
+      <div class="int-card fade-in">
+        <div class="int-icon">🗄️</div>
+        <div class="int-name">MySQL</div>
+        <div class="int-desc">Store all data in your own MySQL database. Also supports SQLite for local development. Full schema migrations run automatically.</div>
+      </div>
+      <div class="int-card fade-in">
+        <div class="int-icon">🌐</div>
+        <div class="int-name">Any Browser</div>
+        <div class="int-desc">The admin panel is a React web app. Works in Chrome, Safari, Firefox — no desktop app needed for management. Responsive on mobile too.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ───────────────────────────────────────────────────────── -->
+<section id="cta">
+  <div class="section-inner">
+    <div class="cta-box fade-in">
+      <h2 class="cta-title">Start monitoring your<br>team today</h2>
+      <p class="cta-sub">No subscription. Encrypted and secure. Just download, deploy, and go.</p>
+      <div class="cta-actions">
+        <a href="https://github.com/parth0072/teammonitor/releases" target="_blank" class="btn btn-orange btn-lg">
+          ⬇ Download macOS Agent
+        </a>
+        <a href="https://github.com/parth0072/teammonitor" target="_blank" class="btn btn-secondary btn-lg">
+          View on GitHub
+        </a>
+      </div>
+      <p class="cta-note">Open source · Encrypted & secure · No subscription required</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="#" class="nav-logo">
+          <div class="logo-icon">📊</div>
+          TeamMonitor
+        </a>
+        <p>Real-time employee monitoring, time tracking, and productivity analytics. Encrypted and secure.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#integrations">Integrations</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Downloads</h4>
+        <ul>
+          <li><a href="https://github.com/parth0072/teammonitor/releases" target="_blank">macOS Agent</a></li>
+          <li><a href="https://api.alphabyteinnovation.com/teammonitor/" target="_blank">Admin Panel</a></li>
+          <li><a href="https://github.com/parth0072/teammonitor" target="_blank">Source Code</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="https://github.com/parth0072/teammonitor/blob/main/README.md" target="_blank">Documentation</a></li>
+          <li><a href="https://github.com/parth0072/teammonitor/issues" target="_blank">Report a Bug</a></li>
+          <li><a href="https://github.com/parth0072/teammonitor" target="_blank">GitHub</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-copy">© 2025 TeamMonitor. Built by Alphabyte Innovation.</div>
+      <div class="footer-links">
+        <a href="https://github.com/parth0072/teammonitor" target="_blank">GitHub</a>
+        <a href="https://github.com/parth0072/teammonitor/releases" target="_blank">Releases</a>
+        <a href="https://api.alphabyteinnovation.com/teammonitor/" target="_blank">App</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Scroll fade-in
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 80);
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+  // Smooth nav bg on scroll
+  window.addEventListener('scroll', () => {
+    const nav = document.querySelector('nav');
+    nav.style.background = window.scrollY > 20
+      ? 'rgba(15,23,42,0.97)'
+      : 'rgba(15,23,42,0.85)';
+  });
+</script>
+
+</body>
+</html>
