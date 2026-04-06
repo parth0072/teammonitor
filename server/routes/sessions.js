@@ -193,7 +193,9 @@ router.get('/task-hours', auth, adminOnly, async (req, res) => {
          END AS task_name,
          s.task_id,
          s.jira_issue_key,
-         SUM(COALESCE(NULLIF(s.total_minutes, 0), TIMESTAMPDIFF(MINUTE, s.punch_in, NOW()))) AS total_minutes,
+         SUM(CASE WHEN s.status = 'active'
+               THEN COALESCE(NULLIF(s.total_minutes, 0), TIMESTAMPDIFF(MINUTE, s.punch_in, NOW()))
+               ELSE s.total_minutes END) AS total_minutes,
          COUNT(*) AS session_count
        FROM sessions s
        LEFT JOIN tasks t ON s.task_id = t.id
@@ -215,7 +217,9 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
     const cutoffStr = cutoff.toISOString().slice(0, 10);
     const [rows] = await db.query(
       `SELECT date,
-        SUM(COALESCE(NULLIF(total_minutes, 0), TIMESTAMPDIFF(MINUTE, punch_in, NOW()))) AS total_minutes,
+        SUM(CASE WHEN status = 'active'
+              THEN COALESCE(NULLIF(total_minutes, 0), TIMESTAMPDIFF(MINUTE, punch_in, NOW()))
+              ELSE total_minutes END) AS total_minutes,
         COUNT(*) AS session_count
        FROM sessions
        WHERE date >= ?
