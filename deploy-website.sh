@@ -9,7 +9,7 @@ set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 # ── Destination: public_html/teammonitor ─────────────────────────────────────
-DEST="$HOME/public_html/teammonitor"
+DEST="$HOME/alphabyteinnovation.com/teammonitor"
 
 echo "=== [1/2] Pulling latest code ==="
 cd "$ROOT"
