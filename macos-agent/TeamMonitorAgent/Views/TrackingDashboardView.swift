@@ -60,6 +60,7 @@ struct TrackingDashboardView: View {
                     statsBar
                     punchSection
                     idleWarning
+                    idleBanner
                     tabContent
                 }
                 .background(DS.bg)
@@ -74,6 +75,7 @@ struct TrackingDashboardView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: toast)
+        .animation(.easeInOut(duration: 0.4), value: manager.isIdle)
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .idleAlert:

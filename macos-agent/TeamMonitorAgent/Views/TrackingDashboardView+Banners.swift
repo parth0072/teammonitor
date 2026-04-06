@@ -120,6 +120,32 @@ extension TrackingDashboardView {
         }
     }
 
+    // MARK: – Idle-paused banner
+
+    @ViewBuilder
+    var idleBanner: some View {
+        if manager.isTracking && manager.isIdle {
+            HStack(spacing: 10) {
+                Image(systemName: "pause.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(DS.amber)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Timer paused — you're idle")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "92400E"))
+                    Text("Move your mouse or press a key to resume")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "B45309"))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(Color(hex: "fef3c7"))
+            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "fde68a")), alignment: .bottom)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
     // MARK: – Offline banner
 
     @ViewBuilder

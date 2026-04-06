@@ -143,10 +143,14 @@ extension TrackingDashboardView {
             )
             Divider().frame(height: 36)
             statCard(
-                icon: manager.isTracking ? "record.circle.fill" : "stop.circle",
-                value: manager.isOnBreak ? "Break" : (manager.isTracking ? "Live" : "Idle"),
+                icon: manager.isIdle     ? "pause.circle.fill"  :
+                      manager.isTracking ? "record.circle.fill" : "stop.circle",
+                value: manager.isOnBreak ? "Break" :
+                       manager.isIdle    ? "Idle"  :
+                       manager.isTracking ? "Live"  : "Off",
                 label: "Status",
-                color: manager.isOnBreak ? DS.amber : (manager.isTracking ? DS.emerald : DS.textMuted)
+                color: manager.isOnBreak || manager.isIdle ? DS.amber :
+                       manager.isTracking ? DS.emerald : DS.textMuted
             )
         }
         .padding(.vertical, 10)
@@ -177,7 +181,7 @@ extension TrackingDashboardView {
     private var statusPill: some View {
         HStack(spacing: 5) {
             ZStack {
-                if manager.isTracking && !manager.isOnBreak {
+                if manager.isTracking && !manager.isOnBreak && !manager.isIdle {
                     Circle()
                         .fill(DS.emerald.opacity(0.25))
                         .frame(width: 12, height: 12)
@@ -188,28 +192,33 @@ extension TrackingDashboardView {
                         )
                 }
                 Circle()
-                    .fill(manager.isOnBreak  ? DS.amber   :
+                    .fill(manager.isOnBreak  ? DS.amber  :
+                          manager.isIdle     ? DS.amber  :
                           manager.isTracking ? DS.emerald : DS.textMuted)
                     .frame(width: 6, height: 6)
             }
-            Text(manager.isOnBreak  ? "On Break"    :
-                 manager.isTracking ? "Tracking"    : "Not Started")
+            Text(manager.isOnBreak  ? "On Break" :
+                 manager.isIdle     ? "Idle"     :
+                 manager.isTracking ? "Tracking" : "Not Started")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(manager.isOnBreak  ? DS.amber   :
+                .foregroundColor(manager.isOnBreak  ? DS.amber  :
+                                 manager.isIdle     ? DS.amber  :
                                  manager.isTracking ? DS.emerald : DS.textMuted)
         }
         .padding(.horizontal, 10).padding(.vertical, 5)
         .background(
             manager.isOnBreak  ? DS.amberLight  :
+            manager.isIdle     ? DS.amberLight  :
             manager.isTracking ? DS.emeraldLight : DS.bg
         )
         .cornerRadius(20)
         .animation(.easeInOut(duration: 0.3), value: manager.isTracking)
         .animation(.easeInOut(duration: 0.3), value: manager.isOnBreak)
+        .animation(.easeInOut(duration: 0.3), value: manager.isIdle)
     }
 
     // Pulse scale state — driven by onAppear in the view that uses it
-    var pulseScale: CGFloat { manager.isTracking && !manager.isOnBreak ? 2.2 : 1.0 }
+    var pulseScale: CGFloat { manager.isTracking && !manager.isOnBreak && !manager.isIdle ? 2.2 : 1.0 }
 
     // MARK: – Punch Section
 
