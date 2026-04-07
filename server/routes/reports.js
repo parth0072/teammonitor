@@ -201,6 +201,40 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   };
 }
 
+// ── AI pattern analysis (7-day trend) ────────────────────────────────────────
+
+async function buildPatternAnalysis(employeeId, todayReport) {
+  if (!process.env.GROQ_API_KEY) return null;
+
+  const [rows] = await db.query(
+    `SELECT date, total_minutes, productive_percent, focus_score, ai_notes
+     FROM employee_daily_memory
+     WHERE employee_id = ? AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+     ORDER BY date ASC`,
+    [employeeId]
+  );
+  if (rows.length < 2) return null;
+
+  const history = rows.map(r =>
+    `${r.date}: ${fmtDuration(r.total_minutes)} tracked, ${r.productive_percent}% productive, focus ${r.focus_score}/10`
+  ).join('\n');
+
+  const prompt = `You are a productivity analyst. Based on this employee's last ${rows.length} days of work data, identify patterns and give specific, actionable insights.
+
+Work history:
+${history}
+
+Today: ${fmtDuration(todayReport.total_tracked_minutes)} tracked, ${todayReport.productive_percent}% productive, focus ${todayReport.ai_summary?.focusScore ?? 'N/A'}/10.
+
+Respond with JSON: { "trend": "one sentence", "bestDay": "best time/day pattern", "insight": "one actionable tip", "encouragement": "one motivating sentence" }`;
+
+  try {
+    const text = await callGroq(prompt, { maxTokens: 400 });
+    if (!text) return null;
+    return JSON.parse(text);
+  } catch { return null; }
+}
+
 // ── routes: individual reports ────────────────────────────────────────────────
 
 router.get('/daily', auth, async (req, res) => {
@@ -216,8 +250,28 @@ router.get('/daily/employee', auth, adminOnly, async (req, res) => {
     const { employeeId, date } = req.query;
     if (!employeeId) return res.status(400).json({ error: 'employeeId required' });
     const targetDate = date || new Date().toISOString().slice(0, 10);
+    const report  = await buildReport(employeeId, targetDate, { saveToMemory: true });
+    const pattern = await buildPatternAnalysis(employeeId, report);
+    res.json({ ...report, pattern });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /send-email — admin manually sends the daily report email to one employee
+router.post('/send-email', auth, adminOnly, async (req, res) => {
+  try {
+    const { employeeId, date } = req.body;
+    if (!employeeId) return res.status(400).json({ error: 'employeeId required' });
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+
+    const [emps] = await db.query('SELECT id, name, email FROM employees WHERE id = ?', [employeeId]);
+    if (!emps.length) return res.status(404).json({ error: 'Employee not found' });
+    const emp = emps[0];
+    if (!emp.email) return res.status(400).json({ error: 'Employee has no email address' });
+
+    const { sendEmployeeReport } = require('../utils/dailyMail');
     const report = await buildReport(employeeId, targetDate, { saveToMemory: true });
-    res.json(report);
+    await sendEmployeeReport(emp, targetDate, report);
+    res.json({ ok: true, message: `Report sent to ${emp.email}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

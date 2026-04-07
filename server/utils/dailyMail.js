@@ -43,65 +43,6 @@ function scoreBg(score) {
   return '#fee2e2';
 }
 
-// ── AI pattern analysis (7-day trend) ────────────────────────────────────────
-
-async function buildPatternAnalysis(employeeId, todayReport) {
-  if (!process.env.GROQ_API_KEY) return null;
-
-  // Fetch last 7 days from memory
-  const [rows] = await db.query(
-    `SELECT date, total_minutes, productive_percent, focus_score, ai_notes
-     FROM employee_daily_memory
-     WHERE employee_id = ? AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-     ORDER BY date ASC`,
-    [employeeId]
-  );
-
-  if (rows.length < 2) return null; // Not enough data for patterns
-
-  const history = rows.map(r =>
-    `${r.date}: ${fmtMins(r.total_minutes)} tracked, ${r.productive_percent}% productive, focus ${r.focus_score}/10`
-  ).join('\n');
-
-  const prompt = `You are a productivity analyst. Based on this employee's last ${rows.length} days of work data, identify patterns and give specific, actionable insights.
-
-Work history (most recent day is today):
-${history}
-
-Today specifically: ${fmtMins(todayReport.total_tracked_minutes)} tracked, ${todayReport.productive_percent}% productive, focus ${todayReport.ai_summary?.focusScore ?? 'N/A'}/10.
-
-Respond with JSON:
-{
-  "trend": "one sentence about their weekly trend (improving/declining/stable)",
-  "bestDay": "which day/time pattern shows them at their best",
-  "insight": "one specific, actionable tip based on their actual data",
-  "encouragement": "one brief motivating sentence"
-}`;
-
-  try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.6,
-        max_tokens: 400,
-        response_format: { type: 'json_object' },
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) return null;
-    const raw = data.choices?.[0]?.message?.content?.trim() || '';
-    return JSON.parse(raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
-  } catch {
-    return null;
-  }
-}
-
 // ── HTML email template ───────────────────────────────────────────────────────
 
 function buildHtml({ employee, date, report, pattern }) {
@@ -243,22 +184,32 @@ function buildHtml({ employee, date, report, pattern }) {
 </html>`;
 }
 
-// ── send one employee's report ─────────────────────────────────────────────────
+// ── send one employee's report ────────────────────────────────────────────────
+// Exported so the /reports/send-email route can call it directly.
 
-async function sendEmployeeReport(transport, employee, date, report) {
-  const from    = process.env.SMTP_FROM || process.env.SMTP_USER;
-  const subject = `Your Daily Work Report — ${new Date(date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}`;
+async function sendEmployeeReport(employee, date, report) {
+  const transport = createTransport();
+  if (!transport) throw new Error('SMTP not configured');
 
+  const { buildPatternAnalysis } = require('../routes/reports');
   const pattern = await buildPatternAnalysis(employee.id, report);
   const html    = buildHtml({ employee, date, report, pattern });
+  const from    = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const subject = `Your Daily Work Report — ${new Date(date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}`;
 
   await transport.sendMail({ from, to: employee.email, subject, html });
   console.log(`[dailyMail] Sent report to ${employee.email}`);
 }
 
-// ── main: send reports to all active employees ─────────────────────────────────
+// ── main: send reports to all active employees ────────────────────────────────
 
 async function sendDailyReports() {
+  // Disabled by default — set DAILY_MAIL_ENABLED=true in .env to activate
+  if (process.env.DAILY_MAIL_ENABLED !== 'true') {
+    console.log('[dailyMail] Automatic emails disabled (DAILY_MAIL_ENABLED != true)');
+    return;
+  }
+
   const transport = createTransport();
   if (!transport) {
     console.warn('[dailyMail] Skipped — SMTP not configured (set SMTP_HOST, SMTP_USER, SMTP_PASS)');
@@ -268,12 +219,9 @@ async function sendDailyReports() {
   const today = new Date().toISOString().slice(0, 10);
   console.log(`[dailyMail] Sending daily reports for ${today}…`);
 
-  // Get active employees (role=employee) who have an email
   const [employees] = await db.query(
     `SELECT id, name, email FROM employees WHERE role = 'employee' AND is_active = 1 AND email IS NOT NULL`
   );
-
-  // Build reports module on demand (avoids circular deps)
   const { buildReport } = require('../routes/reports');
 
   let sent = 0, failed = 0;
@@ -284,7 +232,7 @@ async function sendDailyReports() {
         console.log(`[dailyMail] ${emp.name} — no tracked time, skipping`);
         continue;
       }
-      await sendEmployeeReport(transport, emp, today, report);
+      await sendEmployeeReport(emp, today, report);
       sent++;
     } catch (err) {
       console.error(`[dailyMail] Failed for ${emp.email}:`, err.message);
@@ -295,4 +243,4 @@ async function sendDailyReports() {
   console.log(`[dailyMail] Done — ${sent} sent, ${failed} failed`);
 }
 
-module.exports = { sendDailyReports };
+module.exports = { sendDailyReports, sendEmployeeReport };
