@@ -289,7 +289,7 @@ export default function EmployeeDetail() {
           {screenshots.length===0 && <div style={{ color:"#94a3b8" }}>No screenshots today.</div>}
           <div style={S.ssGrid}>
             {screenshots.map(ss => {
-              const token = sessionStorage.getItem('tm_token') || '';
+              const token = localStorage.getItem('tm_token') || '';
               const src = ss.file_path ? `${ss.file_path}?token=${encodeURIComponent(token)}` : null;
               if (!src) return null;
               return (
