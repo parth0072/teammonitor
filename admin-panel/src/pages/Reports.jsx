@@ -71,6 +71,9 @@ export default function Reports() {
   const [weekStats,  setWeekStats]  = useState([]);
   const [loading,    setLoading]    = useState(false);
 
+  const [dailyReport,    setDailyReport]    = useState(null);
+  const [reportLoading,  setReportLoading]  = useState(false);
+
   const [showManual, setShowManual] = useState(false);
   const [manualEmpId,setManualEmpId]= useState("");
   const [manualForm, setManualForm] = useState({ date:"", startTime:"09:00", endTime:"10:00", note:"" });
@@ -78,6 +81,14 @@ export default function Reports() {
 
   useEffect(() => { api.getEmployees().then(setEmployees); }, []);
   useEffect(() => { loadData(); }, [date, employeeId]);
+  useEffect(() => {
+    if (employeeId === "all") { setDailyReport(null); return; }
+    setReportLoading(true); setDailyReport(null);
+    api.getDailyReport(employeeId, date)
+      .then(setDailyReport)
+      .catch(() => {})
+      .finally(() => setReportLoading(false));
+  }, [employeeId, date]);
 
   async function loadData() {
     setLoading(true);
@@ -173,6 +184,125 @@ export default function Reports() {
         <StatCard label="Longest Session" value={fmtHM(longestSess)} color="#7c3aed" icon="🏆" sub="today's peak" />
         <StatCard label="Total App Time"  value={fmtDur(totalSecs)}  color="#be185d" icon="🖥" sub="from activity logs" />
       </div>
+
+      {/* ── Daily Report (single-employee view) ── */}
+      {employeeId !== "all" && (
+        reportLoading
+          ? <div style={{ color:"#94a3b8", fontSize:13, marginBottom:24 }}>Loading report…</div>
+          : dailyReport && (
+            <>
+              {/* AI Summary */}
+              {dailyReport.ai_summary && (
+                <div style={{ ...S.card, marginBottom:24 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                    <div style={S.cardTitle}>✨ AI Summary</div>
+                    <div style={{
+                      background: dailyReport.ai_summary.focus_score >= 70 ? "#d1fae5" : dailyReport.ai_summary.focus_score >= 40 ? "#fef9c3" : "#fee2e2",
+                      color:      dailyReport.ai_summary.focus_score >= 70 ? "#065f46" : dailyReport.ai_summary.focus_score >= 40 ? "#854d0e" : "#991b1b",
+                      borderRadius:20, padding:"4px 14px", fontSize:13, fontWeight:700
+                    }}>Focus {dailyReport.ai_summary.focus_score}%</div>
+                  </div>
+                  <p style={{ fontSize:14, color:"#1e293b", marginBottom:12, lineHeight:1.6 }}>{dailyReport.ai_summary.summary}</p>
+                  {dailyReport.ai_summary.insights?.length > 0 && (
+                    <ul style={{ margin:0, paddingLeft:20, fontSize:13, color:"#475569", lineHeight:1.8 }}>
+                      {dailyReport.ai_summary.insights.map((ins, i) => <li key={i}>{ins}</li>)}
+                    </ul>
+                  )}
+                  <div style={{ display:"flex", gap:16, marginTop:12, flexWrap:"wrap" }}>
+                    {dailyReport.ai_summary.top_app_text && <span style={{ fontSize:13, color:"#64748b" }}>{dailyReport.ai_summary.top_app_text}</span>}
+                    {dailyReport.ai_summary.peak_text    && <span style={{ fontSize:13, color:"#64748b" }}>{dailyReport.ai_summary.peak_text}</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Punch Log + Work Pattern */}
+              <div style={{ ...S.row2, marginBottom:24 }}>
+                {/* Punch Log */}
+                {dailyReport.punch_log?.length > 0 && (
+                  <div style={S.card}>
+                    <div style={S.cardTitle}>🕐 Punch Log</div>
+                    {dailyReport.punch_log.map((s, i) => {
+                      const dur = s.duration_minutes
+                        ? `${Math.floor(s.duration_minutes/60)}h ${s.duration_minutes%60}m` : "—";
+                      return (
+                        <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 0", borderBottom:"1px solid #f1f5f9" }}>
+                          <div style={{ width:8, height:8, borderRadius:"50%", background: s.punch_out ? "#10b981" : "#f59e0b", flexShrink:0, marginTop:4 }} />
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:13, fontWeight:600, color:"#1e293b" }}>
+                              {s.punch_in ? new Date(s.punch_in).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "?"} →{" "}
+                              {s.punch_out ? new Date(s.punch_out).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : <span style={{ color:"#f59e0b" }}>Active</span>}
+                              <span style={{ fontWeight:400, color:"#64748b", marginLeft:8 }}>{dur}</span>
+                            </div>
+                            <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap" }}>
+                              {s.task_name     && <span style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.task_name}</span>}
+                              {s.jira_issue_key && <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.jira_issue_key}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Work Pattern */}
+                {dailyReport.work_pattern && (
+                  <div style={S.card}>
+                    <div style={S.cardTitle}>📈 Work Pattern</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                      {[
+                        { label:"First Punch",      value: dailyReport.work_pattern.first_punch ? new Date(dailyReport.work_pattern.first_punch).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—" },
+                        { label:"Last Punch",       value: dailyReport.work_pattern.last_punch  ? new Date(dailyReport.work_pattern.last_punch).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})  : "—" },
+                        { label:"Avg Session",      value: dailyReport.work_pattern.avg_session_minutes ? `${dailyReport.work_pattern.avg_session_minutes}m` : "—" },
+                        { label:"Longest Session",  value: dailyReport.work_pattern.longest_session_minutes ? `${Math.floor(dailyReport.work_pattern.longest_session_minutes/60)}h ${dailyReport.work_pattern.longest_session_minutes%60}m` : "—" },
+                        { label:"Total Sessions",   value: dailyReport.work_pattern.total_sessions ?? "—" },
+                        { label:"Break Time",       value: dailyReport.work_pattern.total_break_minutes ? `${dailyReport.work_pattern.total_break_minutes}m` : "—" },
+                      ].map(stat => (
+                        <div key={stat.label} style={{ background:"#f8fafc", borderRadius:8, padding:"10px 14px" }}>
+                          <div style={{ fontSize:11, color:"#64748b", marginBottom:3 }}>{stat.label}</div>
+                          <div style={{ fontSize:18, fontWeight:700, color:"#1e293b" }}>{stat.value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Peak Hours */}
+                    {dailyReport.peak_hours?.length > 0 && (
+                      <div style={{ marginTop:16 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:"#374151", marginBottom:8 }}>Peak Hours</div>
+                        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                          {dailyReport.peak_hours.map((p, i) => (
+                            <span key={i} style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:6, padding:"4px 12px", fontSize:12, fontWeight:600 }}>
+                              {String(p.hour).padStart(2,"0")}:00 · {p.active_minutes}m
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Productive Hours bar */}
+              {dailyReport.productive_hours && (
+                <div style={{ ...S.card, marginBottom:24 }}>
+                  <div style={S.cardTitle}>📊 Productive Hours — 24h</div>
+                  <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:72 }}>
+                    {dailyReport.productive_hours.map((h, i) => (
+                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
+                        <div style={{
+                          width:"100%",
+                          background: h.active_minutes > 30 ? "#3b82f6" : h.active_minutes > 0 ? "#bfdbfe" : "#f1f5f9",
+                          height: Math.max(3, (h.active_minutes / 60) * 60),
+                          borderRadius:"3px 3px 0 0"
+                        }} />
+                        {i % 6 === 0 && <div style={{ fontSize:9, color:"#94a3b8", marginTop:2 }}>{String(i).padStart(2,"0")}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )
+      )}
 
       {/* Week chart + Pie */}
       <div style={S.row2}>
