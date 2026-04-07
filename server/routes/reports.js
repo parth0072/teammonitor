@@ -3,7 +3,6 @@ const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { adminOnly } = require('../middleware/auth');
-const Groq   = require('groq-sdk');
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -92,6 +91,7 @@ Respond with a JSON object (no markdown, just raw JSON) with these exact fields:
 Keep tone professional but friendly. Be specific — use the actual numbers from the data.`;
 
   try {
+    const Groq = require('groq-sdk');
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     const completion = await groq.chat.completions.create({
       model: 'llama3-8b-8192',
