@@ -105,7 +105,7 @@ extension TrackingDashboardView {
                             )
                         }
                         ForEach(recentJira.prefix(2)) { issue in
-                            JiraIssueRow(issue: issue, onStart: {
+                            JiraIssueRow(issue: issue, isActive: manager.currentJiraIssue?.key == issue.key && manager.isTracking, onStart: {
                                 activeSheet = nil
                                 Task { @MainActor in
                                     if manager.isTracking { await manager.punchOut() }
@@ -243,7 +243,7 @@ extension TrackingDashboardView {
                                     || $0.projectName.localizedCaseInsensitiveContains(searchText)
                                 }
                             ForEach(filteredJira) { issue in
-                                JiraIssueRow(issue: issue, onStart: {
+                                JiraIssueRow(issue: issue, isActive: manager.currentJiraIssue?.key == issue.key && manager.isTracking, onStart: {
                                     activeSheet = nil
                                     Task { @MainActor in
                                         if manager.isTracking { await manager.punchOut() }
@@ -337,6 +337,7 @@ extension TrackingDashboardView {
 
 struct JiraIssueRow: View {
     let issue: JiraIssue
+    var isActive: Bool = false
     var onStart: (() -> Void)? = nil
 
     private var statusColor: Color {
@@ -385,7 +386,17 @@ struct JiraIssueRow: View {
                     .font(.system(size: 10, weight: .semibold)).foregroundColor(statusColor)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(statusBg).cornerRadius(8)
-                if let onStart {
+                if isActive {
+                    HStack(spacing: 5) {
+                        Circle().fill(DS.emerald).frame(width: 6, height: 6)
+                            .shadow(color: DS.emerald.opacity(0.5), radius: 4)
+                        Text("Active")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(DS.emerald)
+                    }
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(DS.emeraldLight).cornerRadius(10)
+                } else if let onStart {
                     Button(action: onStart) {
                         Image(systemName: "play.fill")
                             .font(.system(size: 10))
