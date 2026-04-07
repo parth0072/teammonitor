@@ -249,7 +249,7 @@ extension TrackingDashboardView {
                                 || $0.projectName.localizedCaseInsensitiveContains(jiraSearchText)
                             }
                             if filteredJira.isEmpty {
-                                Text("No issues match "\(jiraSearchText)"")
+                                Text("No issues match \"\(jiraSearchText)\"")
                                     .font(.system(size: 12))
                                     .foregroundColor(DS.textMuted)
                                     .frame(maxWidth: .infinity)
