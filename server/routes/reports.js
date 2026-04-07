@@ -94,6 +94,7 @@ Respond with a JSON object (no markdown, just raw JSON) with these exact fields:
 Keep tone professional but friendly. Be specific — use the actual numbers from the data.`;
 
   try {
+    console.log('[reports] Calling Groq API…');
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -108,9 +109,14 @@ Keep tone professional but friendly. Be specific — use the actual numbers from
         response_format: { type: 'json_object' },
       }),
     });
+    console.log('[reports] Groq HTTP status:', res.status);
     const data = await res.json();
+    if (!res.ok) {
+      console.error('[reports] Groq API error:', JSON.stringify(data));
+      return buildRuleSummary(data);
+    }
     const raw  = data.choices?.[0]?.message?.content?.trim() || '';
-    // Strip markdown code fences if model wraps response
+    console.log('[reports] Groq raw response:', raw.slice(0, 200));
     const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const parsed = JSON.parse(text);
     console.log('[reports] Groq AI summary generated successfully');
@@ -123,7 +129,7 @@ Keep tone professional but friendly. Be specific — use the actual numbers from
       pattern:    '',
     };
   } catch (err) {
-    console.warn('[reports] Groq fallback to rule-based:', err.message);
+    console.error('[reports] Groq fallback to rule-based:', err.message);
     return buildRuleSummary(data);
   }
 }
