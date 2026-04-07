@@ -27,7 +27,7 @@ const DATE_OPTIONS = Array.from({ length: 7 }, (_, i) => {
 
 function imgSrc(filePath) {
   if (!filePath) return null;
-  const token = sessionStorage.getItem('tm_token') || '';
+  const token = localStorage.getItem('tm_token') || '';
   return `${filePath}?token=${encodeURIComponent(token)}`;
 }
 

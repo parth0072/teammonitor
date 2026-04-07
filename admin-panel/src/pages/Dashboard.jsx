@@ -297,7 +297,7 @@ function EmployeeCard({ employee, session, lastScreenshot }) {
       <div style={{ position: "relative", height: 90, background: active ? "#F0FDF4" : C.light, overflow: "hidden" }}>
         {lastScreenshot?.file_path ? (
           <img
-            src={`${lastScreenshot.file_path}?token=${encodeURIComponent(sessionStorage.getItem("tm_token") || "")}`}
+            src={`${lastScreenshot.file_path}?token=${encodeURIComponent(localStorage.getItem("tm_token") || "")}`}
             alt="screenshot"
             style={{ width: "100%", height: "100%", objectFit: "cover", opacity: active ? 1 : 0.55 }}
           />
@@ -511,7 +511,7 @@ function EmployeeDashboard({ user }) {
               {screenshots.slice(0, 4).map(ss => (
                 <div key={ss.id} style={{ borderRadius: 8, overflow: "hidden", background: C.light, aspectRatio: "16/10" }}>
                   {ss.file_path
-                    ? <img src={`${ss.file_path}?token=${encodeURIComponent(sessionStorage.getItem("tm_token") || "")}`} alt="screenshot"
+                    ? <img src={`${ss.file_path}?token=${encodeURIComponent(localStorage.getItem("tm_token") || "")}`} alt="screenshot"
                            style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🖥</div>
                   }

@@ -59,7 +59,7 @@ function ScreenshotModal({ ss, onClose }) {
       style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, cursor:"pointer" }}>
       <div onClick={e => e.stopPropagation()} style={{ textAlign:"center" }}>
         <img
-          src={`${ss.file_path}?token=${encodeURIComponent(sessionStorage.getItem("tm_token") || "")}`}
+          src={`${ss.file_path}?token=${encodeURIComponent(localStorage.getItem("tm_token") || "")}`}
           alt="Screenshot"
           style={{ maxWidth:"90vw", maxHeight:"82vh", borderRadius:12, display:"block" }}
         />
@@ -127,7 +127,7 @@ function RecentScreenshots({ date, isAdmin }) {
               onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 4px 12px rgba(0,0,0,0.12)"; }}
               onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.07)"; }}>
               {ss.file_path
-                ? <img src={`${ss.file_path}?token=${encodeURIComponent(sessionStorage.getItem("tm_token") || "")}`} alt="ss" style={{ width:"100%", height:100, objectFit:"cover", display:"block", background:"#f1f5f9" }} />
+                ? <img src={`${ss.file_path}?token=${encodeURIComponent(localStorage.getItem("tm_token") || "")}`} alt="ss" style={{ width:"100%", height:100, objectFit:"cover", display:"block", background:"#f1f5f9" }} />
                 : <div style={{ width:"100%", height:100, background:"#f1f5f9", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28 }}>🖥</div>}
               <div style={{ padding:"8px 10px" }}>
                 <div style={{ fontSize:12, fontWeight:600, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
