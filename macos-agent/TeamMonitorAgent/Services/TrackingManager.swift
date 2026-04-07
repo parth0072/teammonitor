@@ -575,8 +575,17 @@ class TrackingManager: ObservableObject {
             guard let self else { return }
             Task { @MainActor in
                 self.trackedMinutes     += 1   // per-session (heartbeat)
-                self.todayMinutes       += 1   // all-day total (display)
                 self.heartbeatTickCount += 1
+
+                // Reset daily counter if date has changed (app ran past midnight)
+                let currentDay = dayFormatter.string(from: Date())
+                let savedDay   = UserDefaults.standard.string(forKey: kTodayDate) ?? currentDay
+                if savedDay != currentDay {
+                    TMLog("New day detected (\(savedDay) → \(currentDay)) — resetting todayMinutes")
+                    self.todayMinutes = 0
+                }
+                self.todayMinutes += 1   // all-day total (display)
+
                 self.saveSessionState()
                 self.saveTodayMinutes()
 

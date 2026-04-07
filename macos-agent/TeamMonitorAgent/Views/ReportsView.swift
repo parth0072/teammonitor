@@ -219,8 +219,14 @@ struct ReportsView: View {
     func loadData() async {
         isLoading = true
         let dateStr = DateFormatter().then { $0.dateFormat = "yyyy-MM-dd" }.string(from: selectedDate)
-        report    = try? await api.getDailyReport(date: dateStr)
-        loadError = report == nil ? "Could not load report" : nil
+        do {
+            report    = try await api.getDailyReport(date: dateStr)
+            loadError = nil
+        } catch {
+            TMLog("Report API failed for \(dateStr): \(error)")
+            report    = nil
+            loadError = "Could not load report: \(error.localizedDescription)"
+        }
         isLoading = false
     }
 }
