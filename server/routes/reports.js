@@ -3,6 +3,7 @@ const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { adminOnly } = require('../middleware/auth');
+const Groq   = require('groq-sdk');
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -20,46 +21,99 @@ function fmtDuration(mins) {
   return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
 }
 
-function buildAiSummary({ totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent }) {
+function buildRuleSummary({ totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent }) {
   const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
   const topApp     = topApps[0];
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
-  // Summary paragraph
   const hrsStr   = fmtDuration(totalTrackedMinutes);
   const sessWord = sessions.length === 1 ? 'session' : 'sessions';
   const summary  = `You tracked ${hrsStr} across ${sessions.length} ${sessWord} today. ` +
     `Your productive ratio was ${productivePercent}%, ` +
     (productivePercent >= 60 ? 'above' : 'below') + ' the typical 60% benchmark.';
 
-  // Top app
   const topAppText = topApp
     ? `Most time was spent in ${topApp.app_name} — ${fmtDuration(Math.round(topApp.total_seconds / 60))} ` +
       `(${totalTrackedMinutes > 0 ? Math.round(topApp.total_seconds / 60 * 100 / totalTrackedMinutes) : 0}% of tracked time).`
     : 'No app usage data recorded.';
 
-  // Peak hour
   const peakMins    = Math.round(hourBuckets[peakHour] / 60);
   const peakHourStr = hourLabel(peakHour);
   const peakText    = hourBuckets[peakHour] > 0
     ? `Peak hour was ${peakHourStr} with ${peakMins} minutes of activity. Schedule important work in this window.`
     : 'No hourly data available.';
 
-  // Insights
   let insights;
   if (productivePercent >= 75)      insights = 'Excellent focus today! You maintained high activity throughout your sessions.';
   else if (productivePercent >= 50) insights = 'Good productivity. Short breaks may cause natural dips — that\'s normal.';
   else if (productivePercent >= 25) insights = 'Moderate activity today. Consider time-blocking to improve focus.';
   else                               insights = 'Low activity detected. Try the Pomodoro technique: 25 min focus, 5 min break.';
 
-  // Work pattern
   let pattern = '';
   if (sessions.length > 1) {
     const avg = Math.round(totalTrackedMinutes / sessions.length);
-    pattern = `You had ${sessions.length} sessions with an average length of ${fmtDuration(avg)}. Breaking work into focused sessions is a great habit.`;
+    pattern = `You had ${sessions.length} sessions with an average length of ${fmtDuration(avg)}.`;
   }
 
   return { focusScore, summary, topAppText, peakText, insights, pattern };
+}
+
+async function buildAiSummary(data) {
+  const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent } = data;
+
+  if (!process.env.GROQ_API_KEY) return buildRuleSummary(data);
+
+  const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
+  const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
+
+  const context = `
+Employee daily work report data:
+- Total tracked time: ${fmtDuration(totalTrackedMinutes)}
+- Active app usage: ${fmtDuration(Math.round(totalActiveSeconds / 60))}
+- Productive ratio: ${productivePercent}% (active time / tracked time)
+- Number of sessions: ${sessions.length}
+- Focus score: ${focusScore}/10
+- Top apps used: ${topApps.map(a => `${a.app_name} (${fmtDuration(Math.round(a.total_seconds / 60))})`).join(', ') || 'none'}
+- Peak activity hour: ${hourLabel(peakHour)} (${Math.round(hourBuckets[peakHour] / 60)} minutes active)
+`.trim();
+
+  const prompt = `You are a productivity coach analyzing an employee's work day. Based on this data, write a concise, encouraging, and actionable report.
+
+${context}
+
+Respond with a JSON object (no markdown, just raw JSON) with these exact fields:
+{
+  "summary": "2-3 sentence overview of the day",
+  "insights": "1-2 sentence specific observation or tip based on the data",
+  "topAppText": "1 sentence about top app usage",
+  "peakText": "1 sentence about peak hour with advice"
+}
+
+Keep tone professional but friendly. Be specific — use the actual numbers from the data.`;
+
+  try {
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const completion = await groq.chat.completions.create({
+      model: 'llama3-8b-8192',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 400,
+    });
+
+    const text = completion.choices[0]?.message?.content?.trim() || '';
+    const parsed = JSON.parse(text);
+    return {
+      focusScore,
+      summary:    parsed.summary    || '',
+      insights:   parsed.insights   || '',
+      topAppText: parsed.topAppText || '',
+      peakText:   parsed.peakText   || '',
+      pattern:    '',
+    };
+  } catch (err) {
+    console.warn('[reports] Groq fallback to rule-based:', err.message);
+    return buildRuleSummary(data);
+  }
 }
 
 async function buildReport(employeeId, date) {
@@ -134,7 +188,7 @@ async function buildReport(employeeId, date) {
   };
 
   // AI summary
-  const ai_summary = buildAiSummary({
+  const ai_summary = await buildAiSummary({
     totalTrackedMinutes,
     totalActiveSeconds,
     sessions: activeSessions,
