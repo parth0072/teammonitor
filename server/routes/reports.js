@@ -104,7 +104,8 @@ Keep tone professional but friendly. Be specific — use the actual numbers from
         model: 'llama3-8b-8192',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
-        max_tokens: 400,
+        max_tokens: 800,
+        response_format: { type: 'json_object' },
       }),
     });
     const data = await res.json();
