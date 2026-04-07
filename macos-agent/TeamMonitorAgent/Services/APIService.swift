@@ -290,6 +290,12 @@ struct DailyReport: Decodable {
 
 // MARK: - APIService
 
+enum RefreshResult {
+    case success(EmployeeInfo)
+    case unauthorized   // 401 — token invalid, must logout
+    case networkError   // timeout / no internet — keep token
+}
+
 class APIService: ObservableObject {
     static let shared = APIService()
 
@@ -326,24 +332,23 @@ class APIService: ObservableObject {
         return resp.employee
     }
 
-    /// Fetches fresh employee settings from the server and updates the local cache.
-    /// Call this before starting a session so admin-changed settings (screenshots,
-    /// idle timers, intervals) take effect without requiring a logout/login.
-    @discardableResult
-    func refreshEmployee() async -> EmployeeInfo? {
-        guard let token else { return nil }
-        guard let url = URL(string: "\(API_BASE)/auth/me") else { return nil }
+    func refreshEmployee() async -> RefreshResult {
+        guard let token else { return .unauthorized }
+        guard let url = URL(string: "\(API_BASE)/auth/me") else { return .networkError }
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        guard let (data, resp) = try? await URLSession.shared.data(for: req),
-              (resp as? HTTPURLResponse)?.statusCode == 200,
-              let emp = try? JSONDecoder().decode(EmployeeInfo.self, from: data)
-        else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req) else {
+            return .networkError   // no internet / timeout — do NOT clear token
+        }
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 401 { return .unauthorized }
+        guard status == 200, let emp = try? JSONDecoder().decode(EmployeeInfo.self, from: data)
+        else { return .networkError }
         self.employee = emp
         if let str = String(data: (try? JSONEncoder().encode(emp)) ?? Data(), encoding: .utf8) {
             Keychain.save(str, key: "employee_info")
         }
-        return emp
+        return .success(emp)
     }
 
     func logout() {

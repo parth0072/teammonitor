@@ -40,8 +40,8 @@ struct ContentView: View {
         let api = APIService.shared
         defer { isValidating = false }
         guard api.token != nil else { return }
-        if let emp = await api.refreshEmployee() {
-            // Check force update before allowing access
+        switch await api.refreshEmployee() {
+        case .success(let emp):
             if let required = emp.forceUpdateVersion {
                 let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
                 if isUpdateRequired(current: current, required: required) {
@@ -54,8 +54,12 @@ struct ContentView: View {
             auth.employeeId   = emp.id
             auth.employeeName = emp.name
             auth.email        = emp.email
-        } else {
-            api.logout()
+        case .unauthorized:
+            api.logout()   // token is genuinely invalid — clear it
+        case .networkError:
+            // No internet or server unreachable — keep token, show login
+            // so user can retry; token is preserved for next launch
+            break
         }
     }
 }
