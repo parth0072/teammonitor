@@ -91,16 +91,21 @@ Respond with a JSON object (no markdown, just raw JSON) with these exact fields:
 Keep tone professional but friendly. Be specific — use the actual numbers from the data.`;
 
   try {
-    const Groq = require('groq-sdk');
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    const completion = await groq.chat.completions.create({
-      model: 'llama3-8b-8192',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 400,
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama3-8b-8192',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 400,
+      }),
     });
-
-    const text = completion.choices[0]?.message?.content?.trim() || '';
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content?.trim() || '';
     const parsed = JSON.parse(text);
     return {
       focusScore,
