@@ -102,7 +102,7 @@ Keep tone professional but friendly. Be specific — use the actual numbers from
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama3-8b-8192',
+        model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         max_tokens: 800,
@@ -110,12 +110,12 @@ Keep tone professional but friendly. Be specific — use the actual numbers from
       }),
     });
     console.log('[reports] Groq HTTP status:', res.status);
-    const data = await res.json();
+    const groqData = await res.json();
     if (!res.ok) {
-      console.error('[reports] Groq API error:', JSON.stringify(data));
+      console.error('[reports] Groq API error:', JSON.stringify(groqData));
       return buildRuleSummary(data);
     }
-    const raw  = data.choices?.[0]?.message?.content?.trim() || '';
+    const raw  = groqData.choices?.[0]?.message?.content?.trim() || '';
     console.log('[reports] Groq raw response:', raw.slice(0, 200));
     const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const parsed = JSON.parse(text);
