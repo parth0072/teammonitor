@@ -222,20 +222,8 @@ extension TrackingDashboardView {
                                 .padding(.vertical, 16)
                                 .background(DS.surface)
                         } else {
-                            // Primary: category order (in-progress > new > done)
-                            // Secondary: within same category, "in progress" status floats first
-                            let jiraCatOrder: (String) -> Int = { cat in
-                                cat == "indeterminate" ? 0 : cat == "new" ? 1 : 2
-                            }
-                            let jiraStatusPriority: (String) -> Int = { s in
-                                s.lowercased().contains("progress") ? 0 : 1
-                            }
+                            // Server returns issues sorted by recently updated (ORDER BY updated DESC)
                             let filteredJira = jiraIssues
-                                .sorted {
-                                    let c0 = jiraCatOrder($0.statusCategory), c1 = jiraCatOrder($1.statusCategory)
-                                    if c0 != c1 { return c0 < c1 }
-                                    return jiraStatusPriority($0.status) < jiraStatusPriority($1.status)
-                                }
                                 .filter {
                                     searchText.isEmpty
                                     || $0.summary.localizedCaseInsensitiveContains(searchText)
