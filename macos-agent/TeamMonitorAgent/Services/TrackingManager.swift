@@ -148,6 +148,24 @@ class TrackingManager: ObservableObject {
         restoreSessionIfNeeded()
         loadTodayMinutes()
 
+        // Sync todayMinutes from server so the display is correct even if UserDefaults
+        // was cleared (app reinstall, new device, or date mismatch from timezone).
+        if api.token != nil {
+            Task {
+                if let serverMins = await api.getTodayMinutes() {
+                    await MainActor.run {
+                        // Only update if server reports more than local (local may be ahead
+                        // by a few minutes if the heartbeat hasn't synced yet).
+                        if serverMins > self.todayMinutes {
+                            self.todayMinutes = serverMins
+                            self.saveTodayMinutes()
+                            TMLog("[TrackingManager] Synced todayMinutes from server: \(serverMins) min")
+                        }
+                    }
+                }
+            }
+        }
+
         if !isTracking {
             stoppedTrackingAt = Date()
             scheduleNotTrackingReminder()

@@ -469,6 +469,11 @@ class APIService: ObservableObject {
         return r.reminder
     }
 
+    func getTodayMinutes() async -> Int? {
+        guard let r = try? await get("/reports/reminder") as ReminderResponse else { return nil }
+        return r.todayMinutes
+    }
+
     func createManualEntry(date: String, startTime: String, endTime: String, note: String) async throws {
         let body: [String: Any] = ["date": date, "startTime": startTime, "endTime": endTime, "note": note]
         try await post("/sessions/manual", body: body)
