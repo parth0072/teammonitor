@@ -197,20 +197,18 @@ export default function Reports() {
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <div style={S.cardTitle}>✨ AI Summary</div>
                     <div style={{
-                      background: dailyReport.ai_summary.focus_score >= 70 ? "#d1fae5" : dailyReport.ai_summary.focus_score >= 40 ? "#fef9c3" : "#fee2e2",
-                      color:      dailyReport.ai_summary.focus_score >= 70 ? "#065f46" : dailyReport.ai_summary.focus_score >= 40 ? "#854d0e" : "#991b1b",
+                      background: dailyReport.ai_summary.focusScore >= 7 ? "#d1fae5" : dailyReport.ai_summary.focusScore >= 4 ? "#fef9c3" : "#fee2e2",
+                      color:      dailyReport.ai_summary.focusScore >= 7 ? "#065f46" : dailyReport.ai_summary.focusScore >= 4 ? "#854d0e" : "#991b1b",
                       borderRadius:20, padding:"4px 14px", fontSize:13, fontWeight:700
-                    }}>Focus {dailyReport.ai_summary.focus_score}%</div>
+                    }}>Focus {dailyReport.ai_summary.focusScore}/10</div>
                   </div>
                   <p style={{ fontSize:14, color:"#1e293b", marginBottom:12, lineHeight:1.6 }}>{dailyReport.ai_summary.summary}</p>
-                  {dailyReport.ai_summary.insights?.length > 0 && (
-                    <ul style={{ margin:0, paddingLeft:20, fontSize:13, color:"#475569", lineHeight:1.8 }}>
-                      {dailyReport.ai_summary.insights.map((ins, i) => <li key={i}>{ins}</li>)}
-                    </ul>
+                  {dailyReport.ai_summary.insights && (
+                    <p style={{ fontSize:13, color:"#475569", lineHeight:1.7, marginBottom:8 }}>{dailyReport.ai_summary.insights}</p>
                   )}
-                  <div style={{ display:"flex", gap:16, marginTop:12, flexWrap:"wrap" }}>
-                    {dailyReport.ai_summary.top_app_text && <span style={{ fontSize:13, color:"#64748b" }}>{dailyReport.ai_summary.top_app_text}</span>}
-                    {dailyReport.ai_summary.peak_text    && <span style={{ fontSize:13, color:"#64748b" }}>{dailyReport.ai_summary.peak_text}</span>}
+                  <div style={{ display:"flex", gap:16, marginTop:4, flexWrap:"wrap" }}>
+                    {dailyReport.ai_summary.topAppText && <span style={{ fontSize:13, color:"#64748b" }}>{dailyReport.ai_summary.topAppText}</span>}
+                    {dailyReport.ai_summary.peakText   && <span style={{ fontSize:13, color:"#64748b" }}>{dailyReport.ai_summary.peakText}</span>}
                   </div>
                 </div>
               )}
@@ -250,12 +248,11 @@ export default function Reports() {
                     <div style={S.cardTitle}>📈 Work Pattern</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                       {[
-                        { label:"First Punch",      value: dailyReport.work_pattern.first_punch ? new Date(dailyReport.work_pattern.first_punch).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—" },
-                        { label:"Last Punch",       value: dailyReport.work_pattern.last_punch  ? new Date(dailyReport.work_pattern.last_punch).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})  : "—" },
+                        { label:"First Punch",      value: dailyReport.work_pattern.first_punch_in  ? new Date(dailyReport.work_pattern.first_punch_in).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})  : "—" },
+                        { label:"Last Punch",       value: dailyReport.work_pattern.last_punch_out ? new Date(dailyReport.work_pattern.last_punch_out).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—" },
                         { label:"Avg Session",      value: dailyReport.work_pattern.avg_session_minutes ? `${dailyReport.work_pattern.avg_session_minutes}m` : "—" },
                         { label:"Longest Session",  value: dailyReport.work_pattern.longest_session_minutes ? `${Math.floor(dailyReport.work_pattern.longest_session_minutes/60)}h ${dailyReport.work_pattern.longest_session_minutes%60}m` : "—" },
                         { label:"Total Sessions",   value: dailyReport.work_pattern.total_sessions ?? "—" },
-                        { label:"Break Time",       value: dailyReport.work_pattern.total_break_minutes ? `${dailyReport.work_pattern.total_break_minutes}m` : "—" },
                       ].map(stat => (
                         <div key={stat.label} style={{ background:"#f8fafc", borderRadius:8, padding:"10px 14px" }}>
                           <div style={{ fontSize:11, color:"#64748b", marginBottom:3 }}>{stat.label}</div>

@@ -639,20 +639,18 @@ export default function EmployeeDetail() {
                 <div style={S.card}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <div style={S.cardTitle}>✨ AI Summary</div>
-                    <div style={{ background: report.ai_summary.focus_score >= 70 ? "#d1fae5" : report.ai_summary.focus_score >= 40 ? "#fef9c3" : "#fee2e2",
-                                  color:      report.ai_summary.focus_score >= 70 ? "#065f46" : report.ai_summary.focus_score >= 40 ? "#854d0e" : "#991b1b",
+                    <div style={{ background: report.ai_summary.focusScore >= 7 ? "#d1fae5" : report.ai_summary.focusScore >= 4 ? "#fef9c3" : "#fee2e2",
+                                  color:      report.ai_summary.focusScore >= 7 ? "#065f46" : report.ai_summary.focusScore >= 4 ? "#854d0e" : "#991b1b",
                                   borderRadius:20, padding:"4px 14px", fontSize:13, fontWeight:700 }}>
-                      Focus {report.ai_summary.focus_score}%
+                      Focus {report.ai_summary.focusScore}/10
                     </div>
                   </div>
                   <p style={{ fontSize:14, color:"#1e293b", marginBottom:12, lineHeight:1.6 }}>{report.ai_summary.summary}</p>
-                  {report.ai_summary.insights && report.ai_summary.insights.length > 0 && (
-                    <ul style={{ margin:0, paddingLeft:20, fontSize:13, color:"#475569", lineHeight:1.8 }}>
-                      {report.ai_summary.insights.map((ins, i) => <li key={i}>{ins}</li>)}
-                    </ul>
+                  {report.ai_summary.insights && (
+                    <p style={{ fontSize:13, color:"#475569", lineHeight:1.7, marginBottom:8 }}>{report.ai_summary.insights}</p>
                   )}
-                  {report.ai_summary.top_app_text && <p style={{ fontSize:13, color:"#64748b", marginTop:10 }}>{report.ai_summary.top_app_text}</p>}
-                  {report.ai_summary.peak_text     && <p style={{ fontSize:13, color:"#64748b", marginTop:4  }}>{report.ai_summary.peak_text}</p>}
+                  {report.ai_summary.topAppText && <p style={{ fontSize:13, color:"#64748b", marginTop:4 }}>{report.ai_summary.topAppText}</p>}
+                  {report.ai_summary.peakText   && <p style={{ fontSize:13, color:"#64748b", marginTop:4 }}>{report.ai_summary.peakText}</p>}
                 </div>
               )}
 
@@ -714,12 +712,11 @@ export default function EmployeeDetail() {
                   <div style={S.cardTitle}>📈 Work Pattern</div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:16 }}>
                     {[
-                      { label:"First Punch",     value: report.work_pattern.first_punch ? new Date(report.work_pattern.first_punch).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—" },
-                      { label:"Last Punch",      value: report.work_pattern.last_punch  ? new Date(report.work_pattern.last_punch).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})  : "—" },
+                      { label:"First Punch",     value: report.work_pattern.first_punch_in  ? new Date(report.work_pattern.first_punch_in).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})  : "—" },
+                      { label:"Last Punch",      value: report.work_pattern.last_punch_out ? new Date(report.work_pattern.last_punch_out).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—" },
                       { label:"Avg Session",     value: report.work_pattern.avg_session_minutes ? `${report.work_pattern.avg_session_minutes}m` : "—" },
                       { label:"Longest Session", value: report.work_pattern.longest_session_minutes ? `${Math.floor(report.work_pattern.longest_session_minutes/60)}h ${report.work_pattern.longest_session_minutes%60}m` : "—" },
                       { label:"Total Sessions",  value: report.work_pattern.total_sessions ?? "—" },
-                      { label:"Break Time",      value: report.work_pattern.total_break_minutes ? `${report.work_pattern.total_break_minutes}m` : "—" },
                     ].map(stat => (
                       <div key={stat.label} style={{ background:"#f8fafc", borderRadius:8, padding:"12px 16px" }}>
                         <div style={{ fontSize:11, color:"#64748b", marginBottom:4 }}>{stat.label}</div>
