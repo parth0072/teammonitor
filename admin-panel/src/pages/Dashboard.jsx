@@ -268,11 +268,11 @@ function ChartTooltip({ active, payload, label }) {
 
 // ── Enhanced Employee Card ────────────────────────────────────────────────────
 
-function EmployeeCard({ employee, session, lastScreenshot }) {
+function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot }) {
   const active  = session?.status === "active";
   const done    = session && !active;
   const color   = avatarColor(employee.name);
-  const timeToday   = fmtHM(session?.total_minutes || 0);
+  const timeToday   = fmtHM(totalMinsToday);
   const punchInStr  = session?.punch_in ? format(new Date(session.punch_in), "h:mm a") : null;
 
   const statusColor = active ? C.green : done ? C.muted : C.amber;
@@ -593,7 +593,14 @@ function AdminDashboard() {
   const doneCount    = sessions.filter(s => s.status !== "active").length;
   const absentCount  = Math.max(0, employees.length - sessions.length);
   const totalMins    = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
-  const avgMins      = sessions.length ? totalMins / sessions.length : 0;
+
+  // sum all sessions per employee for accurate daily total
+  const totalMinsByEmp = {};
+  sessions.forEach(s => {
+    totalMinsByEmp[s.employee_id] = (totalMinsByEmp[s.employee_id] || 0) + (s.total_minutes || 0);
+  });
+  const activeEmpCount = Object.keys(totalMinsByEmp).length;
+  const avgMins        = activeEmpCount ? totalMins / activeEmpCount : 0;
 
   const sessionByEmp = {};
   sessions.forEach(s => {
@@ -719,6 +726,7 @@ function AdminDashboard() {
                 key={emp.id}
                 employee={emp}
                 session={sessionByEmp[emp.id]}
+                totalMinsToday={totalMinsByEmp[emp.id] || 0}
                 lastScreenshot={screenshotByEmp[emp.id]}
               />
             ))}
