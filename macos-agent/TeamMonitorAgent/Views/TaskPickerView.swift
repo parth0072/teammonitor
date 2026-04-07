@@ -8,6 +8,8 @@ struct TaskPickerView: View {
     let onPick:      (TaskItem?) -> Void
     let onPickJira:  ((JiraIssue) -> Void)?
 
+    @State private var searchText: String = ""
+
     init(tasks: [TaskItem], jiraIssues: [JiraIssue] = [], onPick: @escaping (TaskItem?) -> Void, onPickJira: ((JiraIssue) -> Void)? = nil) {
         self.tasks      = tasks
         self.jiraIssues = jiraIssues
@@ -16,6 +18,23 @@ struct TaskPickerView: View {
     }
 
     private var activeTasks: [TaskItem] { tasks.filter { $0.status != "done" } }
+
+    private var filteredTasks: [TaskItem] {
+        guard !searchText.isEmpty else { return activeTasks }
+        return activeTasks.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.projectName.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    private var filteredJira: [JiraIssue] {
+        guard !searchText.isEmpty else { return jiraIssues }
+        return jiraIssues.filter {
+            $0.summary.localizedCaseInsensitiveContains(searchText) ||
+            $0.key.localizedCaseInsensitiveContains(searchText) ||
+            $0.projectName.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,14 +53,34 @@ struct TaskPickerView: View {
             .background(Color.white)
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "e5e7eb")), alignment: .bottom)
 
+            // Search bar
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(hex: "9ca3af"))
+                TextField("Search tasks or Jira issues…", text: $searchText)
+                    .font(.system(size: 13))
+                    .textFieldStyle(.plain)
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(hex: "9ca3af"))
+                    }.buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .background(Color(hex: "f9fafb"))
+            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "e5e7eb")), alignment: .bottom)
+
             ScrollView {
                 LazyVStack(spacing: 0) {
                     // ── TeamMonitor tasks ─────────────────────────────────
-                    if !activeTasks.isEmpty {
+                    if !filteredTasks.isEmpty {
                         if !jiraIssues.isEmpty {
                             sectionHeader("My Tasks")
                         }
-                        ForEach(activeTasks) { task in
+                        ForEach(filteredTasks) { task in
                             Button { onPick(task) } label: {
                                 HStack(spacing: 12) {
                                     RoundedRectangle(cornerRadius: 2)
@@ -69,9 +108,9 @@ struct TaskPickerView: View {
                     }
 
                     // ── Jira issues ───────────────────────────────────────
-                    if !jiraIssues.isEmpty {
-                        sectionHeader("Jira Issues")
-                        ForEach(jiraIssues) { issue in
+                    if !filteredJira.isEmpty {
+                        sectionHeader("Jira Issues  ·  Most Recently Updated")
+                        ForEach(filteredJira) { issue in
                             Button { onPickJira?(issue) } label: {
                                 HStack(spacing: 12) {
                                     RoundedRectangle(cornerRadius: 2)
@@ -111,12 +150,12 @@ struct TaskPickerView: View {
                     }
 
                     // Empty state
-                    if activeTasks.isEmpty && jiraIssues.isEmpty {
+                    if filteredTasks.isEmpty && filteredJira.isEmpty {
                         VStack(spacing: 8) {
-                            Image(systemName: "checklist")
+                            Image(systemName: searchText.isEmpty ? "checklist" : "magnifyingglass")
                                 .font(.system(size: 28))
                                 .foregroundColor(Color(hex: "d1d5db"))
-                            Text("No tasks assigned to you")
+                            Text(searchText.isEmpty ? "No tasks assigned to you" : "No results for \"\(searchText)\"")
                                 .font(.system(size: 13))
                                 .foregroundColor(Color(hex: "9ca3af"))
                         }
@@ -127,7 +166,7 @@ struct TaskPickerView: View {
             }
             .background(Color(hex: "f9fafb"))
         }
-        .frame(width: 400, height: 420)
+        .frame(width: 440, height: 460)
     }
 
     private func sectionHeader(_ title: String) -> some View {

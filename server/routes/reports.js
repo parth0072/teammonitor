@@ -120,7 +120,7 @@ async function saveMemory(employeeId, date, { totalTrackedMinutes, productivePer
 
 async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   const [sessions] = await db.query(
-    `SELECT s.id, s.punch_in, s.punch_out, s.total_minutes, s.status,
+    `SELECT s.id, s.date, s.punch_in, s.punch_out, s.total_minutes, s.status,
             t.name AS task_name, s.jira_issue_key
      FROM sessions s LEFT JOIN tasks t ON s.task_id = t.id
      WHERE s.employee_id = ? AND s.date = ? ORDER BY s.punch_in ASC`,
@@ -128,7 +128,7 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   );
 
   const [actLogs] = await db.query(
-    `SELECT app_name, window_title, start_time, end_time, duration_seconds
+    `SELECT id, app_name, window_title, start_time, end_time, duration_seconds
      FROM activity_logs WHERE employee_id = ? AND date = ? ORDER BY start_time ASC`,
     [employeeId, date]
   );
