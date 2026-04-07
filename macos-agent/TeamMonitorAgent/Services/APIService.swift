@@ -453,6 +453,22 @@ class APIService: ObservableObject {
         try await get("/reports/daily?date=\(date)")
     }
 
+    struct ReminderResponse: Decodable {
+        let reminder:     String?
+        let todayMinutes: Int?
+        let avgMinutes:   Int?
+        enum CodingKeys: String, CodingKey {
+            case reminder
+            case todayMinutes = "today_minutes"
+            case avgMinutes   = "avg_minutes"
+        }
+    }
+
+    func getDailyReminder() async -> String? {
+        guard let r = try? await get("/reports/reminder") as ReminderResponse else { return nil }
+        return r.reminder
+    }
+
     func createManualEntry(date: String, startTime: String, endTime: String, note: String) async throws {
         let body: [String: Any] = ["date": date, "startTime": startTime, "endTime": endTime, "note": note]
         try await post("/sessions/manual", body: body)

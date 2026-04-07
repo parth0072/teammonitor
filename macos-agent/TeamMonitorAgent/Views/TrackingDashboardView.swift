@@ -144,6 +144,9 @@ struct TrackingDashboardView: View {
         .onChange(of: manager.showSlowWorkAlert) { alert in
             if alert { showToast("Low activity detected — are you still working?", warning: true) }
         }
+        .onChange(of: manager.reminderMessage) { msg in
+            if let msg { showToast(msg, warning: true) }
+        }
         .onChange(of: manager.trackedMinutes) { mins in
             if mins > 0 && mins % 30 == 0 && APIService.shared.employee?.breakEnabled == true {
                 showToast("You've been working \(mins / 60)h \(mins % 60)m — remember to take a break!", warning: false)

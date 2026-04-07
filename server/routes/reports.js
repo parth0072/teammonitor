@@ -1,10 +1,10 @@
-// routes/reports.js – comprehensive daily report (punch log, patterns, AI summary)
+// routes/reports.js – daily/team reports, AI summaries, chatbot, AI memory
 const router = require('express').Router();
 const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { adminOnly } = require('../middleware/auth');
 
-// ── helpers ─────────────────────────────────────────────────────────────────
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 function hourLabel(h) {
   const ampm = h < 12 ? 'AM' : 'PM';
@@ -20,140 +20,119 @@ function fmtDuration(mins) {
   return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
 }
 
-function buildRuleSummary({ totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent }) {
+async function callGroq(prompt, { json = true, maxTokens = 800 } = {}) {
+  if (!process.env.GROQ_API_KEY) return null;
+  const body = {
+    model: 'llama-3.1-8b-instant',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7,
+    max_tokens: maxTokens,
+  };
+  if (json) body.response_format = { type: 'json_object' };
+  const res  = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) { console.error('[groq] error:', JSON.stringify(data)); return null; }
+  const raw  = data.choices?.[0]?.message?.content?.trim() || '';
+  return raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+}
+
+// ── rule-based fallback ───────────────────────────────────────────────────────
+
+function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets, productivePercent }) {
   const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
   const topApp     = topApps[0];
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
-  const hrsStr   = fmtDuration(totalTrackedMinutes);
-  const sessWord = sessions.length === 1 ? 'session' : 'sessions';
-  const summary  = `You tracked ${hrsStr} across ${sessions.length} ${sessWord} today. ` +
-    `Your productive ratio was ${productivePercent}%, ` +
-    (productivePercent >= 60 ? 'above' : 'below') + ' the typical 60% benchmark.';
+  const sessWord  = sessions.length === 1 ? 'session' : 'sessions';
+  const summary   = `Tracked ${fmtDuration(totalTrackedMinutes)} across ${sessions.length} ${sessWord}. ` +
+    `Productive ratio: ${productivePercent}% (${productivePercent >= 60 ? 'above' : 'below'} the 60% benchmark).`;
 
   const topAppText = topApp
-    ? `Most time was spent in ${topApp.app_name} — ${fmtDuration(Math.round(topApp.total_seconds / 60))} ` +
-      `(${totalTrackedMinutes > 0 ? Math.round(topApp.total_seconds / 60 * 100 / totalTrackedMinutes) : 0}% of tracked time).`
-    : 'No app usage data recorded.';
+    ? `Most time in ${topApp.app_name} — ${fmtDuration(Math.round(topApp.total_seconds / 60))}.`
+    : 'No app usage recorded.';
 
-  const peakMins    = Math.round(hourBuckets[peakHour] / 60);
-  const peakHourStr = hourLabel(peakHour);
-  const peakText    = hourBuckets[peakHour] > 0
-    ? `Peak hour was ${peakHourStr} with ${peakMins} minutes of activity. Schedule important work in this window.`
+  const peakText = hourBuckets[peakHour] > 0
+    ? `Peak hour: ${hourLabel(peakHour)} with ${Math.round(hourBuckets[peakHour] / 60)} min active.`
     : 'No hourly data available.';
 
-  let insights;
-  if (productivePercent >= 75)      insights = 'Excellent focus today! You maintained high activity throughout your sessions.';
-  else if (productivePercent >= 50) insights = 'Good productivity. Short breaks may cause natural dips — that\'s normal.';
-  else if (productivePercent >= 25) insights = 'Moderate activity today. Consider time-blocking to improve focus.';
-  else                               insights = 'Low activity detected. Try the Pomodoro technique: 25 min focus, 5 min break.';
+  const insights = productivePercent >= 75 ? 'Excellent focus today!' :
+    productivePercent >= 50 ? 'Good productivity. Short breaks are normal.' :
+    productivePercent >= 25 ? 'Moderate activity. Try time-blocking.' :
+    'Low activity. Try the Pomodoro technique.';
 
-  let pattern = '';
-  if (sessions.length > 1) {
-    const avg = Math.round(totalTrackedMinutes / sessions.length);
-    pattern = `You had ${sessions.length} sessions with an average length of ${fmtDuration(avg)}.`;
-  }
-
-  return { focusScore, summary, topAppText, peakText, insights, pattern };
+  return { focusScore, summary, topAppText, peakText, insights, pattern: '' };
 }
+
+// ── AI summary (individual) ───────────────────────────────────────────────────
 
 async function buildAiSummary(data) {
   const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent } = data;
-
-  if (!process.env.GROQ_API_KEY) {
-    console.warn('[reports] GROQ_API_KEY not set — using rule-based summary');
-    return buildRuleSummary(data);
-  }
-
   const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
-  const context = `
-Employee daily work report data:
-- Total tracked time: ${fmtDuration(totalTrackedMinutes)}
-- Active app usage: ${fmtDuration(Math.round(totalActiveSeconds / 60))}
-- Productive ratio: ${productivePercent}% (active time / tracked time)
-- Number of sessions: ${sessions.length}
+  if (!process.env.GROQ_API_KEY) return buildRuleSummary(data);
+
+  const prompt = `You are a productivity coach. Analyze this employee's work day and give concise, encouraging feedback.
+
+Data:
+- Tracked: ${fmtDuration(totalTrackedMinutes)} across ${sessions.length} session(s)
+- Active app time: ${fmtDuration(Math.round(totalActiveSeconds / 60))}
+- Productive ratio: ${productivePercent}%
 - Focus score: ${focusScore}/10
-- Top apps used: ${topApps.map(a => `${a.app_name} (${fmtDuration(Math.round(a.total_seconds / 60))})`).join(', ') || 'none'}
-- Peak activity hour: ${hourLabel(peakHour)} (${Math.round(hourBuckets[peakHour] / 60)} minutes active)
-`.trim();
+- Top apps: ${topApps.map(a => `${a.app_name} (${fmtDuration(Math.round(a.total_seconds / 60))})`).join(', ') || 'none'}
+- Peak hour: ${hourLabel(peakHour)} (${Math.round(hourBuckets[peakHour] / 60)} min active)
 
-  const prompt = `You are a productivity coach analyzing an employee's work day. Based on this data, write a concise, encouraging, and actionable report.
-
-${context}
-
-Respond with a JSON object (no markdown, just raw JSON) with these exact fields:
-{
-  "summary": "2-3 sentence overview of the day",
-  "insights": "1-2 sentence specific observation or tip based on the data",
-  "topAppText": "1 sentence about top app usage",
-  "peakText": "1 sentence about peak hour with advice"
-}
-
-Keep tone professional but friendly. Be specific — use the actual numbers from the data.`;
+Respond with JSON: { "summary": "2-3 sentences", "insights": "1-2 sentences tip", "topAppText": "1 sentence", "peakText": "1 sentence" }`;
 
   try {
-    console.log('[reports] Calling Groq API…');
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 800,
-        response_format: { type: 'json_object' },
-      }),
-    });
-    console.log('[reports] Groq HTTP status:', res.status);
-    const groqData = await res.json();
-    if (!res.ok) {
-      console.error('[reports] Groq API error:', JSON.stringify(groqData));
-      return buildRuleSummary(data);
-    }
-    const raw  = groqData.choices?.[0]?.message?.content?.trim() || '';
-    console.log('[reports] Groq raw response:', raw.slice(0, 200));
-    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-    const parsed = JSON.parse(text);
-    console.log('[reports] Groq AI summary generated successfully');
-    return {
-      focusScore,
-      summary:    parsed.summary    || '',
-      insights:   parsed.insights   || '',
-      topAppText: parsed.topAppText || '',
-      peakText:   parsed.peakText   || '',
-      pattern:    '',
-    };
+    const text = await callGroq(prompt);
+    if (!text) return buildRuleSummary(data);
+    const p = JSON.parse(text);
+    console.log('[reports] AI summary OK');
+    return { focusScore, summary: p.summary || '', insights: p.insights || '', topAppText: p.topAppText || '', peakText: p.peakText || '', pattern: '' };
   } catch (err) {
-    console.error('[reports] Groq fallback to rule-based:', err.message);
+    console.error('[reports] AI summary fallback:', err.message);
     return buildRuleSummary(data);
   }
 }
 
-async function buildReport(employeeId, date) {
-  // 1. Punch log — sessions with task/jira info
+// ── save to AI memory ─────────────────────────────────────────────────────────
+
+async function saveMemory(employeeId, date, { totalTrackedMinutes, productivePercent, focusScore, aiNotes }) {
+  try {
+    await db.query(
+      `INSERT INTO employee_daily_memory (employee_id, date, total_minutes, productive_percent, focus_score, ai_notes)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE total_minutes=VALUES(total_minutes), productive_percent=VALUES(productive_percent),
+         focus_score=VALUES(focus_score), ai_notes=VALUES(ai_notes)`,
+      [employeeId, date, totalTrackedMinutes, productivePercent, focusScore, aiNotes || null]
+    );
+  } catch (err) {
+    console.warn('[memory] save failed:', err.message);
+  }
+}
+
+// ── build full report ─────────────────────────────────────────────────────────
+
+async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   const [sessions] = await db.query(
     `SELECT s.id, s.punch_in, s.punch_out, s.total_minutes, s.status,
             t.name AS task_name, s.jira_issue_key
-     FROM sessions s
-     LEFT JOIN tasks t ON s.task_id = t.id
-     WHERE s.employee_id = ? AND s.date = ?
-     ORDER BY s.punch_in ASC`,
+     FROM sessions s LEFT JOIN tasks t ON s.task_id = t.id
+     WHERE s.employee_id = ? AND s.date = ? ORDER BY s.punch_in ASC`,
     [employeeId, date]
   );
 
-  // 2. Activity per hour
   const [actLogs] = await db.query(
     `SELECT app_name, window_title, start_time, end_time, duration_seconds
      FROM activity_logs WHERE employee_id = ? AND date = ? ORDER BY start_time ASC`,
     [employeeId, date]
   );
 
-  // 3. App usage summary
   const [topApps] = await db.query(
     `SELECT app_name, SUM(duration_seconds) AS total_seconds
      FROM activity_logs WHERE employee_id = ? AND date = ?
@@ -161,7 +140,6 @@ async function buildReport(employeeId, date) {
     [employeeId, date]
   );
 
-  // Build 24-bucket hourly breakdown
   const hourBuckets = new Array(24).fill(0);
   for (const log of actLogs) {
     const h = new Date(log.start_time).getHours();
@@ -169,60 +147,53 @@ async function buildReport(employeeId, date) {
   }
 
   const productive_hours = hourBuckets.map((seconds, hour) => ({
-    hour,
-    label: hourLabel(hour),
+    hour, label: hourLabel(hour),
     active_seconds: seconds,
     active_minutes: Math.round(seconds / 60),
   }));
 
-  // Peak hours — top 3
   const peak_hours = [...productive_hours]
     .filter(h => h.active_seconds > 0)
     .sort((a, b) => b.active_seconds - a.active_seconds)
     .slice(0, 3)
     .map((h, i) => ({ rank: i + 1, ...h }));
 
-  // Work pattern
   const totalTrackedMinutes = sessions.reduce((s, r) => s + (r.total_minutes || 0), 0);
   const totalActiveSeconds  = actLogs.reduce((s, r) => s + (r.duration_seconds || 0), 0);
   const productivePercent   = totalTrackedMinutes > 0
-    ? Math.min(100, Math.round(totalActiveSeconds / (totalTrackedMinutes * 60) * 100))
-    : 0;
+    ? Math.min(100, Math.round(totalActiveSeconds / (totalTrackedMinutes * 60) * 100)) : 0;
 
-  const activeSessions  = sessions.filter(s => s.status === 'active' || s.total_minutes > 0);
-  const punchInTimes    = activeSessions.map(s => new Date(s.punch_in));
-  const punchOutTimes   = activeSessions.filter(s => s.punch_out).map(s => new Date(s.punch_out));
-  const firstPunchIn    = punchInTimes.length  ? new Date(Math.min(...punchInTimes))  : null;
-  const lastPunchOut    = punchOutTimes.length ? new Date(Math.max(...punchOutTimes)) : null;
-  const avgSessionMins  = activeSessions.length ? Math.round(totalTrackedMinutes / activeSessions.length) : 0;
-  const longestSession  = activeSessions.reduce((m, s) => s.total_minutes > (m?.total_minutes || 0) ? s : m, null);
+  const activeSessions = sessions.filter(s => s.status === 'active' || s.total_minutes > 0);
+  const punchInTimes   = activeSessions.map(s => new Date(s.punch_in));
+  const punchOutTimes  = activeSessions.filter(s => s.punch_out).map(s => new Date(s.punch_out));
 
   const work_pattern = {
-    first_punch_in:         firstPunchIn,
-    last_punch_out:         lastPunchOut,
-    total_sessions:         sessions.length,
-    avg_session_minutes:    avgSessionMins,
-    longest_session_minutes: longestSession?.total_minutes || 0,
+    first_punch_in:          punchInTimes.length  ? new Date(Math.min(...punchInTimes))  : null,
+    last_punch_out:          punchOutTimes.length ? new Date(Math.max(...punchOutTimes)) : null,
+    total_sessions:          sessions.length,
+    avg_session_minutes:     activeSessions.length ? Math.round(totalTrackedMinutes / activeSessions.length) : 0,
+    longest_session_minutes: activeSessions.reduce((m, s) => Math.max(m, s.total_minutes || 0), 0),
   };
 
-  // AI summary
-  const ai_summary = await buildAiSummary({
-    totalTrackedMinutes,
-    totalActiveSeconds,
-    sessions: activeSessions,
-    topApps,
-    hourBuckets,
-    productivePercent,
-  });
+  const ai_summary = await buildAiSummary({ totalTrackedMinutes, totalActiveSeconds, sessions: activeSessions, topApps, hourBuckets, productivePercent });
+
+  if (saveToMemory) {
+    await saveMemory(employeeId, date, {
+      totalTrackedMinutes,
+      productivePercent,
+      focusScore: ai_summary.focusScore,
+      aiNotes: ai_summary.insights,
+    });
+  }
 
   return {
     date,
     total_tracked_minutes: totalTrackedMinutes,
     total_active_seconds:  totalActiveSeconds,
     productive_percent:    productivePercent,
-    punch_log:       sessions,
-    top_apps:        topApps,
-    activity_logs:   actLogs.slice(0, 50),   // capped for payload size
+    punch_log: sessions,
+    top_apps:  topApps,
+    activity_logs:   actLogs.slice(0, 50),
     productive_hours,
     peak_hours,
     work_pattern,
@@ -230,59 +201,238 @@ async function buildReport(employeeId, date) {
   };
 }
 
-// GET /api/reports/daily?date=YYYY-MM-DD  (employee — own report)
+// ── routes: individual reports ────────────────────────────────────────────────
+
 router.get('/daily', auth, async (req, res) => {
   try {
-    const date = req.query.date || new Date().toISOString().slice(0, 10);
-    const report = await buildReport(req.user.id, date);
+    const date   = req.query.date || new Date().toISOString().slice(0, 10);
+    const report = await buildReport(req.user.id, date, { saveToMemory: true });
     res.json(report);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/reports/daily/employee?employeeId=&date=  (admin)
 router.get('/daily/employee', auth, adminOnly, async (req, res) => {
   try {
     const { employeeId, date } = req.query;
     if (!employeeId) return res.status(400).json({ error: 'employeeId required' });
     const targetDate = date || new Date().toISOString().slice(0, 10);
-    const report = await buildReport(employeeId, targetDate);
+    const report = await buildReport(employeeId, targetDate, { saveToMemory: true });
     res.json(report);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/reports/weekly?days=7  (employee — own week summary)
 router.get('/weekly', auth, async (req, res) => {
   try {
     const days   = Math.min(parseInt(req.query.days || '7'), 30);
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days + 1);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
-
     const [rows] = await db.query(
-      `SELECT
-         s.date,
-         SUM(s.total_minutes) AS total_minutes,
-         COUNT(DISTINCT s.id) AS session_count,
-         COALESCE(SUM(a.duration_seconds), 0) AS active_seconds
+      `SELECT s.date, SUM(s.total_minutes) AS total_minutes,
+              COUNT(DISTINCT s.id) AS session_count,
+              COALESCE(SUM(a.duration_seconds), 0) AS active_seconds
        FROM sessions s
        LEFT JOIN activity_logs a ON a.employee_id = s.employee_id AND a.date = s.date
        WHERE s.employee_id = ? AND s.date >= ?
        GROUP BY s.date ORDER BY s.date ASC`,
-      [req.user.id, cutoffStr]
+      [req.user.id, cutoff.toISOString().slice(0, 10)]
+    );
+    res.json(rows.map(r => ({
+      date:               r.date,
+      total_minutes:      r.total_minutes || 0,
+      session_count:      r.session_count,
+      active_seconds:     r.active_seconds || 0,
+      productive_percent: r.total_minutes > 0
+        ? Math.min(100, Math.round((r.active_seconds / (r.total_minutes * 60)) * 100)) : 0,
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── team report ───────────────────────────────────────────────────────────────
+
+router.get('/team', auth, adminOnly, async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+
+    // All active employees
+    const [employees] = await db.query(`SELECT id, name FROM employees WHERE is_active = 1`);
+
+    // Per-employee sessions + activity for the date
+    const [allSessions] = await db.query(
+      `SELECT s.employee_id, SUM(s.total_minutes) AS total_minutes, COUNT(*) AS session_count
+       FROM sessions s WHERE s.date = ? GROUP BY s.employee_id`, [date]
+    );
+    const [allActivity] = await db.query(
+      `SELECT employee_id, SUM(duration_seconds) AS active_seconds
+       FROM activity_logs WHERE date = ? GROUP BY employee_id`, [date]
+    );
+    const [teamTopApps] = await db.query(
+      `SELECT app_name, SUM(duration_seconds) AS total_seconds
+       FROM activity_logs WHERE date = ? GROUP BY app_name ORDER BY total_seconds DESC LIMIT 5`, [date]
     );
 
-    // Productive percent per day
-    const result = rows.map(r => ({
-      date:              r.date,
-      total_minutes:     r.total_minutes || 0,
-      session_count:     r.session_count,
-      active_seconds:    r.active_seconds || 0,
-      productive_percent: r.total_minutes > 0
-        ? Math.min(100, Math.round((r.active_seconds / (r.total_minutes * 60)) * 100))
-        : 0,
-    }));
+    const sessMap = Object.fromEntries(allSessions.map(r => [r.employee_id, r]));
+    const actMap  = Object.fromEntries(allActivity.map(r => [r.employee_id, r]));
 
-    res.json(result);
+    const members = employees.map(emp => {
+      const s = sessMap[emp.id] || { total_minutes: 0, session_count: 0 };
+      const a = actMap[emp.id]  || { active_seconds: 0 };
+      const productive_percent = s.total_minutes > 0
+        ? Math.min(100, Math.round(a.active_seconds / (s.total_minutes * 60) * 100)) : 0;
+      const focus_score = Math.min(10, Math.round((productive_percent + Math.min(s.session_count * 5, 20)) / 12));
+      return {
+        employee_id:         emp.id,
+        name:                emp.name,
+        total_minutes:       s.total_minutes || 0,
+        session_count:       s.session_count || 0,
+        active_seconds:      a.active_seconds || 0,
+        productive_percent,
+        focus_score,
+      };
+    }).filter(m => m.total_minutes > 0).sort((a, b) => b.total_minutes - a.total_minutes);
+
+    const totalTeamMinutes  = members.reduce((s, m) => s + m.total_minutes, 0);
+    const avgFocusScore     = members.length ? Math.round(members.reduce((s, m) => s + m.focus_score, 0) / members.length) : 0;
+    const activeCount       = members.length;
+    const topContributor    = members[0];
+
+    // Team AI summary
+    let team_ai_summary = null;
+    if (process.env.GROQ_API_KEY && members.length > 0) {
+      const memberLines = members.map(m =>
+        `- ${m.name}: ${fmtDuration(m.total_minutes)}, focus ${m.focus_score}/10, ${m.productive_percent}% productive`
+      ).join('\n');
+
+      const prompt = `You are a team productivity coach. Analyze the team's work day and give an executive summary.
+
+Date: ${date}
+Team size tracked today: ${activeCount} employee(s)
+Total team hours: ${fmtDuration(totalTeamMinutes)}
+Average focus score: ${avgFocusScore}/10
+Top apps across team: ${teamTopApps.map(a => a.app_name).join(', ') || 'none'}
+
+Per-employee breakdown:
+${memberLines}
+
+Respond with JSON: {
+  "summary": "2-3 sentences about team performance",
+  "insights": "1-2 sentences on standout patterns or concerns",
+  "recommendation": "1 actionable suggestion for the team tomorrow"
+}`;
+
+      try {
+        const text = await callGroq(prompt);
+        if (text) {
+          const p = JSON.parse(text);
+          team_ai_summary = { summary: p.summary || '', insights: p.insights || '', recommendation: p.recommendation || '' };
+        }
+      } catch (err) {
+        console.warn('[reports/team] AI fallback:', err.message);
+      }
+    }
+
+    if (!team_ai_summary) {
+      team_ai_summary = {
+        summary: `${activeCount} team member(s) tracked a total of ${fmtDuration(totalTeamMinutes)} today with an average focus score of ${avgFocusScore}/10.`,
+        insights: topContributor ? `${topContributor.name} led the team with ${fmtDuration(topContributor.total_minutes)} tracked.` : 'No tracking data today.',
+        recommendation: avgFocusScore < 5 ? 'Consider a team sync to address productivity blockers.' : 'Keep up the good work — maintain consistent check-ins.',
+      };
+    }
+
+    res.json({ date, total_team_minutes: totalTeamMinutes, avg_focus_score: avgFocusScore, active_count: activeCount, members, team_top_apps: teamTopApps, team_ai_summary });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── chatbot ───────────────────────────────────────────────────────────────────
+
+router.post('/chat', auth, adminOnly, async (req, res) => {
+  try {
+    const { message, date, employeeId, history = [] } = req.body;
+    if (!message) return res.status(400).json({ error: 'message required' });
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+
+    // Load context
+    let context = `You are an AI assistant for TeamMonitor, a productivity tracking tool. Today is ${targetDate}.`;
+
+    if (employeeId) {
+      const [empRows] = await db.query(`SELECT name FROM employees WHERE id = ?`, [employeeId]);
+      const empName   = empRows[0]?.name || 'the employee';
+      const [sessions] = await db.query(
+        `SELECT SUM(total_minutes) AS total_minutes, COUNT(*) AS sessions FROM sessions WHERE employee_id = ? AND date = ?`,
+        [employeeId, targetDate]
+      );
+      const [apps] = await db.query(
+        `SELECT app_name, SUM(duration_seconds) AS secs FROM activity_logs WHERE employee_id = ? AND date = ? GROUP BY app_name ORDER BY secs DESC LIMIT 5`,
+        [employeeId, targetDate]
+      );
+      const s = sessions[0] || {};
+      context += `\n\nEmployee: ${empName}\nTracked today: ${fmtDuration(s.total_minutes || 0)} across ${s.sessions || 0} session(s)\nTop apps: ${apps.map(a => `${a.app_name} (${fmtDuration(Math.round(a.secs / 60))})`).join(', ') || 'none'}\n\nAnswer questions about this employee's work data concisely and helpfully.`;
+    } else {
+      const [teamStats] = await db.query(
+        `SELECT e.name, SUM(s.total_minutes) AS mins FROM sessions s JOIN employees e ON e.id = s.employee_id WHERE s.date = ? GROUP BY s.employee_id ORDER BY mins DESC`,
+        [targetDate]
+      );
+      context += `\n\nTeam summary for ${targetDate}:\n${teamStats.map(r => `- ${r.name}: ${fmtDuration(r.mins)}`).join('\n') || 'No tracking data'}\n\nAnswer questions about the team's work data concisely and helpfully.`;
+    }
+
+    if (!process.env.GROQ_API_KEY) {
+      return res.json({ reply: 'AI chatbot requires a GROQ_API_KEY to be configured on the server.' });
+    }
+
+    const messages = [
+      { role: 'system', content: context },
+      ...history.slice(-6).map(h => ({ role: h.role, content: h.content })),
+      { role: 'user', content: message },
+    ];
+
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages, temperature: 0.6, max_tokens: 400 }),
+    });
+    const groqData = await groqRes.json();
+    const reply = groqData.choices?.[0]?.message?.content?.trim() || 'Sorry, I could not generate a response.';
+    res.json({ reply });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── AI memory reminder ────────────────────────────────────────────────────────
+
+router.get('/reminder', auth, async (req, res) => {
+  try {
+    const employeeId = req.user.id;
+    const today      = new Date().toISOString().slice(0, 10);
+
+    // Today's actual data
+    const [todayRows] = await db.query(
+      `SELECT COALESCE(SUM(total_minutes), 0) AS total_minutes FROM sessions WHERE employee_id = ? AND date = ?`,
+      [employeeId, today]
+    );
+    const todayMins = Number(todayRows[0]?.total_minutes) || 0;
+
+    // 7-day average from memory (excluding today)
+    const [memRows] = await db.query(
+      `SELECT AVG(total_minutes) AS avg_minutes, AVG(focus_score) AS avg_focus
+       FROM employee_daily_memory
+       WHERE employee_id = ? AND date < ? AND date >= DATE_SUB(?, INTERVAL 7 DAY)`,
+      [employeeId, today, today]
+    );
+    const avgMins  = Math.round(Number(memRows[0]?.avg_minutes) || 0);
+    const avgFocus = Math.round(Number(memRows[0]?.avg_focus)   || 0);
+
+    if (avgMins === 0) return res.json({ reminder: null }); // not enough history
+
+    const ratio = todayMins / avgMins;
+    let reminder = null;
+
+    if (todayMins === 0) {
+      reminder = "You haven't tracked any time today. Don't forget to punch in!";
+    } else if (ratio < 0.5) {
+      reminder = `You've tracked ${fmtDuration(todayMins)} today — well below your ${fmtDuration(avgMins)} daily average. It looks like a slow day.`;
+    } else if (ratio < 0.75) {
+      reminder = `You've tracked ${fmtDuration(todayMins)} today, which is less than your usual ${fmtDuration(avgMins)}. Keep going!`;
+    }
+
+    res.json({ reminder, today_minutes: todayMins, avg_minutes: avgMins, avg_focus: avgFocus });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -123,6 +123,20 @@ async function runMigrations() {
        UNIQUE KEY uniq_app (app_name)
      )`,
 
+    // AI memory — stores daily focus scores per employee for reminder comparisons
+    `CREATE TABLE IF NOT EXISTS employee_daily_memory (
+       id                  INT AUTO_INCREMENT PRIMARY KEY,
+       employee_id         INT NOT NULL,
+       date                DATE NOT NULL,
+       total_minutes       INT NOT NULL DEFAULT 0,
+       productive_percent  INT NOT NULL DEFAULT 0,
+       focus_score         INT NOT NULL DEFAULT 0,
+       ai_notes            TEXT DEFAULT NULL,
+       created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+       UNIQUE KEY uniq_emp_date (employee_id, date),
+       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+     )`,
+
     // Bug reports — submitted from the macOS agent
     `CREATE TABLE IF NOT EXISTS bug_reports (
        id          INT AUTO_INCREMENT PRIMARY KEY,

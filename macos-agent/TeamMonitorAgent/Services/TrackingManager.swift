@@ -73,6 +73,7 @@ class TrackingManager: ObservableObject {
 
     // Slow work alert
     @Published var showSlowWorkAlert: Bool = false
+    @Published var reminderMessage:  String? = nil
 
     // Recent tasks (persisted across sessions)
     @Published var recentTaskIds:  [Int]    = []
@@ -345,6 +346,13 @@ class TrackingManager: ObservableObject {
         lowActivityMinutes = 0
         showSlowWorkAlert  = false
         scheduleNotTrackingReminder()
+
+        // Check AI memory reminder after punch-out
+        Task {
+            if let reminder = await APIService.shared.getDailyReminder() {
+                await MainActor.run { self.reminderMessage = reminder }
+            }
+        }
 
         clearSessionState()
         currentSessionId   = nil

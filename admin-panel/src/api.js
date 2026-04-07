@@ -121,6 +121,13 @@ export const api = {
 
   // Daily report (admin view for any employee)
   getDailyReport: (empId, date) => request('GET', `/reports/daily/employee?employeeId=${empId}&date=${date}`),
+
+  // Team report (all employees for a date)
+  getTeamReport: (date) => request('GET', `/reports/team?date=${date}`),
+
+  // Chatbot
+  sendChatMessage: (message, date, employeeId, history) =>
+    request('POST', '/reports/chat', { message, date, employeeId: employeeId || null, history }),
 };
 
 export function saveToken(token) { localStorage.setItem('tm_token', token); }

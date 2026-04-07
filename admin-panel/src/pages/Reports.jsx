@@ -73,6 +73,14 @@ export default function Reports() {
 
   const [dailyReport,    setDailyReport]    = useState(null);
   const [reportLoading,  setReportLoading]  = useState(false);
+  const [teamReport,     setTeamReport]     = useState(null);
+  const [teamLoading,    setTeamLoading]    = useState(false);
+
+  // Chatbot
+  const [chatOpen,    setChatOpen]    = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatInput,   setChatInput]   = useState("");
+  const [chatSending, setChatSending] = useState(false);
 
   const [showManual, setShowManual] = useState(false);
   const [manualEmpId,setManualEmpId]= useState("");
@@ -85,10 +93,30 @@ export default function Reports() {
     if (employeeId === "all") { setDailyReport(null); return; }
     setReportLoading(true); setDailyReport(null);
     api.getDailyReport(employeeId, date)
-      .then(setDailyReport)
-      .catch(() => {})
-      .finally(() => setReportLoading(false));
+      .then(setDailyReport).catch(() => {}).finally(() => setReportLoading(false));
   }, [employeeId, date]);
+
+  useEffect(() => {
+    if (employeeId !== "all") { setTeamReport(null); return; }
+    setTeamLoading(true); setTeamReport(null);
+    api.getTeamReport(date)
+      .then(setTeamReport).catch(() => {}).finally(() => setTeamLoading(false));
+  }, [employeeId, date]);
+
+  async function sendChat() {
+    const msg = chatInput.trim();
+    if (!msg || chatSending) return;
+    const newHistory = [...chatHistory, { role: "user", content: msg }];
+    setChatHistory(newHistory);
+    setChatInput("");
+    setChatSending(true);
+    try {
+      const empId = employeeId === "all" ? null : employeeId;
+      const { reply } = await api.sendChatMessage(msg, date, empId, chatHistory);
+      setChatHistory([...newHistory, { role: "assistant", content: reply }]);
+    } catch { setChatHistory([...newHistory, { role: "assistant", content: "Sorry, something went wrong." }]); }
+    setChatSending(false);
+  }
 
   async function loadData() {
     setLoading(true);
@@ -301,6 +329,64 @@ export default function Reports() {
           )
       )}
 
+      {/* ── Team Report (all-employees view) ── */}
+      {employeeId === "all" && (
+        teamLoading
+          ? <div style={{ color:"#94a3b8", fontSize:13, marginBottom:24 }}>Loading team report…</div>
+          : teamReport && (
+            <>
+              {/* Team AI Summary */}
+              <div style={{ ...S.card, marginBottom:24 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                  <div style={S.cardTitle}>✨ Team AI Summary</div>
+                  <div style={{ display:"flex", gap:10 }}>
+                    <div style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:20, padding:"4px 14px", fontSize:13, fontWeight:700 }}>
+                      {teamReport.active_count} active
+                    </div>
+                    <div style={{
+                      background: teamReport.avg_focus_score >= 7 ? "#d1fae5" : teamReport.avg_focus_score >= 4 ? "#fef9c3" : "#fee2e2",
+                      color:      teamReport.avg_focus_score >= 7 ? "#065f46" : teamReport.avg_focus_score >= 4 ? "#854d0e" : "#991b1b",
+                      borderRadius:20, padding:"4px 14px", fontSize:13, fontWeight:700
+                    }}>Team Focus {teamReport.avg_focus_score}/10</div>
+                  </div>
+                </div>
+                <p style={{ fontSize:14, color:"#1e293b", marginBottom:10, lineHeight:1.6 }}>{teamReport.team_ai_summary?.summary}</p>
+                {teamReport.team_ai_summary?.insights && <p style={{ fontSize:13, color:"#475569", marginBottom:8 }}>{teamReport.team_ai_summary.insights}</p>}
+                {teamReport.team_ai_summary?.recommendation && (
+                  <div style={{ background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#0369a1" }}>
+                    💡 {teamReport.team_ai_summary.recommendation}
+                  </div>
+                )}
+              </div>
+
+              {/* Per-employee cards */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:14, marginBottom:24 }}>
+                {teamReport.members.map((m, i) => (
+                  <div key={m.employee_id} style={{ ...S.card, padding:16 }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                      <div style={{ width:32, height:32, borderRadius:"50%", background:COLORS[i%COLORS.length], color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:13 }}>
+                        {m.name[0].toUpperCase()}
+                      </div>
+                      <span style={{ background: m.focus_score >= 7 ? "#d1fae5" : m.focus_score >= 4 ? "#fef9c3" : "#fee2e2",
+                                     color:      m.focus_score >= 7 ? "#065f46" : m.focus_score >= 4 ? "#854d0e" : "#991b1b",
+                                     borderRadius:12, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
+                        {m.focus_score}/10
+                      </span>
+                    </div>
+                    <div style={{ fontSize:13, fontWeight:600, color:"#1e293b", marginBottom:4 }}>{m.name}</div>
+                    <div style={{ fontSize:20, fontWeight:700, color:"#3b82f6" }}>{fmtHM(m.total_minutes)}</div>
+                    <div style={{ fontSize:11, color:"#64748b", marginTop:2 }}>{m.session_count} session(s) · {m.productive_percent}% productive</div>
+                    <div style={{ marginTop:8, background:"#f1f5f9", borderRadius:4, height:5 }}>
+                      <div style={{ height:5, borderRadius:4, background:COLORS[i%COLORS.length],
+                        width: teamReport.members[0]?.total_minutes > 0 ? `${(m.total_minutes/teamReport.members[0].total_minutes)*100}%` : "0%" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )
+      )}
+
       {/* Week chart + Pie */}
       <div style={S.row2}>
         <div style={S.card}>
@@ -506,6 +592,61 @@ export default function Reports() {
                 <button type="submit" style={{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600 }}>Save Entry</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Chatbot ── */}
+      {/* Floating button */}
+      <div onClick={() => { setChatOpen(o => !o); if (!chatOpen && chatHistory.length === 0) setChatHistory([{ role:"assistant", content:`Hi! Ask me anything about ${employeeId === "all" ? "the team's" : "this employee's"} work data for ${date}.` }]); }}
+        style={{ position:"fixed", bottom:28, right:28, width:52, height:52, borderRadius:"50%",
+          background:"linear-gradient(135deg,#6366f1,#8b5cf6)", color:"#fff", display:"flex", alignItems:"center",
+          justifyContent:"center", cursor:"pointer", boxShadow:"0 4px 20px rgba(99,102,241,0.4)", fontSize:22, zIndex:900 }}>
+        {chatOpen ? "✕" : "💬"}
+      </div>
+
+      {/* Chat panel */}
+      {chatOpen && (
+        <div style={{ position:"fixed", bottom:90, right:28, width:360, height:480, background:"#fff",
+          borderRadius:16, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", border:"1px solid #e2e8f0",
+          display:"flex", flexDirection:"column", zIndex:900, overflow:"hidden" }}>
+          {/* Header */}
+          <div style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)", padding:"14px 18px", color:"#fff" }}>
+            <div style={{ fontWeight:700, fontSize:14 }}>AI Assistant</div>
+            <div style={{ fontSize:11, opacity:0.8 }}>{employeeId === "all" ? "Team data" : employees.find(e=>String(e.id)===employeeId)?.name} · {date}</div>
+          </div>
+          {/* Messages */}
+          <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:10 }}>
+            {chatHistory.map((msg, i) => (
+              <div key={i} style={{ display:"flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                <div style={{
+                  maxWidth:"80%", padding:"9px 13px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                  background: msg.role === "user" ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "#f1f5f9",
+                  color: msg.role === "user" ? "#fff" : "#1e293b",
+                  fontSize:13, lineHeight:1.5
+                }}>{msg.content}</div>
+              </div>
+            ))}
+            {chatSending && (
+              <div style={{ display:"flex", justifyContent:"flex-start" }}>
+                <div style={{ background:"#f1f5f9", borderRadius:"14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#94a3b8" }}>Thinking…</div>
+              </div>
+            )}
+          </div>
+          {/* Input */}
+          <div style={{ padding:"10px 12px", borderTop:"1px solid #e2e8f0", display:"flex", gap:8 }}>
+            <input
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && sendChat()}
+              placeholder="Ask about the data…"
+              style={{ flex:1, border:"1.5px solid #e2e8f0", borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none" }}
+            />
+            <button onClick={sendChat} disabled={chatSending || !chatInput.trim()}
+              style={{ background:"#6366f1", color:"#fff", border:"none", borderRadius:10, padding:"8px 14px",
+                cursor:"pointer", fontSize:13, fontWeight:600, opacity: chatSending ? 0.6 : 1 }}>
+              ↑
+            </button>
           </div>
         </div>
       )}
