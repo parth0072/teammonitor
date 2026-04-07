@@ -437,3 +437,4 @@ router.get('/reminder', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.buildReport = buildReport;

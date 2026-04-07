@@ -159,6 +159,32 @@ async function runMigrations() {
   console.log('[migration] Schema up to date (employees + jira)');
 }
 
+// ── Daily report email scheduler ──────────────────────────────────────────────
+// Fires at DAILY_REPORT_HOUR (default 18 = 6 PM) server local time every day.
+function scheduleDailyReports() {
+  const { sendDailyReports } = require('./utils/dailyMail');
+  const targetHour = parseInt(process.env.DAILY_REPORT_HOUR || '18', 10);
+
+  function msUntilNext() {
+    const now  = new Date();
+    const next = new Date(now);
+    next.setHours(targetHour, 0, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+    return next - now;
+  }
+
+  function scheduleNext() {
+    const delay = msUntilNext();
+    console.log(`[dailyMail] Next report scheduled in ${Math.round(delay / 60000)} min`);
+    setTimeout(async () => {
+      await sendDailyReports().catch(err => console.error('[dailyMail] Error:', err.message));
+      scheduleNext(); // reschedule for tomorrow
+    }, delay);
+  }
+
+  scheduleNext();
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 async function start() {
   await runMigrations();
@@ -166,9 +192,12 @@ async function start() {
     console.log(`TeamMonitor server running on port ${PORT}`);
     console.log(`Health: http://localhost:${PORT}/teammonitor/api/health`);
 
-    // Run cleanup once on startup, then every 24 hours
+    // Screenshot cleanup — on startup then every 24h
     cleanupOldScreenshots();
     setInterval(cleanupOldScreenshots, 24 * 60 * 60 * 1000);
+
+    // Daily email reports — schedule for target hour each day
+    scheduleDailyReports();
   });
 }
 start().catch(err => { console.error('[startup] Fatal:', err.message); process.exit(1); });
