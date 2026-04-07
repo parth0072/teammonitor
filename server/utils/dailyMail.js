@@ -1,14 +1,15 @@
 // utils/dailyMail.js – generate + send daily work reports to each employee
 'use strict';
 
-const nodemailer = require('nodemailer');
-const db         = require('../db');
+const db = require('../db');
 
 // ── SMTP transport ────────────────────────────────────────────────────────────
 
 function createTransport() {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
+  // Lazy require — nodemailer only needed when SMTP is configured
+  const nodemailer = require('nodemailer');
   return nodemailer.createTransport({
     host:   SMTP_HOST,
     port:   parseInt(SMTP_PORT || '587', 10),
