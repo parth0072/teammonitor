@@ -212,6 +212,26 @@ extension TrackingDashboardView {
                     // Jira issues section
                     if jiraConnected {
                         jiraSectionHeader
+                        // Jira search bar
+                        HStack(spacing: 6) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 11))
+                                .foregroundColor(DS.textMuted)
+                            TextField("Search issues…", text: $jiraSearchText)
+                                .font(.system(size: 12)).textFieldStyle(.plain)
+                                .foregroundColor(DS.text)
+                            if !jiraSearchText.isEmpty {
+                                Button { jiraSearchText = "" } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(DS.textMuted)
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(Color(hex: "EFF6FF"))
+                        .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "BFDBFE")), alignment: .bottom)
+
                         if jiraLoading {
                             ProgressView().padding(.vertical, 16).frame(maxWidth: .infinity)
                         } else if jiraIssues.isEmpty {
@@ -222,22 +242,29 @@ extension TrackingDashboardView {
                                 .padding(.vertical, 16)
                                 .background(DS.surface)
                         } else {
-                            // Server returns issues sorted by recently updated (ORDER BY updated DESC)
-                            let filteredJira = jiraIssues
-                                .filter {
-                                    searchText.isEmpty
-                                    || $0.summary.localizedCaseInsensitiveContains(searchText)
-                                    || $0.key.localizedCaseInsensitiveContains(searchText)
-                                    || $0.projectName.localizedCaseInsensitiveContains(searchText)
+                            let filteredJira = jiraIssues.filter {
+                                jiraSearchText.isEmpty
+                                || $0.summary.localizedCaseInsensitiveContains(jiraSearchText)
+                                || $0.key.localizedCaseInsensitiveContains(jiraSearchText)
+                                || $0.projectName.localizedCaseInsensitiveContains(jiraSearchText)
+                            }
+                            if filteredJira.isEmpty {
+                                Text("No issues match "\(jiraSearchText)"")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(DS.textMuted)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(DS.surface)
+                            } else {
+                                ForEach(filteredJira) { issue in
+                                    JiraIssueRow(issue: issue, isActive: manager.currentJiraIssue?.key == issue.key && manager.isTracking, onStart: {
+                                        activeSheet = nil
+                                        Task { @MainActor in
+                                            if manager.isTracking { await manager.punchOut() }
+                                            await manager.punchIn(jiraIssue: issue)
+                                        }
+                                    })
                                 }
-                            ForEach(filteredJira) { issue in
-                                JiraIssueRow(issue: issue, isActive: manager.currentJiraIssue?.key == issue.key && manager.isTracking, onStart: {
-                                    activeSheet = nil
-                                    Task { @MainActor in
-                                        if manager.isTracking { await manager.punchOut() }
-                                        await manager.punchIn(jiraIssue: issue)
-                                    }
-                                })
                             }
                         }
                     }

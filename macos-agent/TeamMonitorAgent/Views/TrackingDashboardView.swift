@@ -29,10 +29,11 @@ struct TrackingDashboardView: View {
     @State var tasksLoading:  Bool          = false
     @State var tasksError:    String?       = nil
 
-    @State var jiraIssues:    [JiraIssue]  = []
-    @State var jiraConnected: Bool         = false
-    @State var jiraLoading:   Bool         = false
-    @State var jiraLoadedAt:  Date?        = nil
+    @State var jiraIssues:     [JiraIssue]  = []
+    @State var jiraConnected:  Bool         = false
+    @State var jiraLoading:    Bool         = false
+    @State var jiraLoadedAt:   Date?        = nil
+    @State var jiraSearchText: String       = ""
 
     @State var toast:      ToastMessage? = nil
     @State var toastTimer: Timer?        = nil
