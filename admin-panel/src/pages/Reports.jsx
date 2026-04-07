@@ -310,18 +310,21 @@ export default function Reports() {
               {dailyReport.productive_hours && (
                 <div style={{ ...S.card, marginBottom:24 }}>
                   <div style={S.cardTitle}>📊 Productive Hours — 24h</div>
-                  <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:72 }}>
-                    {dailyReport.productive_hours.map((h, i) => (
-                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
-                        <div style={{
-                          width:"100%",
-                          background: h.active_minutes > 30 ? "#3b82f6" : h.active_minutes > 0 ? "#bfdbfe" : "#f1f5f9",
-                          height: Math.max(3, (h.active_minutes / 60) * 60),
-                          borderRadius:"3px 3px 0 0"
-                        }} />
-                        {i % 6 === 0 && <div style={{ fontSize:9, color:"#94a3b8", marginTop:2 }}>{String(i).padStart(2,"0")}</div>}
-                      </div>
-                    ))}
+                  <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:72, overflow:"hidden" }}>
+                    {dailyReport.productive_hours.map((h, i) => {
+                      const mins = Math.min(h.active_minutes ?? 0, 60);
+                      return (
+                        <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
+                          <div style={{
+                            width:"100%",
+                            background: mins > 30 ? "#3b82f6" : mins > 0 ? "#bfdbfe" : "#f1f5f9",
+                            height: Math.max(3, (mins / 60) * 68),
+                            borderRadius:"3px 3px 0 0"
+                          }} />
+                          {i % 6 === 0 && <div style={{ fontSize:9, color:"#94a3b8", marginTop:2 }}>{String(i).padStart(2,"0")}</div>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
