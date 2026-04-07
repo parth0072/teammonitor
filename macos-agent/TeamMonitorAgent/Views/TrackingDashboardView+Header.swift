@@ -81,7 +81,9 @@ extension TrackingDashboardView {
             sidebarDivider()
 
             // Quick actions
-            sidebarActionButton("square.and.pencil",  label: "Manual Entry") { activeSheet = .manualEntry }
+            sidebarActionButton("square.and.pencil",  label: "Manual Entry") {
+                NSWorkspace.shared.open(URL(string: "https://api.alphabyteinnovation.com/teammonitor/")!)
+            }
             sidebarActionButton("chart.bar.fill",      label: "Reports")      { activeSheet = .reports }
             sidebarActionButton("arrow.clockwise",     label: "Refresh")      { loadTasks() }
 

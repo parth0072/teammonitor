@@ -71,6 +71,13 @@ class TrackingManager: ObservableObject {
     @Published var showNotTrackingAlert: Bool    = false
     @Published var secondsUntilNextReminder: Int = 5 * 60
 
+    // Slow work alert
+    @Published var showSlowWorkAlert: Bool = false
+
+    // Recent tasks (persisted across sessions)
+    @Published var recentTaskIds:  [Int]    = []
+    @Published var recentJiraKeys: [String] = []
+
     private(set) var stoppedTrackingAt: Date?    = nil
 
     var minutesNotTracking: Int {
@@ -92,6 +99,10 @@ class TrackingManager: ObservableObject {
     private var countdownTimer:       Timer?
     private var heartbeatTickCount:   Int   = 0
     private let kHeartbeatEvery:      Int   = 5
+    private var lowActivityMinutes:   Int   = 0
+
+    private let kRecentTaskIds  = "tm_recent_task_ids"
+    private let kRecentJiraKeys = "tm_recent_jira_keys"
     var lastResumeTime:  Date?
     private var pendingIdleStart: Date?
     private var cancellables = Set<AnyCancellable>()
@@ -128,6 +139,9 @@ class TrackingManager: ObservableObject {
             .store(in: &cancellables)
 
         hasScreenPermission = ScreenshotService.hasPermission()
+
+        recentTaskIds  = UserDefaults.standard.array(forKey: kRecentTaskIds)  as? [Int]    ?? []
+        recentJiraKeys = UserDefaults.standard.array(forKey: kRecentJiraKeys) as? [String] ?? []
 
         restoreSessionIfNeeded()
         loadTodayMinutes()
@@ -284,11 +298,28 @@ class TrackingManager: ObservableObject {
             lastResumeTime   = Date()
             trackedMinutes   = 0        // per-session reset (heartbeat uses this)
             // todayMinutes intentionally NOT reset — accumulates all day
-            screenshotCount  = 0
-            isTracking       = true
-            isOnBreak        = false
-            showIdleAlert    = false
-            statusMessage    = "Tracking active"
+            screenshotCount    = 0
+            isTracking         = true
+            isOnBreak          = false
+            showIdleAlert      = false
+            lowActivityMinutes = 0
+            showSlowWorkAlert  = false
+            statusMessage      = "Tracking active"
+
+            // Persist recent task / jira for "recently used" feature
+            if let t = task {
+                recentTaskIds.removeAll { $0 == t.id }
+                recentTaskIds.insert(t.id, at: 0)
+                if recentTaskIds.count > 5 { recentTaskIds = Array(recentTaskIds.prefix(5)) }
+                UserDefaults.standard.set(recentTaskIds, forKey: kRecentTaskIds)
+            }
+            if let j = jiraIssue {
+                recentJiraKeys.removeAll { $0 == j.key }
+                recentJiraKeys.insert(j.key, at: 0)
+                if recentJiraKeys.count > 5 { recentJiraKeys = Array(recentJiraKeys.prefix(5)) }
+                UserDefaults.standard.set(recentJiraKeys, forKey: kRecentJiraKeys)
+            }
+
             saveSessionState()
             startAllServices(sessionId: sessionId)
         } catch {
@@ -309,8 +340,10 @@ class TrackingManager: ObservableObject {
             try await api.punchOut(sessionId: sessionId, totalMinutes: trackedMinutes)
         } catch { }
 
-        statusMessage     = "Session ended. Have a great day!"
-        stoppedTrackingAt = Date()
+        statusMessage      = "Session ended. Have a great day!"
+        stoppedTrackingAt  = Date()
+        lowActivityMinutes = 0
+        showSlowWorkAlert  = false
         scheduleNotTrackingReminder()
 
         clearSessionState()
@@ -538,6 +571,19 @@ class TrackingManager: ObservableObject {
                 self.heartbeatTickCount += 1
                 self.saveSessionState()
                 self.saveTodayMinutes()
+
+                // Slow work alert — controlled by admin via slow_work_alert_enabled setting
+                let alertEnabled = APIService.shared.employee?.slowWorkAlertEnabled ?? false
+                let alertThreshold = APIService.shared.employee?.slowWorkAlertMinutes ?? 10
+                if alertEnabled && self.activityPercent < 25 && !self.isIdle {
+                    self.lowActivityMinutes += 1
+                    if self.lowActivityMinutes == alertThreshold {
+                        self.showSlowWorkAlert = true
+                    }
+                } else {
+                    self.lowActivityMinutes = 0
+                    self.showSlowWorkAlert  = false
+                }
 
                 if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
                     try? await self.api.heartbeat(

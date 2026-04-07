@@ -70,11 +70,66 @@ extension TrackingDashboardView {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    let filtered = myTasks.filter {
-                        searchText.isEmpty
-                        || $0.name.localizedCaseInsensitiveContains(searchText)
-                        || $0.projectName.localizedCaseInsensitiveContains(searchText)
+                    // ── Recently used tasks/issues ──────────────────────
+                    let recentTasks = myTasks.filter { manager.recentTaskIds.contains($0.id) }
+                        .sorted { (manager.recentTaskIds.firstIndex(of: $0.id) ?? 99)
+                                < (manager.recentTaskIds.firstIndex(of: $1.id) ?? 99) }
+                    let recentJira  = jiraIssues.filter { manager.recentJiraKeys.contains($0.key) }
+                        .sorted { (manager.recentJiraKeys.firstIndex(of: $0.key) ?? 99)
+                                < (manager.recentJiraKeys.firstIndex(of: $1.key) ?? 99) }
+
+                    if !recentTasks.isEmpty || !recentJira.isEmpty {
+                        HStack {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 10))
+                                .foregroundColor(DS.textMuted)
+                            Text("Recently Used")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(DS.textSecond)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 7)
+                        .background(DS.bg)
+                        .overlay(Rectangle().frame(height: 1).foregroundColor(DS.border), alignment: .bottom)
+
+                        ForEach(recentTasks.prefix(3)) { task in
+                            TaskRow2(
+                                task: task,
+                                isActive: manager.currentTask?.id == task.id && manager.isTracking,
+                                onStart: {
+                                    Task { @MainActor in
+                                        if manager.isTracking { await manager.punchOut() }
+                                        await manager.punchIn(task: task)
+                                    }
+                                }
+                            )
+                        }
+                        ForEach(recentJira.prefix(2)) { issue in
+                            JiraIssueRow(issue: issue, onStart: {
+                                activeSheet = nil
+                                Task { @MainActor in
+                                    if manager.isTracking { await manager.punchOut() }
+                                    await manager.punchIn(jiraIssue: issue)
+                                }
+                            })
+                        }
+
+                        Rectangle()
+                            .fill(DS.border)
+                            .frame(height: 1)
+                            .padding(.vertical, 4)
                     }
+
+                    let statusOrder: (String) -> Int = { s in
+                        s == "in_progress" ? 0 : s == "todo" ? 1 : 2
+                    }
+                    let filtered = myTasks
+                        .sorted { statusOrder($0.status) < statusOrder($1.status) }
+                        .filter {
+                            searchText.isEmpty
+                            || $0.name.localizedCaseInsensitiveContains(searchText)
+                            || $0.projectName.localizedCaseInsensitiveContains(searchText)
+                        }
 
                     if tasksLoading {
                         VStack(spacing: 12) {
@@ -140,7 +195,12 @@ extension TrackingDashboardView {
                             TaskRow2(
                                 task: task,
                                 isActive: manager.currentTask?.id == task.id && manager.isTracking,
-                                onStart: { Task { await manager.punchIn(task: task) } }
+                                onStart: {
+                                    Task { @MainActor in
+                                        if manager.isTracking { await manager.punchOut() }
+                                        await manager.punchIn(task: task)
+                                    }
+                                }
                             )
                             .transition(.asymmetric(
                                 insertion: .move(edge: .top).combined(with: .opacity),
@@ -162,14 +222,34 @@ extension TrackingDashboardView {
                                 .padding(.vertical, 16)
                                 .background(DS.surface)
                         } else {
-                            let filteredJira = jiraIssues.filter {
-                                searchText.isEmpty
-                                || $0.summary.localizedCaseInsensitiveContains(searchText)
-                                || $0.key.localizedCaseInsensitiveContains(searchText)
-                                || $0.projectName.localizedCaseInsensitiveContains(searchText)
+                            // Primary: category order (in-progress > new > done)
+                            // Secondary: within same category, "in progress" status floats first
+                            let jiraCatOrder: (String) -> Int = { cat in
+                                cat == "indeterminate" ? 0 : cat == "new" ? 1 : 2
                             }
+                            let jiraStatusPriority: (String) -> Int = { s in
+                                s.lowercased().contains("progress") ? 0 : 1
+                            }
+                            let filteredJira = jiraIssues
+                                .sorted {
+                                    let c0 = jiraCatOrder($0.statusCategory), c1 = jiraCatOrder($1.statusCategory)
+                                    if c0 != c1 { return c0 < c1 }
+                                    return jiraStatusPriority($0.status) < jiraStatusPriority($1.status)
+                                }
+                                .filter {
+                                    searchText.isEmpty
+                                    || $0.summary.localizedCaseInsensitiveContains(searchText)
+                                    || $0.key.localizedCaseInsensitiveContains(searchText)
+                                    || $0.projectName.localizedCaseInsensitiveContains(searchText)
+                                }
                             ForEach(filteredJira) { issue in
-                                JiraIssueRow(issue: issue)
+                                JiraIssueRow(issue: issue, onStart: {
+                                    activeSheet = nil
+                                    Task { @MainActor in
+                                        if manager.isTracking { await manager.punchOut() }
+                                        await manager.punchIn(jiraIssue: issue)
+                                    }
+                                })
                             }
                         }
                     }
@@ -257,6 +337,7 @@ extension TrackingDashboardView {
 
 struct JiraIssueRow: View {
     let issue: JiraIssue
+    var onStart: (() -> Void)? = nil
 
     private var statusColor: Color {
         switch issue.statusCategory {
@@ -304,6 +385,18 @@ struct JiraIssueRow: View {
                     .font(.system(size: 10, weight: .semibold)).foregroundColor(statusColor)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(statusBg).cornerRadius(8)
+                if let onStart {
+                    Button(action: onStart) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white)
+                            .frame(width: 26, height: 26)
+                            .background(Color(hex: "0052CC"))
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Start timer on \(issue.key)")
+                }
                 Button {
                     if let url = URL(string: issue.url) { NSWorkspace.shared.open(url) }
                 } label: {

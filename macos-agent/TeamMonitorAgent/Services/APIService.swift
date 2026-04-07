@@ -41,13 +41,17 @@ struct EmployeeInfo: Codable {
     let name: String
     let email: String
     let role: String
-    let screenshotInterval:   Int
-    let breakEnabled:         Bool
-    let breakIntervalMinutes: Int
-    let idleWarningMinutes:   Int
-    let idleStopMinutes:      Int
-    let screenshotsEnabled:   Bool
-    let jiraEnabled:          Bool
+    let screenshotInterval:    Int
+    let breakEnabled:          Bool
+    let breakIntervalMinutes:  Int
+    let idleWarningMinutes:    Int
+    let idleStopMinutes:       Int
+    let screenshotsEnabled:    Bool
+    let jiraEnabled:           Bool
+    let slowWorkAlertEnabled:  Bool
+    let slowWorkAlertMinutes:  Int
+    let forceUpdateVersion:    String?
+    let forceUpdateUrl:        String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, email, role
@@ -58,6 +62,10 @@ struct EmployeeInfo: Codable {
         case idleStopMinutes      = "idle_stop_minutes"
         case screenshotsEnabled   = "screenshots_enabled"
         case jiraEnabled          = "jira_enabled"
+        case slowWorkAlertEnabled = "slow_work_alert_enabled"
+        case slowWorkAlertMinutes = "slow_work_alert_minutes"
+        case forceUpdateVersion   = "force_update_version"
+        case forceUpdateUrl       = "force_update_url"
     }
 
     init(from decoder: Decoder) throws {
@@ -76,6 +84,11 @@ struct EmployeeInfo: Codable {
         screenshotsEnabled   = rawScreenshots != 0
         let rawJira          = try c.decodeIfPresent(Int.self, forKey: .jiraEnabled)          ?? 0
         jiraEnabled          = rawJira != 0
+        let rawSlow          = try c.decodeIfPresent(Int.self, forKey: .slowWorkAlertEnabled) ?? 0
+        slowWorkAlertEnabled = rawSlow != 0
+        slowWorkAlertMinutes = try c.decodeIfPresent(Int.self, forKey: .slowWorkAlertMinutes) ?? 10
+        forceUpdateVersion   = try c.decodeIfPresent(String.self, forKey: .forceUpdateVersion)
+        forceUpdateUrl       = try c.decodeIfPresent(String.self, forKey: .forceUpdateUrl)
     }
 }
 struct PunchInResponse: Decodable {
@@ -178,12 +191,100 @@ struct SessionItem: Decodable, Identifiable {
     let totalMinutes: Int
     let status:       String
     let date:         String
+    let taskName:     String?
+    let jiraIssueKey: String?
     enum CodingKeys: String, CodingKey {
-        case id
+        case id, status, date
         case punchIn      = "punch_in"
         case punchOut     = "punch_out"
         case totalMinutes = "total_minutes"
-        case status, date
+        case taskName     = "task_name"
+        case jiraIssueKey = "jira_issue_key"
+    }
+}
+
+// MARK: - Daily Report Model
+
+struct DailyReportHour: Decodable, Identifiable {
+    var id: Int { hour }
+    let hour:          Int
+    let label:         String
+    let activeSeconds: Int
+    let activeMinutes: Int
+    enum CodingKeys: String, CodingKey {
+        case hour, label
+        case activeSeconds = "active_seconds"
+        case activeMinutes = "active_minutes"
+    }
+}
+
+struct DailyReportPeakHour: Decodable, Identifiable {
+    var id: Int { rank }
+    let rank:          Int
+    let hour:          Int
+    let label:         String
+    let activeSeconds: Int
+    let activeMinutes: Int
+    enum CodingKeys: String, CodingKey {
+        case rank, hour, label
+        case activeSeconds = "active_seconds"
+        case activeMinutes = "active_minutes"
+    }
+}
+
+struct DailyReportWorkPattern: Decodable {
+    let firstPunchIn:          String?
+    let lastPunchOut:          String?
+    let totalSessions:         Int
+    let avgSessionMinutes:     Int
+    let longestSessionMinutes: Int
+    enum CodingKeys: String, CodingKey {
+        case firstPunchIn          = "first_punch_in"
+        case lastPunchOut          = "last_punch_out"
+        case totalSessions         = "total_sessions"
+        case avgSessionMinutes     = "avg_session_minutes"
+        case longestSessionMinutes = "longest_session_minutes"
+    }
+}
+
+struct DailyReportAISummary: Decodable {
+    let focusScore:  Int
+    let summary:     String
+    let topAppText:  String
+    let peakText:    String
+    let insights:    String
+    let pattern:     String
+    enum CodingKeys: String, CodingKey {
+        case focusScore, summary, insights, pattern
+        case topAppText = "topAppText"
+        case peakText   = "peakText"
+    }
+}
+
+struct DailyReport: Decodable {
+    let date:                 String
+    let totalTrackedMinutes:  Int
+    let totalActiveSeconds:   Int
+    let productivePercent:    Int
+    let punchLog:             [SessionItem]
+    let topApps:              [ActivitySummaryItem]
+    let activityLogs:         [ActivityLogItem]
+    let productiveHours:      [DailyReportHour]
+    let peakHours:            [DailyReportPeakHour]
+    let workPattern:          DailyReportWorkPattern
+    let aiSummary:            DailyReportAISummary
+    enum CodingKeys: String, CodingKey {
+        case date
+        case totalTrackedMinutes = "total_tracked_minutes"
+        case totalActiveSeconds  = "total_active_seconds"
+        case productivePercent   = "productive_percent"
+        case punchLog            = "punch_log"
+        case topApps             = "top_apps"
+        case activityLogs        = "activity_logs"
+        case productiveHours     = "productive_hours"
+        case peakHours           = "peak_hours"
+        case workPattern         = "work_pattern"
+        case aiSummary           = "ai_summary"
     }
 }
 
@@ -341,6 +442,10 @@ class APIService: ObservableObject {
 
     func getMySessions(date: String) async throws -> [SessionItem] {
         try await get("/sessions/my?date=\(date)")
+    }
+
+    func getDailyReport(date: String) async throws -> DailyReport {
+        try await get("/reports/daily?date=\(date)")
     }
 
     func createManualEntry(date: String, startTime: String, endTime: String, note: String) async throws {

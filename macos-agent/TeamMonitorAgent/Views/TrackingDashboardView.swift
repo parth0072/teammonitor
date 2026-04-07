@@ -95,10 +95,10 @@ struct TrackingDashboardView: View {
             case .taskPicker:
                 TaskPickerView(tasks: myTasks, jiraIssues: jiraIssues, onPick: { task in
                     activeSheet = nil
-                    Task { await manager.punchIn(task: task) }
+                    Task { @MainActor in await manager.punchIn(task: task) }
                 }, onPickJira: { issue in
                     activeSheet = nil
-                    Task { await manager.punchIn(jiraIssue: issue) }
+                    Task { @MainActor in await manager.punchIn(jiraIssue: issue) }
                 })
             case .settings:
                 SettingsView()
@@ -108,8 +108,7 @@ struct TrackingDashboardView: View {
                 NotTrackingAlertView(manager: manager, onStart: {
                     manager.showNotTrackingAlert = false
                     activeSheet = nil
-                    if myTasks.isEmpty && jiraIssues.isEmpty { Task { await manager.punchIn() } }
-                    else { activeSheet = .taskPicker }
+                    activeSheet = .taskPicker
                 })
             }
         }
@@ -122,6 +121,8 @@ struct TrackingDashboardView: View {
             else if activeSheet == .notTrackingAlert { activeSheet = nil }
         }
         .onReceive(liveClock) { _ in
+            // Only tick while actively tracking — no need to refresh a static value every second
+            guard manager.isTracking && !manager.isOnBreak && !manager.isIdle else { return }
             liveMinutes = manager.todayMinutes
         }
         .onAppear {
@@ -129,6 +130,8 @@ struct TrackingDashboardView: View {
             loadTasks()
         }
         .onChange(of: manager.isTracking) { tracking in
+            // Sync final value when tracking stops so the display is never stale
+            liveMinutes = manager.todayMinutes
             if tracking && APIService.shared.employee?.breakEnabled == true {
                 scheduleBreakReminder()
             } else {
@@ -137,6 +140,9 @@ struct TrackingDashboardView: View {
         }
         .onChange(of: manager.isIdle) { idle in
             if idle { showToast("You've been idle — timer paused", warning: true) }
+        }
+        .onChange(of: manager.showSlowWorkAlert) { alert in
+            if alert { showToast("Low activity detected — are you still working?", warning: true) }
         }
         .onChange(of: manager.trackedMinutes) { mins in
             if mins > 0 && mins % 30 == 0 && APIService.shared.employee?.breakEnabled == true {

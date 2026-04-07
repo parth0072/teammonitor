@@ -266,126 +266,240 @@
       position: relative;
     }
 
-    /* Dashboard mockup */
-    .dashboard-card {
-      background: #1e293b;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
-      animation: float 6s ease-in-out infinite;
-    }
-
+    /* ── macOS App Window Mockup ─────────────────────────────────── */
     @keyframes float {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-12px); }
+      0%, 100% { transform: translateY(0px) rotate(-1deg); }
+      50% { transform: translateY(-14px) rotate(-1deg); }
+    }
+    @keyframes float2 {
+      0%, 100% { transform: translateY(0) rotate(2deg); }
+      50% { transform: translateY(-8px) rotate(2deg); }
+    }
+    @keyframes float3 {
+      0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+      50% { transform: translateY(-10px) rotate(-1.5deg); }
     }
 
-    .card-topbar {
-      background: #0f172a;
-      padding: 12px 16px;
+    .app-window {
+      background: #18181b;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 50px 120px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.08);
+      animation: float 6s ease-in-out infinite;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    .app-titlebar {
+      background: #27272a;
+      padding: 10px 14px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
     }
 
-    .dot-btn { width: 12px; height: 12px; border-radius: 50%; }
-    .dot-red { background: #ef4444; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-green { background: #22c55e; }
+    .dot-btn { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .dot-red    { background: #ff5f57; }
+    .dot-yellow { background: #febc2e; }
+    .dot-green  { background: #28c840; }
 
-    .card-title-bar {
-      flex: 1;
-      text-align: center;
-      font-size: 0.75rem;
-      color: #475569;
+    .app-win-title {
+      flex: 1; text-align: center;
+      font-size: 0.72rem; color: #71717a; font-weight: 500;
     }
 
-    .card-body { padding: 20px; }
-
-    .dash-header {
+    .app-layout {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 20px;
+      height: 452px;
+      font-family: 'Inter', sans-serif;
     }
 
-    .dash-title { font-size: 0.85rem; font-weight: 700; color: #e2e8f0; }
-    .dash-date { font-size: 0.75rem; color: #475569; }
-
-    .kpi-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-bottom: 18px;
-    }
-
-    .kpi-box {
-      background: #0f172a;
-      border-radius: 10px;
-      padding: 12px;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-
-    .kpi-val { font-size: 1.2rem; font-weight: 800; color: #f1f5f9; }
-    .kpi-lbl { font-size: 0.68rem; color: #64748b; margin-top: 2px; }
-    .kpi-green { color: #22c55e; }
-    .kpi-blue  { color: #60a5fa; }
-    .kpi-orange{ color: #fb923c; }
-
-    .activity-list { display: flex; flex-direction: column; gap: 8px; }
-
-    .activity-row {
+    /* Sidebar */
+    .app-sidebar {
+      width: 182px;
+      background: #141418;
+      border-right: 1px solid rgba(255,255,255,0.06);
       display: flex;
-      align-items: center;
-      gap: 10px;
-      background: #0f172a;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .sb-brand {
+      padding: 11px 12px 9px;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .sb-brand-icon {
+      width: 26px; height: 26px;
+      background: linear-gradient(135deg,#6366f1,#8b5cf6);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.62rem; font-weight: 800; color: white; flex-shrink: 0;
+    }
+    .sb-brand-name { font-size: 0.76rem; font-weight: 700; color: #f4f4f5; }
+
+    .sb-user {
+      margin: 6px 8px;
+      padding: 7px 8px;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.22);
       border-radius: 8px;
-      padding: 8px 10px;
-      border: 1px solid rgba(255,255,255,0.04);
+      display: flex; align-items: center; gap: 7px;
     }
-
-    .av {
-      width: 28px; height: 28px;
+    .sb-avatar {
+      width: 24px; height: 24px;
+      background: linear-gradient(135deg,#6366f1,#8b5cf6);
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.65rem; font-weight: 700; flex-shrink: 0;
+      font-size: 0.62rem; font-weight: 700; color: white; flex-shrink: 0;
+    }
+    .sb-uname { font-size: 0.7rem; font-weight: 600; color: #e4e4e7; }
+    .sb-uemail { font-size: 0.6rem; color: #71717a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 108px; }
+
+    .sb-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 3px 10px; }
+
+    .sb-nav-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 10px; border-radius: 7px;
+      font-size: 0.72rem; font-weight: 500; color: #a1a1aa;
+      margin: 1px 8px; position: relative;
+    }
+    .sb-nav-item.active { background: rgba(99,102,241,0.14); color: #f4f4f5; font-weight: 600; }
+    .sb-nav-item.active::before {
+      content: ''; position: absolute;
+      left: -8px; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 16px;
+      background: #6366f1; border-radius: 0 3px 3px 0;
+    }
+    .sb-nav-icon { font-size: 0.78rem; width: 14px; text-align: center; flex-shrink: 0; }
+    .sb-muted { color: #71717a !important; }
+    .sb-danger { color: #f87171 !important; }
+    .sb-spacer { flex: 1; }
+
+    .sb-label {
+      font-size: 0.58rem; font-weight: 700; color: #52525b;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      padding: 4px 10px 2px; margin: 0 8px;
+    }
+    .sb-status-chip {
+      margin: 2px 8px 6px; padding: 5px 8px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 6px; display: flex; align-items: center; gap: 5px;
+      font-size: 0.68rem; font-weight: 600; color: #e4e4e7;
     }
 
-    .av-blue   { background: rgba(59,130,246,0.3); color: #60a5fa; }
-    .av-green  { background: rgba(34,197,94,0.3);  color: #4ade80; }
-    .av-purple { background: rgba(168,85,247,0.3); color: #c084fc; }
-    .av-orange { background: rgba(249,115,22,0.3); color: #fb923c; }
-
-    .act-name { font-size: 0.76rem; font-weight: 600; color: #e2e8f0; flex: 1; }
-    .act-app  { font-size: 0.7rem; color: #64748b; }
-
-    .act-badge {
-      font-size: 0.65rem;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 100px;
+    /* Main content */
+    .app-main {
+      flex: 1; background: #f8fafc;
+      display: flex; flex-direction: column; overflow: hidden;
     }
 
-    .badge-green { background: rgba(34,197,94,0.15); color: #4ade80; }
-    .badge-blue  { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .am-hero {
+      background: white; padding: 10px 14px 9px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .am-hero-top {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 7px;
+    }
+    .am-date { font-size: 0.65rem; color: #94a3b8; font-weight: 500; }
+    .am-cam {
+      display: flex; align-items: center; gap: 3px;
+      background: #f1f5f9; border-radius: 20px;
+      padding: 2px 7px; font-size: 0.65rem; color: #94a3b8;
+    }
+    .am-timer-row { display: flex; align-items: center; justify-content: space-between; }
+    .am-timer { font-size: 1.9rem; font-weight: 800; color: #0f172a; letter-spacing: -0.04em; line-height: 1; }
+    .am-timer-sub { font-size: 0.68rem; color: #94a3b8; font-weight: 500; margin-left: 4px; padding-bottom: 2px; align-self: flex-end; }
+    .am-spill {
+      display: flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 20px;
+      background: #f1f5f9; font-size: 0.65rem; font-weight: 600; color: #94a3b8;
+    }
+    .am-spill-dot { width: 5px; height: 5px; border-radius: 50%; background: #94a3b8; }
+    .am-spill.live { background: rgba(16,185,129,0.1); color: #059669; }
+    .am-spill.live .am-spill-dot { background: #10b981; }
 
-    .progress-bar {
-      height: 4px;
-      background: rgba(255,255,255,0.06);
-      border-radius: 100px;
-      overflow: hidden;
-      margin-top: 4px;
+    .am-stats { display: flex; background: white; border-bottom: 1px solid #e2e8f0; }
+    .am-stat { flex: 1; text-align: center; padding: 6px 0; border-right: 1px solid #e2e8f0; }
+    .am-stat:last-child { border-right: none; }
+    .am-stat-val { font-size: 0.7rem; font-weight: 700; color: #0f172a; line-height: 1.3; }
+    .am-stat-lbl { font-size: 0.52rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+
+    .am-punch { padding: 8px 10px; background: white; border-bottom: 1px solid #e2e8f0; }
+    .am-start-btn {
+      width: 100%;
+      background: linear-gradient(135deg,#6366f1 0%,#6366f1 50%,#818cf8 100%);
+      border-radius: 10px; padding: 10px;
+      font-size: 0.8rem; font-weight: 700; color: white;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      box-shadow: 0 4px 14px rgba(99,102,241,0.45);
     }
 
-    .progress-fill {
-      height: 100%;
-      border-radius: 100px;
-      background: linear-gradient(90deg, #3b82f6, #818cf8);
+    .am-toolbar {
+      padding: 6px 9px; background: white; border-bottom: 1px solid #e2e8f0;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .am-search {
+      flex: 1; background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 7px; padding: 4px 8px;
+      display: flex; align-items: center; gap: 4px;
+      font-size: 0.65rem; color: #94a3b8;
+    }
+    .am-icon-btn {
+      width: 24px; height: 24px; background: #f8fafc;
+      border: 1px solid #e2e8f0; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; color: #64748b;
+    }
+    .am-new-btn {
+      background: linear-gradient(135deg,#6366f1,#4f46e5);
+      border-radius: 7px; padding: 4px 9px;
+      font-size: 0.62rem; font-weight: 700; color: white;
+      display: flex; align-items: center; gap: 3px;
     }
 
-    /* Floating mini-cards */
+    .am-jira-hdr {
+      padding: 5px 9px; background: #eff6ff;
+      border-top: 1px solid #bfdbfe; border-bottom: 1px solid #bfdbfe;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .am-jira-badge {
+      width: 15px; height: 15px; background: #0052CC;
+      border-radius: 3px; display: flex; align-items: center; justify-content: center;
+      font-size: 0.52rem; font-weight: 900; color: white; flex-shrink: 0;
+    }
+    .am-jira-lbl { font-size: 0.65rem; font-weight: 600; color: #0052CC; flex: 1; }
+
+    .am-issue {
+      padding: 6px 9px; background: white; border-bottom: 1px solid #f1f5f9;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .am-issue-bar { width: 2.5px; height: 30px; background: #0052CC; border-radius: 2px; flex-shrink: 0; }
+    .am-issue-info { flex: 1; overflow: hidden; min-width: 0; }
+    .am-issue-title {
+      font-size: 0.65rem; font-weight: 500; color: #111827;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;
+    }
+    .am-issue-meta { display: flex; align-items: center; gap: 4px; font-size: 0.58rem; }
+    .am-issue-key { font-weight: 700; color: #0052CC; }
+    .am-issue-proj { color: #94a3b8; }
+    .am-issue-tail { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .am-stag {
+      font-size: 0.54rem; font-weight: 700; padding: 2px 5px; border-radius: 5px; white-space: nowrap;
+    }
+    .am-stag-qa   { background: #f1f5f9; color: #64748b; }
+    .am-stag-prog { background: #eff6ff; color: #3b82f6; }
+    .am-play-btn {
+      width: 19px; height: 19px; background: #0052CC;
+      border-radius: 5px; display: flex; align-items: center; justify-content: center;
+      font-size: 0.48rem; color: white;
+    }
+    .am-ext { font-size: 0.6rem; color: #94a3b8; }
+
+    /* Floating cards */
     .float-card {
       position: absolute;
       background: #1e293b;
@@ -394,32 +508,11 @@
       padding: 14px 18px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
-
-    .float-card-1 {
-      right: -40px;
-      top: 60px;
-      animation: float2 5s ease-in-out infinite;
-    }
-
-    .float-card-2 {
-      left: -30px;
-      bottom: 80px;
-      animation: float3 7s ease-in-out infinite;
-    }
-
-    @keyframes float2 {
-      0%, 100% { transform: translateY(0) rotate(2deg); }
-      50% { transform: translateY(-8px) rotate(2deg); }
-    }
-
-    @keyframes float3 {
-      0%, 100% { transform: translateY(0) rotate(-1deg); }
-      50% { transform: translateY(-10px) rotate(-1deg); }
-    }
-
+    .float-card-1 { right: -36px; top: 56px; animation: float2 5s ease-in-out infinite; }
+    .float-card-2 { left: -28px; bottom: 72px; animation: float3 7s ease-in-out infinite; }
     .fc-label { font-size: 0.7rem; color: #64748b; margin-bottom: 4px; }
     .fc-value { font-size: 1.3rem; font-weight: 800; color: #f1f5f9; }
-    .fc-sub { font-size: 0.7rem; color: #22c55e; margin-top: 2px; }
+    .fc-sub   { font-size: 0.7rem; color: #22c55e; margin-top: 2px; }
 
     /* ── Trust Bar ───────────────────────────────────────────────────── */
     #trust {
@@ -1073,79 +1166,179 @@
       </div>
     </div>
 
-    <!-- Dashboard mockup -->
-    <div class="hero-visual" style="position: relative; padding: 20px;">
+    <!-- macOS App Mockup -->
+    <div class="hero-visual" style="position:relative;padding:20px 48px 20px 16px;">
+
       <div class="float-card float-card-1">
         <div class="fc-label">Active Right Now</div>
         <div class="fc-value">8 employees</div>
         <div class="fc-sub">↑ 3 joined today</div>
       </div>
 
-      <div class="dashboard-card">
-        <div class="card-topbar">
+      <div class="app-window">
+        <!-- Title bar -->
+        <div class="app-titlebar">
           <div class="dot-btn dot-red"></div>
           <div class="dot-btn dot-yellow"></div>
           <div class="dot-btn dot-green"></div>
-          <div class="card-title-bar">TeamMonitor — Live Dashboard</div>
+          <div class="app-win-title">TeamMonitorAgent</div>
         </div>
-        <div class="card-body">
-          <div class="dash-header">
+
+        <div class="app-layout">
+          <!-- Sidebar -->
+          <div class="app-sidebar">
+            <div class="sb-brand">
+              <div class="sb-brand-icon">TM</div>
+              <div class="sb-brand-name">TeamMonitor</div>
+            </div>
+            <div style="padding:5px 0;">
+              <div class="sb-user">
+                <div class="sb-avatar">A</div>
+                <div>
+                  <div class="sb-uname">Alex Kim</div>
+                  <div class="sb-uemail">alex@acme-corp.io</div>
+                </div>
+              </div>
+            </div>
+            <div class="sb-divider"></div>
+            <div style="padding:4px 0;">
+              <div class="sb-nav-item active"><span class="sb-nav-icon">☰</span>Tasks</div>
+              <div class="sb-nav-item"><span class="sb-nav-icon">⊕</span>Activity</div>
+            </div>
+            <div class="sb-divider"></div>
+            <div style="padding:4px 0;">
+              <div class="sb-nav-item sb-muted"><span class="sb-nav-icon">✎</span>Manual Entry</div>
+              <div class="sb-nav-item sb-muted"><span class="sb-nav-icon">📊</span>Reports</div>
+              <div class="sb-nav-item sb-muted"><span class="sb-nav-icon">↻</span>Refresh</div>
+            </div>
+            <div class="sb-spacer"></div>
             <div>
-              <div class="dash-title">Team Activity</div>
-              <div class="dash-date">Monday, Apr 6 · Live</div>
+              <div class="sb-label">STATUS</div>
+              <div class="sb-status-chip">
+                <span style="font-size:0.7rem;">🖥</span>WFO
+                <span style="margin-left:auto;font-size:0.58rem;color:#52525b;">▾</span>
+              </div>
             </div>
-            <div style="background:rgba(34,197,94,0.15);color:#4ade80;font-size:0.7rem;font-weight:700;padding:4px 10px;border-radius:100px;">● Live</div>
-          </div>
-          <div class="kpi-row">
-            <div class="kpi-box">
-              <div class="kpi-val kpi-green">8</div>
-              <div class="kpi-lbl">Active Now</div>
-            </div>
-            <div class="kpi-box">
-              <div class="kpi-val kpi-blue">87%</div>
-              <div class="kpi-lbl">Avg Productivity</div>
-            </div>
-            <div class="kpi-box">
-              <div class="kpi-val kpi-orange">42h</div>
-              <div class="kpi-lbl">Hours Today</div>
+            <div class="sb-divider"></div>
+            <div style="padding:4px 0 6px;">
+              <div class="sb-nav-item sb-muted"><span class="sb-nav-icon">⚙</span>Settings</div>
+              <div class="sb-nav-item sb-muted"><span class="sb-nav-icon">🐛</span>Report Issue</div>
+              <div class="sb-nav-item sb-danger"><span class="sb-nav-icon">↪</span>Sign Out</div>
             </div>
           </div>
-          <div class="activity-list">
-            <div class="activity-row">
-              <div class="av av-blue">JD</div>
-              <div>
-                <div class="act-name">James Davis</div>
-                <div class="act-app">VS Code · 3h 24m</div>
-                <div class="progress-bar"><div class="progress-fill" style="width:92%"></div></div>
+
+          <!-- Main -->
+          <div class="app-main">
+            <!-- Timer hero -->
+            <div class="am-hero">
+              <div class="am-hero-top">
+                <span class="am-date">Monday, Apr 7</span>
+                <span class="am-cam">📷 14</span>
               </div>
-              <span class="act-badge badge-green">92%</span>
+              <div class="am-timer-row">
+                <div style="display:flex;align-items:baseline;gap:3px;">
+                  <span class="am-timer">6h 32m</span>
+                  <span class="am-timer-sub">today</span>
+                </div>
+                <div class="am-spill live">
+                  <div class="am-spill-dot"></div>Live
+                </div>
+              </div>
             </div>
-            <div class="activity-row">
-              <div class="av av-green">SM</div>
-              <div>
-                <div class="act-name">Sarah Miller</div>
-                <div class="act-app">Figma · 2h 11m</div>
-                <div class="progress-bar"><div class="progress-fill" style="width:85%"></div></div>
+
+            <!-- Stats -->
+            <div class="am-stats">
+              <div class="am-stat">
+                <div class="am-stat-val">2h 15m</div>
+                <div class="am-stat-lbl">Since Resume</div>
               </div>
-              <span class="act-badge badge-green">85%</span>
+              <div class="am-stat">
+                <div class="am-stat-val">6h 32m</div>
+                <div class="am-stat-lbl">Today Total</div>
+              </div>
+              <div class="am-stat">
+                <div class="am-stat-val">14</div>
+                <div class="am-stat-lbl">Screenshots</div>
+              </div>
+              <div class="am-stat">
+                <div class="am-stat-val" style="color:#10b981;">WFO</div>
+                <div class="am-stat-lbl">Status</div>
+              </div>
             </div>
-            <div class="activity-row">
-              <div class="av av-purple">AK</div>
-              <div>
-                <div class="act-name">Alex Kim</div>
-                <div class="act-app">Slack · 1h 47m</div>
-                <div class="progress-bar"><div class="progress-fill" style="width:71%"></div></div>
+
+            <!-- Punch -->
+            <div class="am-punch">
+              <div class="am-start-btn" style="background:linear-gradient(135deg,#ef4444,#dc2626);">⏹&nbsp; Stop Tracking</div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="am-toolbar">
+              <div class="am-search">🔍 Search tasks…</div>
+              <div class="am-icon-btn">↻</div>
+              <div class="am-new-btn">+ New Task</div>
+            </div>
+
+            <!-- Jira header -->
+            <div class="am-jira-hdr">
+              <div class="am-jira-badge">J</div>
+              <span class="am-jira-lbl">Jira — My Issues</span>
+              <span style="font-size:0.6rem;color:#94a3b8;">↻</span>
+            </div>
+
+            <!-- Jira rows -->
+            <div class="am-issue">
+              <div class="am-issue-bar" style="background:#3b82f6;"></div>
+              <div class="am-issue-info">
+                <div class="am-issue-title">Dashboard redesign — new layout for v3.0 release</div>
+                <div class="am-issue-meta">
+                  <span class="am-issue-key">APP-2041</span>
+                  <span class="am-issue-proj">· Frontend</span>
+                </div>
               </div>
-              <span class="act-badge badge-blue">71%</span>
+              <div class="am-issue-tail">
+                <span class="am-stag am-stag-prog">IN PROGRESS</span>
+                <div class="am-play-btn">▶</div>
+                <span class="am-ext">↗</span>
+              </div>
+            </div>
+            <div class="am-issue">
+              <div class="am-issue-bar"></div>
+              <div class="am-issue-info">
+                <div class="am-issue-title">Fix null pointer crash on cold start (reported by QA)</div>
+                <div class="am-issue-meta">
+                  <span class="am-issue-key">APP-1998</span>
+                  <span class="am-issue-proj">· Backend</span>
+                </div>
+              </div>
+              <div class="am-issue-tail">
+                <span class="am-stag am-stag-qa">Ready for QA</span>
+                <div class="am-play-btn">▶</div>
+                <span class="am-ext">↗</span>
+              </div>
+            </div>
+            <div class="am-issue">
+              <div class="am-issue-bar"></div>
+              <div class="am-issue-info">
+                <div class="am-issue-title">Add export to CSV on reports page</div>
+                <div class="am-issue-meta">
+                  <span class="am-issue-key">APP-1965</span>
+                  <span class="am-issue-proj">· Frontend</span>
+                </div>
+              </div>
+              <div class="am-issue-tail">
+                <span class="am-stag am-stag-qa">Ready for QA</span>
+                <div class="am-play-btn">▶</div>
+                <span class="am-ext">↗</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <div class="float-card float-card-2">
-        <div class="fc-label">Productivity Today</div>
-        <div class="fc-value" style="color: #4ade80;">87%</div>
-        <div class="fc-sub">↑ 5% vs yesterday</div>
+        <div class="fc-label">Tracked Today</div>
+        <div class="fc-value" style="color:#6366f1;">6h 32m</div>
+        <div class="fc-sub" style="color:#818cf8;">↑ on track for 8h</div>
       </div>
     </div>
   </div>

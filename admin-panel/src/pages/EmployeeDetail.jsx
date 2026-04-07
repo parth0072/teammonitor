@@ -33,7 +33,7 @@ const INTERVAL_OPTIONS = [
   { value:900,  label:"Every 15 minutes" },
   { value:1800, label:"Every 30 minutes" },
 ];
-const TABS = ["Overview","Screenshots","App Usage","Activity Log","Timeline","Settings","Jira","Manual Entry"];
+const TABS = ["Overview","Screenshots","App Usage","Activity Log","Timeline","Settings","Jira","Manual Entry","Reports"];
 
 export default function EmployeeDetail() {
   const { id } = useParams();
@@ -78,6 +78,10 @@ export default function EmployeeDetail() {
   const [idleWarningMinutes,    setIdleWarningMinutes]    = useState(2);
   const [idleStopMinutes,       setIdleStopMinutes]       = useState(5);
   const [screenshotsEnabled,    setScreenshotsEnabled]    = useState(true);
+  const [slowWorkAlertEnabled,  setSlowWorkAlertEnabled]  = useState(false);
+  const [slowWorkAlertMinutes,  setSlowWorkAlertMinutes]  = useState(10);
+  const [forceUpdateVersion,    setForceUpdateVersion]    = useState("");
+  const [forceUpdateUrl,        setForceUpdateUrl]        = useState("");
   const [settingsMsg, setSettingsMsg] = useState("");
   const [settingsSaving, setSettingsSaving] = useState(false);
   useEffect(() => {
@@ -88,6 +92,10 @@ export default function EmployeeDetail() {
     setIdleWarningMinutes(emp.idle_warning_minutes ?? 2);
     setIdleStopMinutes(emp.idle_stop_minutes ?? 5);
     setScreenshotsEnabled(emp.screenshots_enabled !== 0);
+    setSlowWorkAlertEnabled(!!emp.slow_work_alert_enabled);
+    setSlowWorkAlertMinutes(emp.slow_work_alert_minutes ?? 10);
+    setForceUpdateVersion(emp.force_update_version || "");
+    setForceUpdateUrl(emp.force_update_url || "");
   }, [emp]);
 
   async function saveSettings() {
@@ -102,12 +110,30 @@ export default function EmployeeDetail() {
         idle_warning_minutes:   idleWarningMinutes,
         idle_stop_minutes:      idleStopMinutes,
         screenshots_enabled:    screenshotsEnabled,
+        slow_work_alert_enabled: slowWorkAlertEnabled,
+        slow_work_alert_minutes: slowWorkAlertMinutes,
+        force_update_version:   forceUpdateVersion || null,
+        force_update_url:       forceUpdateUrl || null,
       });
       setSettingsMsg("✓ Settings saved");
       setTimeout(() => setSettingsMsg(""), 3000);
     } catch(err) { setSettingsMsg("✗ " + err.message); }
     setSettingsSaving(false);
   }
+
+  // Reports state
+  const [reportDate,   setReportDate]   = useState(today);
+  const [report,       setReport]       = useState(null);
+  const [reportLoading,setReportLoading]= useState(false);
+  const [reportError,  setReportError]  = useState("");
+  useEffect(() => {
+    if (tab !== 8) return;
+    setReportLoading(true); setReportError(""); setReport(null);
+    api.getDailyReport(id, reportDate)
+      .then(setReport)
+      .catch(e => setReportError(e.message))
+      .finally(() => setReportLoading(false));
+  }, [tab, id, reportDate]);
 
   // Jira state
   const [jiraStatus,   setJiraStatus]   = useState(null); // { connected, siteUrl, email, displayName }
@@ -451,6 +477,55 @@ export default function EmployeeDetail() {
             )}
           </div>
 
+          {/* Slow Work Alert */}
+          <div style={{ marginBottom:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:12 }}>
+              🐢 Slow Work Alert
+            </div>
+            <label style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, cursor:"pointer" }}>
+              <input type="checkbox" checked={slowWorkAlertEnabled} onChange={e => setSlowWorkAlertEnabled(e.target.checked)} style={{ width:16, height:16 }} />
+              <span style={{ fontSize:13, fontWeight:600, color:"#374151" }}>Enable low-activity toast alert</span>
+            </label>
+            {slowWorkAlertEnabled && (
+              <div>
+                <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>
+                  Alert after (minutes of low activity)
+                </label>
+                <input type="number" min="1" max="60" value={slowWorkAlertMinutes}
+                  onChange={e => setSlowWorkAlertMinutes(Math.max(1, parseInt(e.target.value)||10))}
+                  style={{ padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, width:120, boxSizing:"border-box" }} />
+                <div style={{ fontSize:12, color:"#64748b", marginTop:4 }}>Show a reminder toast if activity stays below 25% for this many minutes</div>
+              </div>
+            )}
+          </div>
+
+          {/* Force Update */}
+          <div style={{ marginBottom:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:12 }}>
+              🔄 Force App Update
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+              <div>
+                <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>
+                  Minimum required version
+                </label>
+                <input type="text" placeholder="e.g. 1.4.0" value={forceUpdateVersion}
+                  onChange={e => setForceUpdateVersion(e.target.value)}
+                  style={{ padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, width:"100%", boxSizing:"border-box" }} />
+                <div style={{ fontSize:12, color:"#64748b", marginTop:4 }}>Employee must update if their version is older than this</div>
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>
+                  Download URL (optional)
+                </label>
+                <input type="text" placeholder="https://github.com/…/releases" value={forceUpdateUrl}
+                  onChange={e => setForceUpdateUrl(e.target.value)}
+                  style={{ padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, width:"100%", boxSizing:"border-box" }} />
+                <div style={{ fontSize:12, color:"#64748b", marginTop:4 }}>Shown as the "Download" button on the update screen</div>
+              </div>
+            </div>
+          </div>
+
           {settingsMsg && <div style={{ marginBottom:12, fontSize:13, fontWeight:600, color: settingsMsg.startsWith("✓")?"#16a34a":"#ef4444" }}>{settingsMsg}</div>}
           <button onClick={saveSettings} disabled={settingsSaving}
             style={{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", cursor:"pointer", fontSize:14, fontWeight:600, opacity: settingsSaving?0.7:1 }}>
@@ -543,6 +618,136 @@ export default function EmployeeDetail() {
               Save Entry
             </button>
           </form>
+        </div>
+      )}
+
+      {tab===8 && (
+        <div>
+          {/* Date picker */}
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
+            <input type="date" value={reportDate} max={today}
+              onChange={e => setReportDate(e.target.value)}
+              style={{ padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14 }} />
+            {reportLoading && <span style={{ color:"#64748b", fontSize:13 }}>Loading…</span>}
+            {reportError  && <span style={{ color:"#ef4444", fontSize:13 }}>✗ {reportError}</span>}
+          </div>
+
+          {report && (
+            <>
+              {/* AI Summary */}
+              {report.ai_summary && (
+                <div style={S.card}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                    <div style={S.cardTitle}>✨ AI Summary</div>
+                    <div style={{ background: report.ai_summary.focus_score >= 70 ? "#d1fae5" : report.ai_summary.focus_score >= 40 ? "#fef9c3" : "#fee2e2",
+                                  color:      report.ai_summary.focus_score >= 70 ? "#065f46" : report.ai_summary.focus_score >= 40 ? "#854d0e" : "#991b1b",
+                                  borderRadius:20, padding:"4px 14px", fontSize:13, fontWeight:700 }}>
+                      Focus {report.ai_summary.focus_score}%
+                    </div>
+                  </div>
+                  <p style={{ fontSize:14, color:"#1e293b", marginBottom:12, lineHeight:1.6 }}>{report.ai_summary.summary}</p>
+                  {report.ai_summary.insights && report.ai_summary.insights.length > 0 && (
+                    <ul style={{ margin:0, paddingLeft:20, fontSize:13, color:"#475569", lineHeight:1.8 }}>
+                      {report.ai_summary.insights.map((ins, i) => <li key={i}>{ins}</li>)}
+                    </ul>
+                  )}
+                  {report.ai_summary.top_app_text && <p style={{ fontSize:13, color:"#64748b", marginTop:10 }}>{report.ai_summary.top_app_text}</p>}
+                  {report.ai_summary.peak_text     && <p style={{ fontSize:13, color:"#64748b", marginTop:4  }}>{report.ai_summary.peak_text}</p>}
+                </div>
+              )}
+
+              {/* Punch Log */}
+              {report.punch_log && report.punch_log.length > 0 && (
+                <div style={S.card}>
+                  <div style={S.cardTitle}>🕐 Punch Log</div>
+                  {report.punch_log.map((s, i) => {
+                    const dur = s.duration_minutes ? `${Math.floor(s.duration_minutes/60)}h ${s.duration_minutes%60}m` : "—";
+                    return (
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f1f5f9" }}>
+                        <div style={{ width:8, height:8, borderRadius:"50%", background: s.punch_out ? "#10b981" : "#f59e0b", flexShrink:0 }} />
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:"#1e293b" }}>
+                            {s.punch_in ? new Date(s.punch_in).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "?"} →{" "}
+                            {s.punch_out ? new Date(s.punch_out).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : <span style={{ color:"#f59e0b" }}>Active</span>}
+                            <span style={{ fontWeight:400, color:"#64748b", marginLeft:8 }}>{dur}</span>
+                          </div>
+                          <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap" }}>
+                            {s.task_name && <span style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.task_name}</span>}
+                            {s.jira_issue_key && <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.jira_issue_key}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Productive Hours */}
+              {report.productive_hours && (
+                <div style={S.card}>
+                  <div style={S.cardTitle}>📊 Productive Hours</div>
+                  <div style={{ display:"flex", alignItems:"flex-end", gap:3, height:80 }}>
+                    {report.productive_hours.map((h, i) => (
+                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
+                        <div style={{ width:"100%", background: h.active_minutes > 30 ? "#3b82f6" : h.active_minutes > 0 ? "#bfdbfe" : "#f1f5f9",
+                                      height: Math.max(4, (h.active_minutes / 60) * 64), borderRadius:"3px 3px 0 0", transition:"height 0.2s" }} />
+                        {(i % 6 === 0) && <div style={{ fontSize:9, color:"#94a3b8", marginTop:2 }}>{String(i).padStart(2,"0")}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  {report.peak_hours && report.peak_hours.length > 0 && (
+                    <div style={{ marginTop:16, display:"flex", gap:8, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:13, color:"#64748b", fontWeight:600 }}>Peak hours:</span>
+                      {report.peak_hours.map((p, i) => (
+                        <span key={i} style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:6, padding:"3px 10px", fontSize:12, fontWeight:600 }}>
+                          {String(p.hour).padStart(2,"0")}:00 · {p.active_minutes}m
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Work Pattern */}
+              {report.work_pattern && (
+                <div style={S.card}>
+                  <div style={S.cardTitle}>📈 Work Pattern</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:16 }}>
+                    {[
+                      { label:"First Punch",     value: report.work_pattern.first_punch ? new Date(report.work_pattern.first_punch).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—" },
+                      { label:"Last Punch",      value: report.work_pattern.last_punch  ? new Date(report.work_pattern.last_punch).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})  : "—" },
+                      { label:"Avg Session",     value: report.work_pattern.avg_session_minutes ? `${report.work_pattern.avg_session_minutes}m` : "—" },
+                      { label:"Longest Session", value: report.work_pattern.longest_session_minutes ? `${Math.floor(report.work_pattern.longest_session_minutes/60)}h ${report.work_pattern.longest_session_minutes%60}m` : "—" },
+                      { label:"Total Sessions",  value: report.work_pattern.total_sessions ?? "—" },
+                      { label:"Break Time",      value: report.work_pattern.total_break_minutes ? `${report.work_pattern.total_break_minutes}m` : "—" },
+                    ].map(stat => (
+                      <div key={stat.label} style={{ background:"#f8fafc", borderRadius:8, padding:"12px 16px" }}>
+                        <div style={{ fontSize:11, color:"#64748b", marginBottom:4 }}>{stat.label}</div>
+                        <div style={{ fontSize:18, fontWeight:700, color:"#1e293b" }}>{stat.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Top Apps */}
+              {report.top_apps && report.top_apps.length > 0 && (
+                <div style={S.card}>
+                  <div style={S.cardTitle}>🖥 Top Apps</div>
+                  {report.top_apps.map((app, i) => (
+                    <div key={i} style={S.appRow}>
+                      <span style={{ fontSize:13, color:"#1e293b", fontWeight:500 }}>{app.app_name}</span>
+                      <span style={{ fontSize:13, color:"#64748b" }}>{fmtDur(app.total_seconds)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {!reportLoading && !report && !reportError && (
+            <div style={{ color:"#94a3b8", fontSize:14, textAlign:"center", padding:40 }}>No data for this date</div>
+          )}
         </div>
       )}
     </div>

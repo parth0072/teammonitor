@@ -249,13 +249,12 @@ extension TrackingDashboardView {
 
             } else {
                 PunchButton(
-                    label: myTasks.isEmpty ? "Start Tracking" : "Start Tracking",
+                    label: "Start Tracking",
                     icon: "play.fill",
                     color: DS.indigo,
                     style: .gradient
                 ) {
-                    if myTasks.isEmpty && jiraIssues.isEmpty { Task { await manager.punchIn() } }
-                    else { activeSheet = .taskPicker }
+                    activeSheet = .taskPicker
                 }
             }
         }

@@ -1,18 +1,17 @@
 // LottieView.swift — Lottie animation helpers for SwiftUI
-//
-// Add .json animation files to the Xcode project (drag into the
-// TeamMonitorAgent group, check "Add to target: TeamMonitorAgent").
-// Recommended free animations from https://lottiefiles.com :
-//
-//   empty_tasks.json  — search "empty list" or "no tasks"
-//   lf_loading.json   — search "loading dots" or "three dots"
-//   lf_tracking.json  — search "recording" or "pulse"
-//
-// The views below fall back to SF Symbols automatically if the file
-// is not yet bundled, so the app always works.
 
 import SwiftUI
 import Lottie
+
+// MARK: - Bundle existence cache (avoids repeated file-system lookups per render)
+
+private var lottieFileCache: [String: Bool] = [:]
+private func lottieFileExists(_ name: String) -> Bool {
+    if let cached = lottieFileCache[name] { return cached }
+    let exists = Bundle.main.url(forResource: name, withExtension: "json") != nil
+    lottieFileCache[name] = exists
+    return exists
+}
 
 // MARK: - Core Lottie wrapper (macOS NSViewRepresentable)
 
@@ -21,17 +20,33 @@ struct LottieAnimView: NSViewRepresentable {
     var loopMode:  LottieLoopMode = .loop
     var speed:     CGFloat        = 1.0
 
+    class Coordinator {
+        var loadedName: String = ""
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeNSView(context: Context) -> LottieAnimationView {
         let view = LottieAnimationView(name: name)
         view.loopMode       = loopMode
         view.animationSpeed = speed
         view.contentMode    = .scaleAspectFit
         view.play()
+        context.coordinator.loadedName = name
         return view
     }
 
     func updateNSView(_ nsView: LottieAnimationView, context: Context) {
-        if !nsView.isAnimationPlaying { nsView.play() }
+        if context.coordinator.loadedName != name {
+            // Animation file changed — reload
+            nsView.animation        = LottieAnimation.named(name)
+            nsView.loopMode         = loopMode
+            nsView.animationSpeed   = speed
+            nsView.play()
+            context.coordinator.loadedName = name
+        } else if !nsView.isAnimationPlaying {
+            nsView.play()
+        }
     }
 }
 
@@ -45,7 +60,7 @@ struct LottieOrIcon: View {
     var loopMode:      LottieLoopMode = .loop
 
     var body: some View {
-        if Bundle.main.url(forResource: lottieName, withExtension: "json") != nil {
+        if lottieFileExists(lottieName) {
             LottieAnimView(name: lottieName, loopMode: loopMode)
                 .frame(width: size, height: size)
         } else {

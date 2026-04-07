@@ -118,6 +118,9 @@ export const api = {
 
   // Session stats per employee (last N days)
   getEmployeeStats: (empId, days) => request('GET', `/sessions/stats/employee?employeeId=${empId}&days=${days}`),
+
+  // Daily report (admin view for any employee)
+  getDailyReport: (empId, date) => request('GET', `/reports/daily/employee?employeeId=${empId}&date=${date}`),
 };
 
 export function saveToken(token) { localStorage.setItem('tm_token', token); }
