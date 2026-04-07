@@ -40,6 +40,7 @@
 		AA000036 /* Views/BugReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000036 /* Views/BugReportView.swift */; };
 		AA000037 /* Views/LottieView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000037 /* Views/LottieView.swift */; };
 		AA000038 /* lf_loading.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000038 /* lf_loading.json */; };
+		AA000041 /* Views/ForceUpdateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000041 /* Views/ForceUpdateView.swift */; };
 		AA000039 /* empty_tasks.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000039 /* empty_tasks.json */; };
 		AA000040 /* lf_tracking.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000040 /* lf_tracking.json */; };
 		CF840E032F7E306800CBD462 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = CF840E022F7E306800CBD462 /* Lottie */; };
@@ -78,6 +79,7 @@
 		AB000035 /* Services/AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppLogger.swift; sourceTree = "<group>"; };
 		AB000036 /* Views/BugReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/BugReportView.swift; sourceTree = "<group>"; };
 		AB000037 /* Views/LottieView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LottieView.swift; sourceTree = "<group>"; };
+		AB000041 /* Views/ForceUpdateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/ForceUpdateView.swift"; sourceTree = "<group>"; };
 		AB000038 /* lf_loading.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = lf_loading.json; sourceTree = "<group>"; };
 		AB000039 /* empty_tasks.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = empty_tasks.json; sourceTree = "<group>"; };
 		AB000040 /* lf_tracking.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = lf_tracking.json; sourceTree = "<group>"; };
@@ -161,6 +163,7 @@
 				AB000029 /* Views/TrackingDashboardView+Header.swift */,
 				AB000030 /* Views/TrackingDashboardView+Actions.swift */,
 				AB000031 /* Views/TrackingDashboardView+Tabs.swift */,
+				AB000041 /* Views/ForceUpdateView.swift */,
 				AB000013 /* Views/ManualEntryView.swift */,
 				AB000014 /* Views/ReportsView.swift */,
 				AB000020 /* Views/Styles.swift */,
@@ -279,6 +282,7 @@
 				AA000029 /* Views/TrackingDashboardView+Header.swift in Sources */,
 				AA000030 /* Views/TrackingDashboardView+Actions.swift in Sources */,
 				AA000031 /* Views/TrackingDashboardView+Tabs.swift in Sources */,
+				AA000041 /* Views/ForceUpdateView.swift in Sources */,
 				AA000032 /* Views/SettingsView.swift in Sources */,
 				AA000033 /* Views/NotTrackingAlertView.swift in Sources */,
 				AA000035 /* Services/AppLogger.swift in Sources */,
