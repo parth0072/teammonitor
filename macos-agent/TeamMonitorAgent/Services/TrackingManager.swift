@@ -98,6 +98,7 @@ class TrackingManager: ObservableObject {
     private var resumeTimer:          Timer?
     private var notTrackingTimer:     Timer?
     private var countdownTimer:       Timer?
+    private var activityWatchTimer:   Timer?   // auto check-in when activity detected while not tracking
     private var heartbeatTickCount:   Int   = 0
     private let kHeartbeatEvery:      Int   = 5
     private var lowActivityMinutes:   Int   = 0
@@ -150,6 +151,43 @@ class TrackingManager: ObservableObject {
         if !isTracking {
             stoppedTrackingAt = Date()
             scheduleNotTrackingReminder()
+        }
+
+        // ── Auto check-in on wake / activity ─────────────────────────────────
+        // 1. Mac wakes from sleep → punch in immediately
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.handleActivityDetected(reason: "Mac woke from sleep")
+        }
+
+        // 2. Poll every 2 min while not tracking — if system idle time just
+        //    dropped below 60 s the user moved; treat that as returning to desk.
+        startActivityWatcher()
+    }
+
+    // MARK: - Auto Check-In
+
+    private func startActivityWatcher() {
+        activityWatchTimer?.invalidate()
+        let t = Timer(timeInterval: 120, repeats: true) { [weak self] _ in
+            guard let self, !self.isTracking, !self.isOnBreak else { return }
+            let idle = IdleDetectionService.shared.systemIdleSecondsPublic()
+            // User became active (idle < 60 s) after being away at least 5 min
+            if idle < 60, let stopped = self.stoppedTrackingAt,
+               Date().timeIntervalSince(stopped) > 5 * 60 {
+                self.handleActivityDetected(reason: "Activity detected after \(Int(Date().timeIntervalSince(stopped) / 60)) min away")
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        activityWatchTimer = t
+    }
+
+    private func handleActivityDetected(reason: String) {
+        guard !isTracking, !isOnBreak, api.token != nil else { return }
+        TMLog("[AutoCheckIn] \(reason)")
+        Task {
+            await punchIn(task: currentTask, jiraIssue: currentJiraIssue)
         }
     }
 
@@ -271,6 +309,7 @@ class TrackingManager: ObservableObject {
 
     func punchIn(task: TaskItem? = nil, jiraIssue: JiraIssue? = nil) async {
         cancelNotTrackingReminder()
+        activityWatchTimer?.invalidate(); activityWatchTimer = nil  // stop polling while tracking
         showStartReminder        = false
         showNotTrackingAlert     = false
         stoppedTrackingAt        = nil
@@ -342,6 +381,7 @@ class TrackingManager: ObservableObject {
         lowActivityMinutes = 0
         showSlowWorkAlert  = false
         scheduleNotTrackingReminder()
+        startActivityWatcher()  // resume auto check-in polling
 
         // Check AI memory reminder after punch-out
         Task {

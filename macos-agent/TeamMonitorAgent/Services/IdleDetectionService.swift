@@ -137,6 +137,9 @@ class IdleDetectionService: ObservableObject {
     // MARK: - IOKit idle time
     // Uses IORegistryEntryCreateCFProperty to fetch only HIDIdleTime (not all properties).
 
+    /// Public accessor used by TrackingManager for auto check-in polling.
+    func systemIdleSecondsPublic() -> Int { systemIdleSeconds() }
+
     private func systemIdleSeconds() -> Int {
         let ioService = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"))
         guard ioService != 0 else { return 0 }
