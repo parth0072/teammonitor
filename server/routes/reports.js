@@ -60,7 +60,10 @@ function buildRuleSummary({ totalTrackedMinutes, totalActiveSeconds, sessions, t
 async function buildAiSummary(data) {
   const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent } = data;
 
-  if (!process.env.GROQ_API_KEY) return buildRuleSummary(data);
+  if (!process.env.GROQ_API_KEY) {
+    console.warn('[reports] GROQ_API_KEY not set — using rule-based summary');
+    return buildRuleSummary(data);
+  }
 
   const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
@@ -105,8 +108,11 @@ Keep tone professional but friendly. Be specific — use the actual numbers from
       }),
     });
     const data = await res.json();
-    const text = data.choices?.[0]?.message?.content?.trim() || '';
+    const raw  = data.choices?.[0]?.message?.content?.trim() || '';
+    // Strip markdown code fences if model wraps response
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const parsed = JSON.parse(text);
+    console.log('[reports] Groq AI summary generated successfully');
     return {
       focusScore,
       summary:    parsed.summary    || '',
