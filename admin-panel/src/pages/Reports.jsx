@@ -596,60 +596,7 @@ export default function Reports() {
         </div>
       )}
 
-      {/* ── Chatbot ── */}
-      {/* Floating button */}
-      <div onClick={() => { setChatOpen(o => !o); if (!chatOpen && chatHistory.length === 0) setChatHistory([{ role:"assistant", content:`Hi! Ask me anything about ${employeeId === "all" ? "the team's" : "this employee's"} work data for ${date}.` }]); }}
-        style={{ position:"fixed", bottom:28, right:28, width:52, height:52, borderRadius:"50%",
-          background:"linear-gradient(135deg,#6366f1,#8b5cf6)", color:"#fff", display:"flex", alignItems:"center",
-          justifyContent:"center", cursor:"pointer", boxShadow:"0 4px 20px rgba(99,102,241,0.4)", fontSize:22, zIndex:900 }}>
-        {chatOpen ? "✕" : "💬"}
-      </div>
-
-      {/* Chat panel */}
-      {chatOpen && (
-        <div style={{ position:"fixed", bottom:90, right:28, width:360, height:480, background:"#fff",
-          borderRadius:16, boxShadow:"0 8px 40px rgba(0,0,0,0.18)", border:"1px solid #e2e8f0",
-          display:"flex", flexDirection:"column", zIndex:900, overflow:"hidden" }}>
-          {/* Header */}
-          <div style={{ background:"linear-gradient(135deg,#6366f1,#8b5cf6)", padding:"14px 18px", color:"#fff" }}>
-            <div style={{ fontWeight:700, fontSize:14 }}>AI Assistant</div>
-            <div style={{ fontSize:11, opacity:0.8 }}>{employeeId === "all" ? "Team data" : employees.find(e=>String(e.id)===employeeId)?.name} · {date}</div>
-          </div>
-          {/* Messages */}
-          <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:10 }}>
-            {chatHistory.map((msg, i) => (
-              <div key={i} style={{ display:"flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-                <div style={{
-                  maxWidth:"80%", padding:"9px 13px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                  background: msg.role === "user" ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "#f1f5f9",
-                  color: msg.role === "user" ? "#fff" : "#1e293b",
-                  fontSize:13, lineHeight:1.5
-                }}>{msg.content}</div>
-              </div>
-            ))}
-            {chatSending && (
-              <div style={{ display:"flex", justifyContent:"flex-start" }}>
-                <div style={{ background:"#f1f5f9", borderRadius:"14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#94a3b8" }}>Thinking…</div>
-              </div>
-            )}
-          </div>
-          {/* Input */}
-          <div style={{ padding:"10px 12px", borderTop:"1px solid #e2e8f0", display:"flex", gap:8 }}>
-            <input
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && sendChat()}
-              placeholder="Ask about the data…"
-              style={{ flex:1, border:"1.5px solid #e2e8f0", borderRadius:10, padding:"8px 12px", fontSize:13, outline:"none" }}
-            />
-            <button onClick={sendChat} disabled={chatSending || !chatInput.trim()}
-              style={{ background:"#6366f1", color:"#fff", border:"none", borderRadius:10, padding:"8px 14px",
-                cursor:"pointer", fontSize:13, fontWeight:600, opacity: chatSending ? 0.6 : 1 }}>
-              ↑
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ── Chatbot (hidden) ── */}
     </div>
   );
 }
