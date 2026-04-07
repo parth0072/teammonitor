@@ -135,17 +135,16 @@ class IdleDetectionService: ObservableObject {
     }
 
     // MARK: - IOKit idle time
+    // Uses IORegistryEntryCreateCFProperty to fetch only HIDIdleTime (not all properties).
 
     private func systemIdleSeconds() -> Int {
         let ioService = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"))
         guard ioService != 0 else { return 0 }
         defer { IOObjectRelease(ioService) }
 
-        var dict: Unmanaged<CFMutableDictionary>?
-        guard IORegistryEntryCreateCFProperties(ioService, &dict, kCFAllocatorDefault, 0) == kIOReturnSuccess,
-              let properties = dict?.takeRetainedValue() as? [String: Any],
-              let idleTimeNs = properties["HIDIdleTime"] as? Int else { return 0 }
-
-        return idleTimeNs / 1_000_000_000  // nanoseconds → seconds
+        guard let value = IORegistryEntryCreateCFProperty(ioService, "HIDIdleTime" as CFString,
+                                                          kCFAllocatorDefault, 0)?
+                            .takeRetainedValue() as? Int else { return 0 }
+        return value / 1_000_000_000  // nanoseconds → seconds
     }
 }

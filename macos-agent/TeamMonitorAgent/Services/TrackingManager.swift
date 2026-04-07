@@ -244,14 +244,10 @@ class TrackingManager: ObservableObject {
 
     private func startCountdownTimer() {
         countdownTimer?.invalidate()
+        // Runs on RunLoop.main — no Task wrapper needed.
         let c = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                guard !self.isTracking || self.isOnBreak else { return }
-                if self.secondsUntilNextReminder > 0 {
-                    self.secondsUntilNextReminder -= 1
-                }
-            }
+            guard let self, !self.isTracking || self.isOnBreak else { return }
+            if self.secondsUntilNextReminder > 0 { self.secondsUntilNextReminder -= 1 }
         }
         RunLoop.main.add(c, forMode: .common)
         countdownTimer = c
@@ -571,45 +567,44 @@ class TrackingManager: ObservableObject {
     private func startMinuteTimer(sessionId: Int) {
         sessionTimer?.invalidate()
         heartbeatTickCount = 0
+        // Timer runs on RunLoop.main — no Task wrapper needed for synchronous work.
+        // Only the async heartbeat spawns a Task (infrequent, every kHeartbeatEvery minutes).
         let t = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             guard let self else { return }
-            Task { @MainActor in
-                self.trackedMinutes     += 1   // per-session (heartbeat)
-                self.heartbeatTickCount += 1
+            self.trackedMinutes     += 1
+            self.heartbeatTickCount += 1
 
-                // Reset daily counter if date has changed (app ran past midnight)
-                let currentDay = dayFormatter.string(from: Date())
-                let savedDay   = UserDefaults.standard.string(forKey: kTodayDate) ?? currentDay
-                if savedDay != currentDay {
-                    TMLog("New day detected (\(savedDay) → \(currentDay)) — resetting todayMinutes")
-                    self.todayMinutes = 0
+            // Reset daily counter if date has changed (app ran past midnight)
+            let currentDay = dayFormatter.string(from: Date())
+            let savedDay   = UserDefaults.standard.string(forKey: kTodayDate) ?? currentDay
+            if savedDay != currentDay {
+                TMLog("New day detected (\(savedDay) → \(currentDay)) — resetting todayMinutes")
+                self.todayMinutes = 0
+            }
+            self.todayMinutes += 1
+
+            self.saveSessionState()
+            self.saveTodayMinutes()
+
+            // Slow work alert
+            let alertEnabled   = APIService.shared.employee?.slowWorkAlertEnabled ?? false
+            let alertThreshold = APIService.shared.employee?.slowWorkAlertMinutes ?? 10
+            if alertEnabled && self.activityPercent < 25 && !self.isIdle {
+                self.lowActivityMinutes += 1
+                if self.lowActivityMinutes == alertThreshold { self.showSlowWorkAlert = true }
+            } else {
+                self.lowActivityMinutes = 0
+                self.showSlowWorkAlert  = false
+            }
+
+            if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
+                let mins = self.trackedMinutes
+                let perm = self.hasScreenPermission
+                Task {
+                    try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: mins,
+                                                  screenPermission: perm)
                 }
-                self.todayMinutes += 1   // all-day total (display)
-
-                self.saveSessionState()
-                self.saveTodayMinutes()
-
-                // Slow work alert — controlled by admin via slow_work_alert_enabled setting
-                let alertEnabled = APIService.shared.employee?.slowWorkAlertEnabled ?? false
-                let alertThreshold = APIService.shared.employee?.slowWorkAlertMinutes ?? 10
-                if alertEnabled && self.activityPercent < 25 && !self.isIdle {
-                    self.lowActivityMinutes += 1
-                    if self.lowActivityMinutes == alertThreshold {
-                        self.showSlowWorkAlert = true
-                    }
-                } else {
-                    self.lowActivityMinutes = 0
-                    self.showSlowWorkAlert  = false
-                }
-
-                if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
-                    try? await self.api.heartbeat(
-                        sessionId:        sessionId,
-                        totalMinutes:     self.trackedMinutes,
-                        screenPermission: self.hasScreenPermission
-                    )
-                    self.heartbeatTickCount = 0
-                }
+                self.heartbeatTickCount = 0
             }
         }
         RunLoop.main.add(t, forMode: .common)
@@ -618,12 +613,10 @@ class TrackingManager: ObservableObject {
 
     private func startResumeTimer() {
         resumeTimer?.invalidate()
+        // Timer runs on RunLoop.main — direct property access is safe, no Task needed.
         let t = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                guard let resume = self.lastResumeTime else { return }
-                self.minutesSinceResume = Int(Date().timeIntervalSince(resume)) / 60
-            }
+            guard let self, let resume = self.lastResumeTime else { return }
+            self.minutesSinceResume = Int(Date().timeIntervalSince(resume)) / 60
         }
         RunLoop.main.add(t, forMode: .common)
         resumeTimer = t
