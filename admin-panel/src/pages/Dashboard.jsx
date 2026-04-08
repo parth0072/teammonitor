@@ -196,6 +196,30 @@ function EmployeeTimeline({ employee, sessions }) {
         {/* Track */}
         <div style={{ position: "absolute", top: 4, left: 0, right: 0, height: 12, background: C.border, borderRadius: 6 }} />
 
+        {/* Break segments — gaps between consecutive sessions */}
+        {sorted.map((s, i) => {
+          const next = sorted[i + 1];
+          if (!next || !s.punch_out) return null;
+          const breakStart = s.punch_out;
+          const breakEnd   = next.punch_in;
+          const breakMins  = Math.round((new Date(breakEnd) - new Date(breakStart)) / 60000);
+          if (breakMins < 1) return null;
+          const x = xPct(breakStart);
+          const w = widthPct(breakStart, breakEnd);
+          return (
+            <div key={`break-${i}`}
+              title={`Break · ${format(new Date(breakStart), "h:mm a")} → ${format(new Date(breakEnd), "h:mm a")} (${breakMins}m)`}
+              style={{
+                position: "absolute", top: 4, height: 12, borderRadius: 4,
+                left: `${x}%`, width: `${w}%`,
+                background: "#FEF3C7",
+                border: "1px solid #FCD34D",
+                cursor: "default",
+              }}
+            />
+          );
+        })}
+
         {/* Session segments */}
         {sorted.map((s, i) => {
           const segStart = s.punch_in;
@@ -209,7 +233,7 @@ function EmployeeTimeline({ employee, sessions }) {
                 position: "absolute", top: 4, height: 12, borderRadius: 4,
                 left: `${x}%`, width: `${w}%`,
                 background: isActive ? C.green : C.blue,
-                opacity: isActive ? 1 : 0.75,
+                opacity: isActive ? 1 : 0.85,
                 cursor: "default",
               }}
             />
@@ -799,8 +823,24 @@ function AdminDashboard() {
       {/* Employee Timelines */}
       {Object.keys(sessionsByEmpAll).length > 0 && (
         <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Today's Timelines</div>
-          <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>Punch-in / out · breaks · active sessions</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 2 }}>Today's Timelines</div>
+              <div style={{ fontSize: 12, color: C.muted }}>Hover any segment for details</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              {[
+                { color: C.green,   label: "Active" },
+                { color: C.blue,    label: "Worked", opacity: 0.85 },
+                { color: "#FCD34D", label: "Break", border: true },
+              ].map(({ color, label, opacity, border }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 12, height: 8, borderRadius: 2, background: color, opacity: opacity || 1, border: border ? "1px solid #FCD34D" : "none" }} />
+                  <span style={{ fontSize: 11, color: C.muted }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
           {sortedEmployees.filter(emp => sessionsByEmpAll[emp.id]).map(emp => (
             <EmployeeTimeline
               key={emp.id}
