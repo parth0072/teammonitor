@@ -145,24 +145,15 @@ struct ReportsView: View {
     var activityTab: some View {
         VStack(spacing: 0) {
             let apps = report?.topApps ?? []
-            let logs = report?.activityLogs ?? []
             if apps.isEmpty {
                 emptyState(icon: "macwindow", message: "No activity recorded for this day")
             } else {
-                sectionHeader("App Usage")
+                sectionHeader("Top Apps — Time Spent")
                 VStack(spacing: 8) {
                     ForEach(Array(apps.prefix(10))) { item in
                         AppUsageRow(item: item, maxSeconds: apps.first?.totalSeconds ?? 1)
                     }
                 }.padding(16).background(Color.white)
-
-                sectionHeader("Recent Activity")
-                LazyVStack(spacing: 0) {
-                    ForEach(logs.prefix(30)) { log in
-                        ActivityLogRow(log: log)
-                        Divider().padding(.leading, 16)
-                    }
-                }.background(Color.white)
             }
         }
     }

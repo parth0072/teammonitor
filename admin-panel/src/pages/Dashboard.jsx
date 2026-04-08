@@ -141,6 +141,103 @@ function StatCard({ label, value, sub, color, icon }) {
   );
 }
 
+// ── Employee Timeline ─────────────────────────────────────────────────────────
+
+function EmployeeTimeline({ employee, sessions }) {
+  const color = avatarColor(employee.name);
+  const now   = new Date();
+
+  // Determine span: earliest punch-in to now, minimum 8h window starting at 8 AM
+  const sorted  = [...sessions].sort((a, b) => new Date(a.punch_in) - new Date(b.punch_in));
+  const first   = sorted[0] ? new Date(sorted[0].punch_in) : now;
+  const spanStart = new Date(first);
+  spanStart.setHours(Math.min(spanStart.getHours(), 8), 0, 0, 0);
+  const spanEnd   = new Date(Math.max(now, new Date(spanStart.getTime() + 8 * 60 * 60 * 1000)));
+  const spanMs    = spanEnd - spanStart;
+
+  function xPct(date) {
+    return Math.min(100, Math.max(0, ((new Date(date) - spanStart) / spanMs) * 100));
+  }
+  function widthPct(start, end) {
+    return Math.max(0.4, xPct(end) - xPct(start));
+  }
+
+  // Hour tick labels
+  const ticks = [];
+  for (let h = spanStart.getHours(); h <= spanEnd.getHours(); h++) {
+    const d = new Date(spanStart); d.setHours(h, 0, 0, 0);
+    ticks.push({ label: h === 12 ? "12p" : h < 12 ? `${h}a` : `${h - 12}p`, pct: xPct(d) });
+  }
+
+  const nowPct = xPct(now);
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      {/* Name row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div style={{
+          width: 22, height: 22, borderRadius: "50%", background: color,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 9, fontWeight: 700, color: "#fff", flexShrink: 0,
+        }}>
+          {initials(employee.name)}
+        </div>
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.sub }}>{employee.name}</span>
+        <span style={{ fontSize: 11, color: C.muted }}>
+          {fmtHM(sessions.reduce((a, s) => a + (s.total_minutes || 0), 0))} today
+        </span>
+        {sessions.some(s => s.status === "active") && (
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: "#ECFDF5", padding: "1px 7px", borderRadius: 20 }}>● LIVE</span>
+        )}
+      </div>
+
+      {/* Bar */}
+      <div style={{ position: "relative", height: 20 }}>
+        {/* Track */}
+        <div style={{ position: "absolute", top: 4, left: 0, right: 0, height: 12, background: C.border, borderRadius: 6 }} />
+
+        {/* Session segments */}
+        {sorted.map((s, i) => {
+          const segStart = s.punch_in;
+          const segEnd   = s.punch_out || (s.status === "active" ? now.toISOString() : s.punch_in);
+          const x = xPct(segStart);
+          const w = widthPct(segStart, segEnd);
+          const isActive = s.status === "active";
+          return (
+            <div key={i} title={`${s.task_name || "No task"} · ${format(new Date(segStart), "h:mm a")} → ${s.punch_out ? format(new Date(segEnd), "h:mm a") : "now"} (${s.total_minutes || 0}m)`}
+              style={{
+                position: "absolute", top: 4, height: 12, borderRadius: 4,
+                left: `${x}%`, width: `${w}%`,
+                background: isActive ? C.green : C.blue,
+                opacity: isActive ? 1 : 0.75,
+                cursor: "default",
+              }}
+            />
+          );
+        })}
+
+        {/* Now indicator */}
+        <div style={{
+          position: "absolute", top: 0, left: `${nowPct}%`,
+          width: 2, height: 20, background: C.amber, borderRadius: 1,
+          transform: "translateX(-50%)",
+        }} />
+      </div>
+
+      {/* Time labels */}
+      <div style={{ position: "relative", height: 14, marginTop: 2 }}>
+        {ticks.filter((_, i) => i % 2 === 0).map((t, i) => (
+          <span key={i} style={{
+            position: "absolute", left: `${t.pct}%`,
+            transform: "translateX(-50%)",
+            fontSize: 9, color: C.muted,
+          }}>{t.label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Team split widget ─────────────────────────────────────────────────────────
 
 function TeamSplitWidget({ active, done, absent, total }) {
@@ -589,19 +686,20 @@ function AdminDashboard() {
 
   if (loading) return <SkeletonDashboard />;
 
-  const activeCount  = sessions.filter(s => s.status === "active").length;
-  const doneCount    = sessions.filter(s => s.status !== "active").length;
-  const absentCount  = Math.max(0, employees.length - sessions.length);
   const totalMins    = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
 
   // sum all sessions per employee for accurate daily total
   const totalMinsByEmp = {};
+  const sessionsByEmpAll = {};
   sessions.forEach(s => {
     totalMinsByEmp[s.employee_id] = (totalMinsByEmp[s.employee_id] || 0) + (s.total_minutes || 0);
+    if (!sessionsByEmpAll[s.employee_id]) sessionsByEmpAll[s.employee_id] = [];
+    sessionsByEmpAll[s.employee_id].push(s);
   });
   const activeEmpCount = Object.keys(totalMinsByEmp).length;
   const avgMins        = activeEmpCount ? totalMins / activeEmpCount : 0;
 
+  // Build latest-session-per-employee map
   const sessionByEmp = {};
   sessions.forEach(s => {
     const prev = sessionByEmp[s.employee_id];
@@ -609,6 +707,13 @@ function AdminDashboard() {
       sessionByEmp[s.employee_id] = s;
     }
   });
+
+  // "Done" = employee whose LATEST session is completed (not punched back in)
+  // "Active" = employee whose latest session is still active
+  // "Absent" = no sessions at all today
+  const activeCount = Object.values(sessionByEmp).filter(s => s.status === "active").length;
+  const doneCount   = Object.values(sessionByEmp).filter(s => s.status !== "active").length;
+  const absentCount = Math.max(0, employees.length - Object.keys(sessionByEmp).length);
 
   const screenshotByEmp = {};
   screenshots.forEach(ss => {
@@ -690,6 +795,21 @@ function AdminDashboard() {
           total={employees.length}
         />
       </div>
+
+      {/* Employee Timelines */}
+      {Object.keys(sessionsByEmpAll).length > 0 && (
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Today's Timelines</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>Punch-in / out · breaks · active sessions</div>
+          {sortedEmployees.filter(emp => sessionsByEmpAll[emp.id]).map(emp => (
+            <EmployeeTimeline
+              key={emp.id}
+              employee={emp}
+              sessions={sessionsByEmpAll[emp.id] || []}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Top apps + second row */}
       {topApps.length > 0 && (
