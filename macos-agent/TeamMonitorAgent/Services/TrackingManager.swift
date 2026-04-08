@@ -171,16 +171,41 @@ class TrackingManager: ObservableObject {
             scheduleNotTrackingReminder()
         }
 
-        // ── Auto check-in on wake / activity ─────────────────────────────────
-        // 1. Mac wakes from sleep → punch in immediately
+        // ── Sleep / wake / quit observers ─────────────────────────────────────
+        // Punch OUT before sleep so the session closes cleanly in the DB.
+        // Auto check-in (didWakeNotification) will reopen it on wake.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isTracking else { return }
+            TMLog("[AutoCheckOut] Mac going to sleep — punching out")
+            Task { await self.punchOut() }
+        }
+
+        // Punch OUT when Mac wakes from sleep → auto check-in handles re-login
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.handleActivityDetected(reason: "Mac woke from sleep")
         }
 
-        // 2. Poll every 2 min while not tracking — if system idle time just
-        //    dropped below 60 s the user moved; treat that as returning to desk.
+        // Punch OUT when the app is about to quit (logout, force-quit, update install)
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isTracking else { return }
+            TMLog("[AutoCheckOut] App terminating — punching out")
+            // Synchronous-style: run punch-out on a detached task and give it 3 s
+            let sem = DispatchSemaphore(value: 0)
+            Task {
+                await self.punchOut()
+                sem.signal()
+            }
+            _ = sem.wait(timeout: .now() + 3)
+        }
+
+        // Poll every 2 min while not tracking — if system idle time just
+        // dropped below 60 s the user moved; treat that as returning to desk.
         startActivityWatcher()
     }
 
