@@ -40,6 +40,26 @@ async function callGroq(prompt, { json = true, maxTokens = 800 } = {}) {
   return raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 }
 
+// ── break computation ─────────────────────────────────────────────────────────
+// Returns break segments (gaps between consecutive completed sessions).
+// A "break" = gap between punch_out of session[i] and punch_in of session[i+1].
+// Gaps < 1 min are ignored (likely system glitches).
+
+function computeBreaks(sessions) {
+  const completed = sessions
+    .filter(s => s.punch_in && s.punch_out)
+    .sort((a, b) => new Date(a.punch_in) - new Date(b.punch_in));
+
+  const breaks = [];
+  for (let i = 0; i < completed.length - 1; i++) {
+    const gapStart = new Date(completed[i].punch_out);
+    const gapEnd   = new Date(completed[i + 1].punch_in);
+    const gapMins  = Math.round((gapEnd - gapStart) / 60000);
+    if (gapMins >= 1) breaks.push({ start: gapStart, end: gapEnd, minutes: gapMins });
+  }
+  return breaks;
+}
+
 // ── rule-based fallback ───────────────────────────────────────────────────────
 
 function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets, productivePercent }) {
@@ -70,23 +90,51 @@ function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets,
 // ── AI summary (individual) ───────────────────────────────────────────────────
 
 async function buildAiSummary(data) {
-  const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent } = data;
+  const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent, breaks = [] } = data;
   const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
   if (!process.env.GROQ_API_KEY) return buildRuleSummary(data);
 
-  const prompt = `You are a productivity coach. Analyze this employee's work day and give concise, encouraging feedback.
+  // Build session timeline string
+  const sessionLines = sessions.map((s, i) => {
+    const pIn  = s.punch_in  ? new Date(s.punch_in).toLocaleTimeString('en-US',  { hour: '2-digit', minute: '2-digit', hour12: true }) : '?';
+    const pOut = s.punch_out ? new Date(s.punch_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'ongoing';
+    return `  Session ${i + 1}: ${pIn} → ${pOut} (${fmtDuration(s.total_minutes || 0)})${s.task_name ? ', task: ' + s.task_name : ''}`;
+  }).join('\n');
 
-Data:
-- Tracked: ${fmtDuration(totalTrackedMinutes)} across ${sessions.length} session(s)
+  const breakLines = breaks.length === 0
+    ? '  No breaks detected'
+    : breaks.map((b, i) => `  Break ${i + 1}: ${fmtDuration(b.minutes)}`).join('\n');
+
+  const totalBreakMins  = breaks.reduce((s, b) => s + b.minutes, 0);
+  const avgSessionMins  = sessions.length ? Math.round(totalTrackedMinutes / sessions.length) : 0;
+  const longestSession  = sessions.reduce((m, s) => Math.max(m, s.total_minutes || 0), 0);
+
+  const prompt = `You are a productivity coach. Analyze this employee's work day — including their session timeline, break habits, and app usage — and give concise, encouraging, specific feedback.
+
+Work sessions:
+${sessionLines || '  (none)'}
+
+Breaks between sessions:
+${breakLines}
+Total break time: ${fmtDuration(totalBreakMins)} across ${breaks.length} break(s)
+
+Summary stats:
+- Total tracked: ${fmtDuration(totalTrackedMinutes)} across ${sessions.length} session(s)
+- Avg session length: ${fmtDuration(avgSessionMins)}, longest: ${fmtDuration(longestSession)}
 - Active app time: ${fmtDuration(Math.round(totalActiveSeconds / 60))}
 - Productive ratio: ${productivePercent}%
 - Focus score: ${focusScore}/10
 - Top apps: ${topApps.map(a => `${a.app_name} (${fmtDuration(Math.round(a.total_seconds / 60))})`).join(', ') || 'none'}
 - Peak hour: ${hourLabel(peakHour)} (${Math.round(hourBuckets[peakHour] / 60)} min active)
 
-Respond with JSON: { "summary": "2-3 sentences", "insights": "1-2 sentences tip", "topAppText": "1 sentence", "peakText": "1 sentence" }`;
+Consider whether:
+- Breaks are too short, too long, or missing entirely
+- Sessions are fragmented (many short) or well-focused (few long)
+- The break pattern is healthy (a break every ~90 min is ideal)
+
+Respond with JSON: { "summary": "2-3 sentences", "insights": "1-2 sentences including break/session pattern feedback", "topAppText": "1 sentence", "peakText": "1 sentence" }`;
 
   try {
     const text = await callGroq(prompt);
@@ -166,6 +214,8 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   const activeSessions = sessions.filter(s => s.status === 'active' || s.total_minutes > 0);
   const punchInTimes   = activeSessions.map(s => new Date(s.punch_in));
   const punchOutTimes  = activeSessions.filter(s => s.punch_out).map(s => new Date(s.punch_out));
+  const breaks         = computeBreaks(activeSessions);
+  const totalBreakMins = breaks.reduce((s, b) => s + b.minutes, 0);
 
   const work_pattern = {
     first_punch_in:          punchInTimes.length  ? new Date(Math.min(...punchInTimes))  : null,
@@ -173,9 +223,12 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
     total_sessions:          sessions.length,
     avg_session_minutes:     activeSessions.length ? Math.round(totalTrackedMinutes / activeSessions.length) : 0,
     longest_session_minutes: activeSessions.reduce((m, s) => Math.max(m, s.total_minutes || 0), 0),
+    total_breaks:            breaks.length,
+    total_break_minutes:     totalBreakMins,
+    avg_break_minutes:       breaks.length ? Math.round(totalBreakMins / breaks.length) : 0,
   };
 
-  const ai_summary = await buildAiSummary({ totalTrackedMinutes, totalActiveSeconds, sessions: activeSessions, topApps, hourBuckets, productivePercent });
+  const ai_summary = await buildAiSummary({ totalTrackedMinutes, totalActiveSeconds, sessions: activeSessions, topApps, hourBuckets, productivePercent, breaks });
 
   if (saveToMemory) {
     await saveMemory(employeeId, date, {
@@ -197,6 +250,7 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
     productive_hours,
     peak_hours,
     work_pattern,
+    breaks,      // array of { start, end, minutes }
     ai_summary,
   };
 }
@@ -450,43 +504,110 @@ router.post('/chat', auth, adminOnly, async (req, res) => {
 });
 
 // ── AI memory reminder ────────────────────────────────────────────────────────
+// Called by the macOS agent after punch-out (and optionally on heartbeat).
+// Returns a personalised reminder based on today's sessions, breaks, and
+// the employee's 7-day historical pattern stored in employee_daily_memory.
 
 router.get('/reminder', auth, async (req, res) => {
   try {
     const employeeId = req.user.id;
     const today      = new Date().toISOString().slice(0, 10);
 
-    // Today's actual data
-    const [todayRows] = await db.query(
-      `SELECT COALESCE(SUM(total_minutes), 0) AS total_minutes FROM sessions WHERE employee_id = ? AND date = ?`,
+    // ── Today's sessions ──────────────────────────────────────────────────────
+    const [todaySessions] = await db.query(
+      `SELECT id, punch_in, punch_out, total_minutes, status,
+              (SELECT name FROM tasks WHERE id = s.task_id) AS task_name
+       FROM sessions s WHERE employee_id = ? AND date = ? ORDER BY punch_in ASC`,
       [employeeId, today]
     );
-    const todayMins = Number(todayRows[0]?.total_minutes) || 0;
+    const todayMins   = todaySessions.reduce((s, r) => s + (r.total_minutes || 0), 0);
+    const breaks      = computeBreaks(todaySessions);
+    const totalBreaks = breaks.length;
+    const totalBreakMins = breaks.reduce((s, b) => s + b.minutes, 0);
 
-    // 7-day average from memory (excluding today)
+    // Time since last punch-out (to detect no-break-yet situations)
+    const activeSess  = todaySessions.find(s => s.status === 'active');
+    const lastPunchIn = activeSess ? new Date(activeSess.punch_in) : null;
+    const minsSinceStart = lastPunchIn ? Math.round((Date.now() - lastPunchIn) / 60000) : null;
+
+    // ── 7-day historical pattern ──────────────────────────────────────────────
     const [memRows] = await db.query(
-      `SELECT AVG(total_minutes) AS avg_minutes, AVG(focus_score) AS avg_focus
+      `SELECT date, total_minutes, productive_percent, focus_score, ai_notes
        FROM employee_daily_memory
-       WHERE employee_id = ? AND date < ? AND date >= DATE_SUB(?, INTERVAL 7 DAY)`,
+       WHERE employee_id = ? AND date < ? AND date >= DATE_SUB(?, INTERVAL 7 DAY)
+       ORDER BY date DESC`,
       [employeeId, today, today]
     );
-    const avgMins  = Math.round(Number(memRows[0]?.avg_minutes) || 0);
-    const avgFocus = Math.round(Number(memRows[0]?.avg_focus)   || 0);
+    const avgMins    = memRows.length ? Math.round(memRows.reduce((s, r) => s + r.total_minutes, 0) / memRows.length) : 0;
+    const avgFocus   = memRows.length ? Math.round(memRows.reduce((s, r) => s + r.focus_score,   0) / memRows.length) : 0;
+    const historyLines = memRows.map(r =>
+      `  ${r.date}: ${fmtDuration(r.total_minutes)}, focus ${r.focus_score}/10, ${r.productive_percent}% productive${r.ai_notes ? ' — ' + r.ai_notes : ''}`
+    ).join('\n');
 
-    if (avgMins === 0) return res.json({ reminder: null }); // not enough history
-
-    const ratio = todayMins / avgMins;
-    let reminder = null;
-
-    if (todayMins === 0) {
-      reminder = "You haven't tracked any time today. Don't forget to punch in!";
-    } else if (ratio < 0.5) {
-      reminder = `You've tracked ${fmtDuration(todayMins)} today — well below your ${fmtDuration(avgMins)} daily average. It looks like a slow day.`;
-    } else if (ratio < 0.75) {
-      reminder = `You've tracked ${fmtDuration(todayMins)} today, which is less than your usual ${fmtDuration(avgMins)}. Keep going!`;
+    // ── Rule-based fallback (no GROQ_API_KEY) ────────────────────────────────
+    if (!process.env.GROQ_API_KEY) {
+      let reminder = null;
+      if (todayMins === 0) {
+        reminder = "You haven't tracked any time today. Don't forget to punch in!";
+      } else if (avgMins > 0 && todayMins < avgMins * 0.5) {
+        reminder = `You've tracked ${fmtDuration(todayMins)} — well below your ${fmtDuration(avgMins)} daily average. It looks like a slow day.`;
+      } else if (avgMins > 0 && todayMins < avgMins * 0.75) {
+        reminder = `You've tracked ${fmtDuration(todayMins)}, less than your usual ${fmtDuration(avgMins)}. Keep going!`;
+      } else if (totalBreaks === 0 && todayMins >= 90) {
+        reminder = "You've been working for a while without a break. Consider stepping away for a few minutes.";
+      }
+      return res.json({ reminder, today_minutes: todayMins, avg_minutes: avgMins, avg_focus: avgFocus });
     }
 
-    res.json({ reminder, today_minutes: todayMins, avg_minutes: avgMins, avg_focus: avgFocus });
+    // ── AI-powered reminder ───────────────────────────────────────────────────
+    const sessionLines = todaySessions.map((s, i) => {
+      const pIn  = s.punch_in  ? new Date(s.punch_in).toLocaleTimeString('en-US',  { hour: '2-digit', minute: '2-digit', hour12: true }) : '?';
+      const pOut = s.punch_out ? new Date(s.punch_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : 'ongoing';
+      return `  Session ${i + 1}: ${pIn} → ${pOut} (${fmtDuration(s.total_minutes || 0)})${s.task_name ? ', task: ' + s.task_name : ''}`;
+    }).join('\n') || '  (no sessions today)';
+
+    const breakSummary = totalBreaks === 0
+      ? 'No breaks taken yet today'
+      : `${totalBreaks} break(s) totalling ${fmtDuration(totalBreakMins)} (avg ${fmtDuration(Math.round(totalBreakMins / totalBreaks))})`;
+
+    const prompt = `You are a warm, supportive productivity coach sending a short push notification to an employee.
+
+Today's work (${today}):
+${sessionLines}
+
+Breaks: ${breakSummary}
+Total tracked: ${fmtDuration(todayMins)}
+${minsSinceStart !== null ? `Currently active — ${fmtDuration(minsSinceStart)} into current session` : ''}
+
+Historical pattern (last ${memRows.length} days):
+${historyLines || '  (no history yet)'}
+7-day avg: ${fmtDuration(avgMins)}, avg focus: ${avgFocus}/10
+
+Rules:
+- If no sessions today: remind them to punch in
+- If active and no break after 90+ min: suggest taking a break
+- If many short sessions (fragmented): suggest longer focus blocks
+- If below historical average: gentle encouragement
+- If above historical average: celebrate it
+- If break pattern looks healthy: acknowledge it
+- Keep the reminder to 1-2 short, friendly sentences. No filler phrases like "Great job!" unless earned.
+- If nothing notable: return null
+
+Respond with JSON: { "reminder": "the reminder text, or null if nothing useful to say" }`;
+
+    try {
+      const text = await callGroq(prompt, { maxTokens: 150 });
+      const p    = text ? JSON.parse(text) : {};
+      const reminder = p.reminder && p.reminder !== 'null' ? p.reminder : null;
+      return res.json({ reminder, today_minutes: todayMins, avg_minutes: avgMins, avg_focus: avgFocus });
+    } catch (err) {
+      console.warn('[reminder] AI fallback:', err.message);
+      // Rule-based fallback
+      const reminder = todayMins === 0
+        ? "You haven't tracked any time today. Don't forget to punch in!"
+        : (totalBreaks === 0 && todayMins >= 90 ? "You've been going for a while — a short break could help you focus better." : null);
+      return res.json({ reminder, today_minutes: todayMins, avg_minutes: avgMins, avg_focus: avgFocus });
+    }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
