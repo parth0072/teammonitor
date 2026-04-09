@@ -3,7 +3,8 @@
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
-const { auth, adminOnly } = require('../middleware/auth');
+const auth               = require('../middleware/auth');
+const { adminOnly }      = require('../middleware/auth');
 
 // GET /api/settings — returns all org settings as { key: parsedValue }
 // Open to any authenticated user so the macOS app can read status options.
