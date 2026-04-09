@@ -185,7 +185,8 @@ Respond with JSON: { "summary": "2-3 sentences covering overall performance and 
     if (!text) return buildRuleSummary(data);
     const p = JSON.parse(text);
     console.log('[reports] AI summary OK');
-    return { focusScore, summary: p.summary || '', insights: p.insights || '', topAppText: p.topAppText || '', peakText: p.peakText || '', pattern: '' };
+    const str = v => (typeof v === 'string' ? v : '');
+    return { focusScore, summary: str(p.summary), insights: str(p.insights), topAppText: str(p.topAppText), peakText: str(p.peakText), pattern: '' };
   } catch (err) {
     console.error('[reports] AI summary fallback:', err.message);
     return buildRuleSummary(data);
@@ -492,7 +493,8 @@ Respond with JSON: {
         const text = await callGroq(prompt);
         if (text) {
           const p = JSON.parse(text);
-          team_ai_summary = { summary: p.summary || '', insights: p.insights || '', recommendation: p.recommendation || '' };
+          const str = v => (typeof v === 'string' ? v : '');
+          team_ai_summary = { summary: str(p.summary), insights: str(p.insights), recommendation: str(p.recommendation) };
         }
       } catch (err) {
         console.warn('[reports/team] AI fallback:', err.message);
@@ -679,7 +681,7 @@ Respond with JSON: { "reminder": "the message, or null" }`;
     try {
       const text = await callGroq(prompt, { maxTokens: 150 });
       const p    = text ? JSON.parse(text) : {};
-      const reminder = p.reminder && p.reminder !== 'null' ? p.reminder : null;
+      const reminder = typeof p.reminder === 'string' && p.reminder !== 'null' ? p.reminder : null;
       return res.json({ reminder, today_minutes: todayMins, avg_minutes: avgMins, avg_focus: avgFocus });
     } catch (err) {
       console.warn('[reminder] AI fallback:', err.message);
