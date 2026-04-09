@@ -48,12 +48,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Set delegate BEFORE requesting auth so foreground notifications work.
         UNUserNotificationCenter.current().delegate = self
 
+        // Register idle-reminder category — action buttons force Alert style (stays on screen)
+        let startAction = UNNotificationAction(
+            identifier: "START_TRACKING",
+            title: "▶ Start Tracking",
+            options: [.foreground]
+        )
+        let dismissAction = UNNotificationAction(
+            identifier: "DISMISS",
+            title: "Dismiss",
+            options: [.destructive]
+        )
+        let idleCategory = UNNotificationCategory(
+            identifier: "IDLE_REMINDER",
+            actions: [startAction, dismissAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([idleCategory])
+
+        // Listen for window-activation requests from TrackingManager
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(activateMainWindow),
+            name: .tmActivateWindow,
+            object: nil
+        )
+
         // Briefly activate so the permission dialog appears on screen.
-        // (LSUIElement=true apps aren't frontmost by default.)
         NSApp.activate(ignoringOtherApps: true)
 
-        // Always call requestAuthorization — it's a no-op if already granted/denied,
-        // and shows the dialog only on first launch.
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error {
                 TMLog("[Notifications] Auth error: \(error)")
@@ -74,6 +98,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     ) {
         TMLog("[Notifications] willPresent fired — showing banner")
         completionHandler([.banner, .sound])
+    }
+
+    // Handle tapping the notification or its action buttons
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        activateMainWindow()
+        if response.actionIdentifier == "START_TRACKING" {
+            // Punch in with last active task if available
+            DispatchQueue.main.async {
+                let manager = TrackingManager.shared
+                guard !manager.isTracking else { return }
+                Task { @MainActor in
+                    let task  = manager.currentTask  ?? manager.lastActiveTask
+                    let jira  = manager.currentJiraIssue ?? manager.lastActiveJiraIssue
+                    await manager.punchIn(task: task, jiraIssue: jira)
+                }
+            }
+        }
+        completionHandler()
+    }
+
+    @objc func activateMainWindow() {
+        DispatchQueue.main.async {
+            NSApp.unhide(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            if let win = NSApp.windows.first(where: { $0.canBecomeMain && $0.canBecomeKey }) {
+                win.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     // Window close does NOT quit the app – it just hides to menu bar

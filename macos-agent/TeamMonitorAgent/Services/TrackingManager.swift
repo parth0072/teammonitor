@@ -5,6 +5,10 @@ import Foundation
 import Combine
 import UserNotifications
 
+extension Notification.Name {
+    static let tmActivateWindow = Notification.Name("tm.activateWindow")
+}
+
 // MARK: - Persisted session state (survives app restart within the same day)
 
 private struct PersistedSession: Codable {
@@ -315,6 +319,23 @@ class TrackingManager: ObservableObject {
         }
     }
 
+    /// Idle-specific notification — uses IDLE_REMINDER category so macOS shows
+    /// it as an Alert (stays on screen) with Start Tracking / Dismiss buttons.
+    func sendIdleNotification(_ text: String) {
+        let content              = UNMutableNotificationContent()
+        content.title            = "⏱ TeamMonitor — Timer Not Running"
+        content.body             = text
+        content.sound            = .default
+        content.categoryIdentifier = "IDLE_REMINDER"
+        // Replace any previous idle notification so they don't stack
+        let req = UNNotificationRequest(identifier: "tm.idle.reminder", content: content, trigger: nil)
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["tm.idle.reminder"])
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["tm.idle.reminder"])
+        UNUserNotificationCenter.current().add(req) { err in
+            if let err { TMLog("[Notifications] Idle delivery failed: \(err)") }
+        }
+    }
+
     func scheduleNotTrackingReminder() {
         cancelNotTrackingReminder()
         guard !idleReminderDisabled else { return }
@@ -333,17 +354,14 @@ class TrackingManager: ObservableObject {
 
                 self.reminderPhase += 1
 
-                // Bring window to front
-                if let win = NSApp.windows.first(where: { $0.canBecomeMain && $0.canBecomeKey }) {
-                    win.makeKeyAndOrderFront(nil)
-                }
-                NSApp.activate(ignoringOtherApps: true)
+                // Activate window via AppDelegate observer
+                NotificationCenter.default.post(name: .tmActivateWindow, object: nil)
 
-                // Send system notification only — no in-app alert popup
+                // Send persistent notification with action buttons (forces Alert style)
                 let msg = self.isOnBreak
                     ? "⏸ Still on break — tap Resume to continue tracking"
                     : "⏱ Timer is not running — you've been idle for \(self.minutesNotTracking) min"
-                self.sendNotification(msg, isWarning: true)
+                self.sendIdleNotification(msg)
 
                 self.scheduleNotTrackingReminder()
             }
