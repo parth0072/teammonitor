@@ -126,12 +126,17 @@ export default function EmployeeDetail() {
   const [report,       setReport]       = useState(null);
   const [reportLoading,setReportLoading]= useState(false);
   const [reportError,  setReportError]  = useState("");
+  const [weekStats,    setWeekStats]    = useState([]);
   useEffect(() => {
     if (tab !== 8) return;
     setReportLoading(true); setReportError(""); setReport(null);
-    api.getDailyReport(id, reportDate)
-      .then(setReport)
-      .catch(e => setReportError(e.message))
+    Promise.all([
+      api.getDailyReport(id, reportDate),
+      api.getEmployeeStats(id, 7).catch(() => []),
+    ]).then(([rpt, stats]) => {
+      setReport(rpt);
+      setWeekStats(Array.isArray(stats) ? stats : []);
+    }).catch(e => setReportError(e.message))
       .finally(() => setReportLoading(false));
   }, [tab, id, reportDate]);
 
@@ -726,6 +731,124 @@ export default function EmployeeDetail() {
                   </div>
                 </div>
               )}
+
+              {/* Patterns */}
+              {(report.breaks || report.productive_hours) && (() => {
+                const breaks       = report.breaks || [];
+                const hours        = report.productive_hours || [];
+                const wp           = report.work_pattern || {};
+
+                // Break metrics
+                const totalBreaks  = breaks.length;
+                const totalBrkMin  = breaks.reduce((s, b) => s + b.minutes, 0);
+                const avgBrkMin    = totalBreaks ? Math.round(totalBrkMin / totalBreaks) : 0;
+                const microBreaks  = breaks.filter(b => b.minutes < 5).length;
+                const longBreaks   = breaks.filter(b => b.minutes > 30).length;
+
+                // Avg work between breaks (total active mins / (breaks+1) "slots")
+                const totalActive  = hours.reduce((s, h) => s + (h.active_minutes||0), 0);
+                const slots        = totalBreaks + 1;
+                const avgWorkSlot  = Math.round(totalActive / slots);
+
+                // Time-of-day buckets (active minutes)
+                const morning   = hours.slice(6,  12).reduce((s, h) => s + (h.active_minutes||0), 0);
+                const afternoon = hours.slice(12, 17).reduce((s, h) => s + (h.active_minutes||0), 0);
+                const evening   = hours.slice(17, 22).reduce((s, h) => s + (h.active_minutes||0), 0);
+                const todMax    = Math.max(morning, afternoon, evening, 1);
+
+                // CV% from 7-day stats
+                let cvPct = null;
+                if (weekStats.length >= 3) {
+                  const mins = weekStats.map(r => Number(r.total_minutes)||0).filter(m => m > 0);
+                  if (mins.length >= 2) {
+                    const avg = mins.reduce((s,m)=>s+m,0)/mins.length;
+                    const sd  = Math.sqrt(mins.reduce((s,m)=>s+(m-avg)**2,0)/mins.length);
+                    cvPct = Math.round(sd/avg*100);
+                  }
+                }
+
+                const consistencyLabel = cvPct === null ? null
+                  : cvPct < 15 ? { text:"Very consistent", color:"#d1fae5", fg:"#065f46" }
+                  : cvPct < 30 ? { text:"Moderate fluctuation", color:"#fef9c3", fg:"#854d0e" }
+                  :              { text:"High fluctuation", color:"#fee2e2", fg:"#991b1b" };
+
+                // Short sessions flag
+                const shortSessions = (report.punch_log||[]).filter(s =>
+                  s.duration_minutes && s.duration_minutes < 15 && s.punch_out
+                ).length;
+
+                return (
+                  <div style={S.card}>
+                    <div style={S.cardTitle}>🔍 Patterns</div>
+
+                    {/* Break metrics row */}
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))", gap:12, marginBottom:20 }}>
+                      {[
+                        { label:"Total Breaks",       value: totalBreaks || "—" },
+                        { label:"Avg Break",           value: avgBrkMin ? `${avgBrkMin}m` : "—" },
+                        { label:"Total Break Time",    value: totalBrkMin ? fmtHM(totalBrkMin) : "—" },
+                        { label:"Micro-breaks (<5m)",  value: microBreaks || "—" },
+                        { label:"Long breaks (>30m)",  value: longBreaks || "—" },
+                        { label:"Avg Work / Break",    value: avgWorkSlot ? `${avgWorkSlot}m` : "—" },
+                      ].map(stat => (
+                        <div key={stat.label} style={{ background:"#f8fafc", borderRadius:8, padding:"12px 14px" }}>
+                          <div style={{ fontSize:11, color:"#64748b", marginBottom:4 }}>{stat.label}</div>
+                          <div style={{ fontSize:17, fontWeight:700, color:"#1e293b" }}>{stat.value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Time-of-day bars */}
+                    <div style={{ marginBottom:20 }}>
+                      <div style={{ fontSize:12, fontWeight:600, color:"#64748b", marginBottom:10 }}>Time of Day</div>
+                      {[
+                        { label:"🌅 Morning (6–12)", mins: morning },
+                        { label:"☀️ Afternoon (12–17)", mins: afternoon },
+                        { label:"🌆 Evening (17–22)", mins: evening },
+                      ].map(row => (
+                        <div key={row.label} style={{ marginBottom:8 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"#374151", marginBottom:3 }}>
+                            <span>{row.label}</span>
+                            <span style={{ fontWeight:600 }}>{row.mins ? fmtHM(row.mins) : "—"}</span>
+                          </div>
+                          <div style={{ background:"#f1f5f9", borderRadius:4, height:8 }}>
+                            <div style={{ background:"#3b82f6", borderRadius:4, height:8, width:`${Math.round(row.mins/todMax*100)}%`, transition:"width 0.3s" }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Consistency + session flags */}
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                      {consistencyLabel && (
+                        <span style={{ background:consistencyLabel.color, color:consistencyLabel.fg, borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600 }}>
+                          {consistencyLabel.text} (CV {cvPct}%)
+                        </span>
+                      )}
+                      {shortSessions > 0 && (
+                        <span style={{ background:"#fef3c7", color:"#92400e", borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600 }}>
+                          ⚡ {shortSessions} short session{shortSessions>1?"s":""} (&lt;15m)
+                        </span>
+                      )}
+                      {microBreaks > 0 && microBreaks === totalBreaks && (
+                        <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600 }}>
+                          Only micro-breaks today
+                        </span>
+                      )}
+                      {totalBreaks > 8 && (
+                        <span style={{ background:"#fce7f3", color:"#9d174d", borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600 }}>
+                          🔁 High break count ({totalBreaks})
+                        </span>
+                      )}
+                      {totalBreaks === 0 && (
+                        <span style={{ background:"#f0fdf4", color:"#166534", borderRadius:20, padding:"4px 12px", fontSize:12, fontWeight:600 }}>
+                          ✅ No breaks recorded
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Top Apps */}
               {report.top_apps && report.top_apps.length > 0 && (
