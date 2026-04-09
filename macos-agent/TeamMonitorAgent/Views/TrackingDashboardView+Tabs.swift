@@ -69,7 +69,7 @@ extension TrackingDashboardView {
             .overlay(Rectangle().frame(height: 1).foregroundColor(DS.border), alignment: .bottom)
 
             ScrollView {
-                LazyVStack(spacing: 0) {
+                VStack(spacing: 0) {
                     // ── Recently used tasks/issues ──────────────────────
                     let recentTasks = myTasks.filter { manager.recentTaskIds.contains($0.id) }
                         .sorted { (manager.recentTaskIds.firstIndex(of: $0.id) ?? 99)
@@ -305,7 +305,7 @@ extension TrackingDashboardView {
             .overlay(Rectangle().frame(height: 1).foregroundColor(DS.border), alignment: .bottom)
 
             ScrollView {
-                LazyVStack(spacing: 0) {
+                VStack(spacing: 0) {
                     if manager.recentApps.isEmpty {
                         VStack(spacing: 10) {
                             LottieOrIcon(

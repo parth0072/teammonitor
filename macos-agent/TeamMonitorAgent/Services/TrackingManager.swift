@@ -332,17 +332,17 @@ class TrackingManager: ObservableObject {
                 guard !self.idleReminderDisabled else { return }
 
                 self.reminderPhase += 1
-                self.showStartReminder    = true
-                self.showNotTrackingAlert = true
 
+                // Bring window to front
                 if let win = NSApp.windows.first(where: { $0.canBecomeMain && $0.canBecomeKey }) {
                     win.makeKeyAndOrderFront(nil)
                 }
                 NSApp.activate(ignoringOtherApps: true)
 
+                // Send system notification only — no in-app alert popup
                 let msg = self.isOnBreak
                     ? "⏸ Still on break — tap Resume to continue tracking"
-                    : "⏱ Timer is not running — you've been untracked for \(self.minutesNotTracking) min"
+                    : "⏱ Timer is not running — you've been idle for \(self.minutesNotTracking) min"
                 self.sendNotification(msg, isWarning: true)
 
                 self.scheduleNotTrackingReminder()
@@ -365,8 +365,6 @@ class TrackingManager: ObservableObject {
         idleReminderDisabled = true
         UserDefaults.standard.set(true, forKey: "tm_idle_reminder_disabled")
         cancelNotTrackingReminder()
-        showNotTrackingAlert = false
-        showStartReminder    = false
     }
 
     func enableIdleReminder() {
