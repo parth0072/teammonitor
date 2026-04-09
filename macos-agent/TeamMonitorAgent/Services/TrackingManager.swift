@@ -75,6 +75,9 @@ class TrackingManager: ObservableObject {
     @Published var showSlowWorkAlert: Bool = false
     @Published var reminderMessage:  String? = nil
 
+    // Work status options loaded from org settings
+    @Published var workStatusOptions: [String] = ["WFO", "WFH", "Remote"]
+
     // Recent tasks (persisted across sessions)
     @Published var recentTaskIds:  [Int]    = []
     @Published var recentJiraKeys: [String] = []
@@ -163,6 +166,12 @@ class TrackingManager: ObservableObject {
                         }
                     }
                 }
+            }
+
+            // Load org settings (work status options, etc.)
+            Task {
+                let opts = await api.getWorkStatusOptions()
+                await MainActor.run { self.workStatusOptions = opts }
             }
         }
 

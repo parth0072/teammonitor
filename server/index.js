@@ -33,6 +33,7 @@ router.use('/api/leaves',      require('./routes/leaves'));
 router.use('/api/productivity', require('./routes/productivity'));
 router.use('/api/bug-reports',  require('./routes/bug-reports'));
 router.use('/api/reports',      require('./routes/reports'));
+router.use('/api/settings',     require('./routes/settings'));
 
 // Health check
 router.get('/api/health', async (req, res) => {
@@ -148,6 +149,13 @@ async function runMigrations() {
        created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
      )`,
+
+    // Organisation-wide key/value settings (admins only)
+    `CREATE TABLE IF NOT EXISTS org_settings (
+       \`key\`       VARCHAR(100) NOT NULL PRIMARY KEY,
+       \`value\`     TEXT         NOT NULL,
+       updated_at  DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+     )`,
   ];
   for (const sql of migrations) {
     try {
@@ -156,7 +164,21 @@ async function runMigrations() {
       console.error('[migration] Failed:', err.message);
     }
   }
-  console.log('[migration] Schema up to date (employees + jira)');
+  // Seed default org settings if not already present
+  const defaultSettings = {
+    work_status_options: JSON.stringify(['WFO', 'WFH', 'Remote', 'On-site', 'Hybrid']),
+  };
+  for (const [key, value] of Object.entries(defaultSettings)) {
+    try {
+      await db.query(
+        'INSERT IGNORE INTO org_settings (`key`, `value`) VALUES (?, ?)',
+        [key, value]
+      );
+    } catch (err) {
+      console.error('[migration] Seed failed for', key, err.message);
+    }
+  }
+  console.log('[migration] Schema up to date (employees + jira + org_settings)');
 }
 
 // ── Daily report email scheduler ──────────────────────────────────────────────

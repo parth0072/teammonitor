@@ -128,6 +128,10 @@ export const api = {
   // Chatbot
   sendChatMessage: (message, date, employeeId, history) =>
     request('POST', '/reports/chat', { message, date, employeeId: employeeId || null, history }),
+
+  // Org settings
+  getSettings:    ()       => request('GET',  '/settings'),
+  updateSettings: (data)   => request('PUT',  '/settings', data),
 };
 
 export function saveToken(token) { localStorage.setItem('tm_token', token); }

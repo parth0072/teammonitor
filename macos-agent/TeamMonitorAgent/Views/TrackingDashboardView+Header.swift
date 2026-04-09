@@ -98,9 +98,9 @@ extension TrackingDashboardView {
                     .kerning(0.5)
                     .padding(.horizontal, 14)
                 Picker("", selection: $workStatus) {
-                    Text("🏢  WFO").tag("WFO")
-                    Text("🏠  WFH").tag("WFH")
-                    Text("🌍  Remote").tag("Remote")
+                    ForEach(manager.workStatusOptions, id: \.self) { opt in
+                        Text(workStatusEmoji(opt) + "  " + opt).tag(opt)
+                    }
                 }
                 .pickerStyle(.menu)
                 .font(.system(size: 12))
@@ -192,6 +192,20 @@ extension TrackingDashboardView {
             .frame(height: 1)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
+    }
+
+    // MARK: – Helpers
+
+    /// Maps a status option name to an emoji for the picker label.
+    func workStatusEmoji(_ opt: String) -> String {
+        switch opt.lowercased() {
+        case "wfo", "office", "on-site", "onsite": return "🏢"
+        case "wfh", "home":                        return "🏠"
+        case "remote":                             return "🌍"
+        case "hybrid":                             return "🔀"
+        case "travel":                             return "✈️"
+        default:                                   return "📍"
+        }
     }
 
     // MARK: – Toast

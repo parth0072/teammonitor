@@ -566,6 +566,21 @@ class APIService: ObservableObject {
         return try await get(path)
     }
 
+    // MARK: - Org Settings
+
+    /// Fetches the organisation settings and returns `work_status_options` as a string array.
+    /// Falls back to the hardcoded defaults if the server returns nothing.
+    func getWorkStatusOptions() async -> [String] {
+        struct OrgSettings: Decodable {
+            let work_status_options: [String]?
+        }
+        guard let settings = try? await get("/settings") as OrgSettings,
+              let opts = settings.work_status_options, !opts.isEmpty else {
+            return ["WFO", "WFH", "Remote"]
+        }
+        return opts
+    }
+
     // MARK: - Bug Reports
 
     func submitBugReport(category: String, description: String, diagnostics: [String: Any]) async throws {

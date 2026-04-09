@@ -111,6 +111,12 @@ struct TrackingDashboardView: View {
                 })
             }
         }
+        .onChange(of: manager.workStatusOptions) { opts in
+            // If the current status is no longer in the option list, reset to the first one
+            if !opts.isEmpty && !opts.contains(workStatus) {
+                workStatus = opts[0]
+            }
+        }
         .onChange(of: manager.showIdleAlert) { showing in
             if showing { activeSheet = .idleAlert }
             else if activeSheet == .idleAlert { activeSheet = nil }
