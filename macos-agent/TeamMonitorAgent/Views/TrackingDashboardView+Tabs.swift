@@ -225,11 +225,13 @@ extension TrackingDashboardView {
                                 .padding(.vertical, 16)
                                 .background(DS.surface)
                         } else {
+                            let recentJiraKeys = Set(recentJira.prefix(2).map { $0.key })
                             let filteredJira = jiraIssues.filter {
+                                !recentJiraKeys.contains($0.key) && (
                                 searchText.isEmpty
                                 || $0.summary.localizedCaseInsensitiveContains(searchText)
                                 || $0.key.localizedCaseInsensitiveContains(searchText)
-                                || $0.projectName.localizedCaseInsensitiveContains(searchText)
+                                || $0.projectName.localizedCaseInsensitiveContains(searchText))
                             }
                             if filteredJira.isEmpty {
                                 Text(searchText.isEmpty ? "No open Jira issues assigned to you" : "No issues match \"\(searchText)\"")
