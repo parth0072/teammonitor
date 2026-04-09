@@ -8,21 +8,17 @@ import UserNotifications
 // MARK: - Persisted session state (survives app restart within the same day)
 
 private struct PersistedSession: Codable {
-    let sessionId:        Int
-    let punchInTime:      Date
-    let trackedMinutes:   Int
-    let date:             String   // "yyyy-MM-dd"
-    let taskId:           Int?
-    let taskName:         String?
-    let taskProjectName:  String?
+    let sessionId:      Int
+    let punchInTime:    Date
+    let trackedMinutes: Int
+    let date:           String   // "yyyy-MM-dd"
+    let taskId:         Int?
+    let taskName:       String?
+    let taskProjectName: String?
     let taskProjectColor: String?
-    let jiraIssueKey:     String?
-    let jiraIssueSummary: String?
 }
 
 private let kPersistedSession = "tm_active_session"
-private let kTodayMinutes     = "tm_today_minutes"
-private let kTodayDate        = "tm_today_date"
 private let dayFormatter: DateFormatter = {
     let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
 }()
@@ -35,11 +31,9 @@ class TrackingManager: ObservableObject {
 
     @Published var isTracking:          Bool      = false
     @Published var currentSessionId:    Int?
-    @Published var currentTask:         TaskItem?  = nil
-    @Published var currentJiraIssue:    JiraIssue? = nil
+    @Published var currentTask:         TaskItem? = nil   // active task being worked on
     @Published var punchInTime:         Date?
-    @Published var trackedMinutes:      Int       = 0   // current session only (used for heartbeat)
-    @Published var todayMinutes:        Int       = 0   // accumulated all-day total (for display)
+    @Published var trackedMinutes:      Int       = 0
     @Published var screenshotCount:     Int       = 0
     @Published var statusMessage:       String    = "Ready"
     @Published var currentApp:          String    = ""
@@ -52,36 +46,41 @@ class TrackingManager: ObservableObject {
     @Published var showIdleAlert:       Bool     = false
     @Published var idleAlertMinutes:    Int      = 0
 
-    // Screen recording permission
+    // Screen recording permission — checked once at launch, re-checked on demand.
     @Published var hasScreenPermission: Bool = true
 
     // Break state
     @Published var isOnBreak:           Bool     = false
 
-    // Idle warning
+    // Idle warning (before auto-stop)
     @Published var showIdleWarning:         Bool = false
     @Published var idleWarningSecondsLeft:  Int  = 0
     private var idleWarningCountdownTimer:  Timer?
 
-    // Offline state
+    // Offline state (banner only — no queuing)
     @Published var isOffline:           Bool     = false
 
-    // Not-tracking reminder
+    // Not-tracking reminder banner + alert
     @Published var showStartReminder:    Bool    = false
     @Published var showNotTrackingAlert: Bool    = false
-    @Published var secondsUntilNextReminder: Int = 5 * 60
 
-    // Slow work alert
-    @Published var showSlowWorkAlert: Bool = false
-    @Published var reminderMessage:  String? = nil
+    // Escalating reminder intervals: 2 min → 5 min → 10 min (repeating)
+    private let reminderIntervals: [TimeInterval] = [2 * 60, 5 * 60, 10 * 60]
+    private var reminderPhase: Int = 0
 
-    // Work status options loaded from org settings
-    @Published var workStatusOptions: [String] = ["WFO", "WFH", "Remote"]
+    // Countdown to next not-tracking notification (seconds)
+    @Published var secondsUntilNextReminder: Int = 2 * 60
 
-    // Recent tasks (persisted across sessions)
-    @Published var recentTaskIds:  [Int]    = []
-    @Published var recentJiraKeys: [String] = []
+    // "Don't show again" — persisted across launches
+    @Published var idleReminderDisabled: Bool = UserDefaults.standard.bool(forKey: "tm_idle_reminder_disabled")
 
+    /// Next interval that will be scheduled (shown in popup button label).
+    var nextReminderMinutes: Int {
+        let next = reminderIntervals[min(reminderPhase, reminderIntervals.count - 1)]
+        return Int(next / 60)
+    }
+
+    // When tracking stopped (used to display "X minutes ago" in the alert)
     private(set) var stoppedTrackingAt: Date?    = nil
 
     var minutesNotTracking: Int {
@@ -101,26 +100,17 @@ class TrackingManager: ObservableObject {
     private var resumeTimer:          Timer?
     private var notTrackingTimer:     Timer?
     private var countdownTimer:       Timer?
-    private var activityWatchTimer:   Timer?   // auto check-in when activity detected while not tracking
+    // Counts minute-ticks; heartbeat is sent every kHeartbeatEvery ticks to reduce HTTP calls.
     private var heartbeatTickCount:   Int   = 0
-    private let kHeartbeatEvery:      Int   = 5
-    private var lowActivityMinutes:   Int   = 0
-
-    private let kRecentTaskIds  = "tm_recent_task_ids"
-    private let kRecentJiraKeys = "tm_recent_jira_keys"
-    private let kLastTask       = "tm_last_task"      // persists last active task across restarts
-
-    // Last task/jira before punch-out — used by auto check-in so it always resumes with context
-    private(set) var lastActiveTask:      TaskItem?   = nil
-    private(set) var lastActiveJiraIssue: JiraIssue?  = nil
-
-    var lastResumeTime:  Date?
+    private let kHeartbeatEvery:      Int   = 5   // send heartbeat every 5 minutes
+    var lastResumeTime:  Date?   // internal – read by view for live display
     private var pendingIdleStart: Date?
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Init
 
     init() {
+        // Wire up Combine subscriptions
         appTracker.$currentApp
             .receive(on: RunLoop.main)
             .sink { [weak self] app in
@@ -142,6 +132,7 @@ class TrackingManager: ObservableObject {
             .sink { [weak self] in self?.isIdle = $0 }
             .store(in: &cancellables)
 
+        // Network monitor → update isOffline flag (used for offline banner in UI)
         network.$isOnline
             .receive(on: RunLoop.main)
             .sink { [weak self] (online: Bool) in
@@ -149,178 +140,74 @@ class TrackingManager: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Check screen-recording permission once at launch — no polling.
         hasScreenPermission = ScreenshotService.hasPermission()
 
-        recentTaskIds  = UserDefaults.standard.array(forKey: kRecentTaskIds)  as? [Int]    ?? []
-        recentJiraKeys = UserDefaults.standard.array(forKey: kRecentJiraKeys) as? [String] ?? []
-
+        // Restore a session that was active when the app was last closed
         restoreSessionIfNeeded()
-        loadTodayMinutes()
 
-        // Sync todayMinutes from server so the display is correct even if UserDefaults
-        // was cleared (app reinstall, new device, or date mismatch from timezone).
-        if api.token != nil {
-            Task {
-                if let serverMins = await api.getTodayMinutes() {
-                    await MainActor.run {
-                        // Only update if server reports more than local (local may be ahead
-                        // by a few minutes if the heartbeat hasn't synced yet).
-                        if serverMins > self.todayMinutes {
-                            self.todayMinutes = serverMins
-                            self.saveTodayMinutes()
-                            TMLog("[TrackingManager] Synced todayMinutes from server: \(serverMins) min")
-                        }
-                    }
-                }
-            }
-
-            // Load org settings (work status options, etc.)
-            Task {
-                let opts = await api.getWorkStatusOptions()
-                await MainActor.run { self.workStatusOptions = opts }
-            }
-        }
-
+        // Start the not-tracking reminder if we launched without an active session
         if !isTracking {
             stoppedTrackingAt = Date()
             scheduleNotTrackingReminder()
         }
-
-        // ── Sleep / wake / quit observers ─────────────────────────────────────
-        // Punch OUT before sleep so the session closes cleanly in the DB.
-        // Auto check-in (didWakeNotification) will reopen it on wake.
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            guard let self, self.isTracking else { return }
-            TMLog("[AutoCheckOut] Mac going to sleep — punching out")
-            Task { await self.punchOut() }
-        }
-
-        // Punch OUT when Mac wakes from sleep → auto check-in handles re-login
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.handleActivityDetected(reason: "Mac woke from sleep")
-        }
-
-        // Punch OUT when the app is about to quit (logout, force-quit, update install)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            guard let self, self.isTracking else { return }
-            TMLog("[AutoCheckOut] App terminating — punching out")
-            // Synchronous-style: run punch-out on a detached task and give it 3 s
-            let sem = DispatchSemaphore(value: 0)
-            Task {
-                await self.punchOut()
-                sem.signal()
-            }
-            _ = sem.wait(timeout: .now() + 3)
-        }
-
-        // Poll every 2 min while not tracking — if system idle time just
-        // dropped below 60 s the user moved; treat that as returning to desk.
-        startActivityWatcher()
-    }
-
-    // MARK: - Auto Check-In
-
-    private func startActivityWatcher() {
-        activityWatchTimer?.invalidate()
-        let t = Timer(timeInterval: 120, repeats: true) { [weak self] _ in
-            guard let self, !self.isTracking, !self.isOnBreak else { return }
-            let idle = IdleDetectionService.shared.systemIdleSecondsPublic()
-            // User became active (idle < 60 s) after being away at least 5 min
-            if idle < 60, let stopped = self.stoppedTrackingAt,
-               Date().timeIntervalSince(stopped) > 5 * 60 {
-                self.handleActivityDetected(reason: "Activity detected after \(Int(Date().timeIntervalSince(stopped) / 60)) min away")
-            }
-        }
-        RunLoop.main.add(t, forMode: .common)
-        activityWatchTimer = t
-    }
-
-    private func handleActivityDetected(reason: String) {
-        guard !isTracking, !isOnBreak, api.token != nil else { return }
-        // Auto check-in must always resume with the last active task/jira.
-        // If there is no last task (e.g. employee never tracked anything), skip
-        // auto punch-in — the not-tracking reminder will prompt them manually.
-        let resumeTask  = currentTask  ?? lastActiveTask
-        let resumeJira  = currentJiraIssue ?? lastActiveJiraIssue
-        guard resumeTask != nil || resumeJira != nil else {
-            TMLog("[AutoCheckIn] \(reason) — no previous task, skipping auto punch-in")
-            return
-        }
-        TMLog("[AutoCheckIn] \(reason) — resuming task: \(resumeTask?.name ?? resumeJira?.key ?? "?")")
-        Task {
-            await punchIn(task: resumeTask, jiraIssue: resumeJira)
-        }
-    }
-
-    // MARK: - Today Minutes (day-persistent display counter)
-
-    private func loadTodayMinutes() {
-        let today     = dayFormatter.string(from: Date())
-        let savedDate = UserDefaults.standard.string(forKey: kTodayDate) ?? ""
-        if savedDate == today {
-            let saved = UserDefaults.standard.integer(forKey: kTodayMinutes)
-            // Must be at least the restored session's minutes
-            todayMinutes = max(saved, trackedMinutes)
-        } else {
-            // New day — seed from current session (may be 0 if no session)
-            todayMinutes = trackedMinutes
-            saveTodayMinutes()
-        }
-    }
-
-    private func saveTodayMinutes() {
-        UserDefaults.standard.set(todayMinutes, forKey: kTodayMinutes)
-        UserDefaults.standard.set(dayFormatter.string(from: Date()), forKey: kTodayDate)
     }
 
     // MARK: - Screen-Recording Permission
 
+    /// One-shot re-check — call when user taps "Re-check" in the banner.
+    /// Never polls; never triggers a system dialog.
     func recheckScreenPermission() {
         hasScreenPermission = ScreenshotService.hasPermission()
         if hasScreenPermission {
+            // Clear dismissed flag so banner won't hide a future revocation
             UserDefaults.standard.removeObject(forKey: "tm_screen_perm_dismissed")
         }
     }
 
+    /// Opens System Settings to the Screen Recording pane.
     func openScreenRecordingSettings() {
         ScreenshotService.requestPermission()
     }
 
     // MARK: - Notifications
 
+    /// Sends a local notification. Fires immediately (trigger: nil).
+    /// Uses .default sound only — .defaultCritical requires a special entitlement
+    /// that unsigned dev builds don't have, causing silent rejection.
     func sendNotification(_ text: String, isWarning: Bool) {
+        // Permission is requested at launch (AppDelegate). Just send — macOS drops it
+        // silently if denied, no need for a secondary gate here.
         let content   = UNMutableNotificationContent()
         content.title = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
         content.body  = text
         content.sound = .default
         let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req) { err in
-            if let err { TMLog("[Notifications] Delivery failed: \(err)") }
-            else       { TMLog("[Notifications] Sent: \(text)") }
+            if let err { print("[Notifications] Delivery failed: \(err)") }
+            else       { print("[Notifications] Sent: \(text)") }
         }
     }
 
+    /// Schedules the next escalating reminder: 2 min → 5 min → 10 min repeating.
+    /// Lives in TrackingManager (not the view) so it survives window close.
     func scheduleNotTrackingReminder() {
         cancelNotTrackingReminder()
+        guard !idleReminderDisabled else { return }
 
-        secondsUntilNextReminder = 5 * 60
+        let interval = reminderIntervals[min(reminderPhase, reminderIntervals.count - 1)]
+        secondsUntilNextReminder = Int(interval)
         startCountdownTimer()
 
-        let t = Timer(timeInterval: 5 * 60, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 guard !self.isTracking || self.isOnBreak else {
                     self.cancelNotTrackingReminder(); return
                 }
+                guard !self.idleReminderDisabled else { return }
 
-                self.secondsUntilNextReminder = 5 * 60
-
+                self.reminderPhase += 1
                 self.showStartReminder    = true
                 self.showNotTrackingAlert = true
 
@@ -333,10 +220,14 @@ class TrackingManager: ObservableObject {
                     ? "⏸ Still on break — tap Resume to continue tracking"
                     : "⏱ Timer is not running — you've been untracked for \(self.minutesNotTracking) min"
                 self.sendNotification(msg, isWarning: true)
+
+                // Schedule the next escalating reminder automatically
+                self.scheduleNotTrackingReminder()
             }
         }
         RunLoop.main.add(t, forMode: .common)
         notTrackingTimer = t
+        print("[Notifications] Not-tracking reminder scheduled (fires in \(Int(interval / 60)) min, phase \(reminderPhase))")
     }
 
     func cancelNotTrackingReminder() {
@@ -344,20 +235,45 @@ class TrackingManager: ObservableObject {
         notTrackingTimer = nil
         countdownTimer?.invalidate()
         countdownTimer = nil
-        secondsUntilNextReminder = 5 * 60
+        secondsUntilNextReminder = Int(reminderIntervals[0])
+    }
+
+    /// Permanently suppress idle reminders (persisted to UserDefaults).
+    func disableIdleReminder() {
+        idleReminderDisabled = true
+        UserDefaults.standard.set(true, forKey: "tm_idle_reminder_disabled")
+        cancelNotTrackingReminder()
+        showNotTrackingAlert = false
+        showStartReminder    = false
+    }
+
+    /// Re-enable idle reminders (e.g. from Settings).
+    func enableIdleReminder() {
+        idleReminderDisabled = false
+        UserDefaults.standard.removeObject(forKey: "tm_idle_reminder_disabled")
+        if !isTracking {
+            reminderPhase = 0
+            scheduleNotTrackingReminder()
+        }
     }
 
     private func startCountdownTimer() {
         countdownTimer?.invalidate()
-        // Runs on RunLoop.main — no Task wrapper needed.
         let c = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self, !self.isTracking || self.isOnBreak else { return }
-            if self.secondsUntilNextReminder > 0 { self.secondsUntilNextReminder -= 1 }
+            guard let self else { return }
+            Task { @MainActor in
+                guard !self.isTracking || self.isOnBreak else { return }
+                if self.secondsUntilNextReminder > 0 {
+                    self.secondsUntilNextReminder -= 1
+                }
+            }
         }
         RunLoop.main.add(c, forMode: .common)
         countdownTimer = c
     }
 
+    /// Uploads screenshot data, increments the counter, and confirms screen
+    /// permission on first success (auto-dismisses the permission banner).
     private func uploadScreenshot(_ imageData: Data, sessionId: Int) async {
         do {
             _ = try await api.uploadScreenshot(
@@ -367,16 +283,18 @@ class TrackingManager: ObservableObject {
             )
             await MainActor.run {
                 screenshotCount += 1
+                // Successful capture proves screen recording works — clear the banner.
                 if !hasScreenPermission { hasScreenPermission = true }
             }
-        } catch { }
+        } catch {
+            // Upload failed (no internet / auth error) — silently skip
+        }
     }
 
     // MARK: - Punch In
 
-    func punchIn(task: TaskItem? = nil, jiraIssue: JiraIssue? = nil) async {
+    func punchIn(task: TaskItem? = nil) async {
         cancelNotTrackingReminder()
-        activityWatchTimer?.invalidate(); activityWatchTimer = nil  // stop polling while tracking
         showStartReminder        = false
         showNotTrackingAlert     = false
         stoppedTrackingAt        = nil
@@ -389,51 +307,17 @@ class TrackingManager: ObservableObject {
         statusMessage = "Starting session…"
 
         do {
-            // Refresh settings from server so admin changes (screenshots, intervals, etc.)
-            // take effect without requiring a logout/login.
-            await api.refreshEmployee()
-
-            // Gate: if the admin has screenshots enabled for this employee, screen recording
-            // permission is required before we allow the timer to start.
-            let screenshotsRequired = api.employee?.screenshotsEnabled ?? true
-            if screenshotsRequired && !ScreenshotService.hasPermission() {
-                statusMessage = "Screen recording permission is required to start tracking. Please grant access in System Settings."
-                hasScreenPermission = false
-                ScreenshotService.requestPermission()
-                scheduleNotTrackingReminder()
-                return
-            }
-
-            let sessionId    = try await api.punchIn(taskId: task?.id, jiraIssueKey: jiraIssue?.key)
+            let sessionId  = try await api.punchIn(taskId: task?.id)
             currentSessionId = sessionId
             currentTask      = task
-            currentJiraIssue = jiraIssue
             punchInTime      = Date()
             lastResumeTime   = Date()
-            trackedMinutes   = 0        // per-session reset (heartbeat uses this)
-            // todayMinutes intentionally NOT reset — accumulates all day
-            screenshotCount    = 0
-            isTracking         = true
-            isOnBreak          = false
-            showIdleAlert      = false
-            lowActivityMinutes = 0
-            showSlowWorkAlert  = false
-            statusMessage      = "Tracking active"
-
-            // Persist recent task / jira for "recently used" feature
-            if let t = task {
-                recentTaskIds.removeAll { $0 == t.id }
-                recentTaskIds.insert(t.id, at: 0)
-                if recentTaskIds.count > 5 { recentTaskIds = Array(recentTaskIds.prefix(5)) }
-                UserDefaults.standard.set(recentTaskIds, forKey: kRecentTaskIds)
-            }
-            if let j = jiraIssue {
-                recentJiraKeys.removeAll { $0 == j.key }
-                recentJiraKeys.insert(j.key, at: 0)
-                if recentJiraKeys.count > 5 { recentJiraKeys = Array(recentJiraKeys.prefix(5)) }
-                UserDefaults.standard.set(recentJiraKeys, forKey: kRecentJiraKeys)
-            }
-
+            trackedMinutes   = 0
+            screenshotCount  = 0
+            isTracking       = true
+            isOnBreak        = false
+            showIdleAlert    = false   // clear any stale idle alert from previous session
+            statusMessage    = "Tracking active"
             saveSessionState()
             startAllServices(sessionId: sessionId)
         } catch {
@@ -450,43 +334,34 @@ class TrackingManager: ObservableObject {
         showIdleAlert = false
         stopAllServices()
 
+        // Always attempt punch-out; if it fails (no internet etc.) silently skip.
+        // No offline queue — keeps the app simple and avoids stale-token replays.
         do {
             try await api.punchOut(sessionId: sessionId, totalMinutes: trackedMinutes)
-        } catch { }
-
-        statusMessage      = "Session ended. Have a great day!"
-        stoppedTrackingAt  = Date()
-        lowActivityMinutes = 0
-        showSlowWorkAlert  = false
-        scheduleNotTrackingReminder()
-        startActivityWatcher()  // resume auto check-in polling
-
-        // Check AI memory reminder after punch-out
-        Task {
-            if let reminder = await APIService.shared.getDailyReminder() {
-                await MainActor.run { self.reminderMessage = reminder }
-            }
+        } catch {
+            // ignore – session will be auto-closed server-side on next heartbeat timeout
         }
+        statusMessage     = "Session ended. Have a great day!"
+        stoppedTrackingAt = Date()
+        reminderPhase     = 0
+        scheduleNotTrackingReminder()
 
         clearSessionState()
         currentSessionId   = nil
-        // Preserve task/jira so auto check-in (wake/activity) always resumes with context
-        lastActiveTask      = currentTask
-        lastActiveJiraIssue = currentJiraIssue
         currentTask        = nil
-        currentJiraIssue   = nil
         punchInTime        = nil
         lastResumeTime     = nil
         recentApps         = []
         minutesSinceResume = 0
-        // todayMinutes kept — shows total for the day even after punch out
     }
 
     // MARK: - Take a Break / Resume
 
+    /// Pauses the minute timer, stops screenshots, syncs current minutes to server.
     func takeBreak() async {
         guard isTracking, !isOnBreak else { return }
 
+        // Stop local timers
         sessionTimer?.invalidate(); sessionTimer = nil
         resumeTimer?.invalidate();  resumeTimer  = nil
         screenshots.stop()
@@ -494,15 +369,18 @@ class TrackingManager: ObservableObject {
 
         isOnBreak         = true
         stoppedTrackingAt = Date()
+        reminderPhase     = 0
         statusMessage     = "On break"
         saveSessionState()
         scheduleNotTrackingReminder()
 
+        // Sync current time to server
         if let sessionId = currentSessionId {
             try? await api.heartbeat(sessionId: sessionId, totalMinutes: trackedMinutes, screenPermission: hasScreenPermission)
         }
     }
 
+    /// Resumes from a manual break – restarts the timers and screenshot service.
     func resumeFromBreak() {
         guard isTracking, isOnBreak, let sessionId = currentSessionId else { return }
 
@@ -515,15 +393,13 @@ class TrackingManager: ObservableObject {
         startAllServices(sessionId: sessionId)
     }
 
-    // MARK: - Resume after idle
+    // MARK: - Resume after idle / break
 
     func resumeAfterIdle(countTime: Bool) {
         guard let sessionId = currentSessionId else { return }
 
         if !countTime {
-            let deduct = min(idleAlertMinutes, trackedMinutes)
-            trackedMinutes  = trackedMinutes  - deduct
-            todayMinutes    = max(0, todayMinutes - deduct)
+            trackedMinutes = max(0, trackedMinutes - idleAlertMinutes)
         }
 
         if let idleStart = pendingIdleStart {
@@ -554,9 +430,7 @@ class TrackingManager: ObservableObject {
             taskId:           currentTask?.id,
             taskName:         currentTask?.name,
             taskProjectName:  currentTask?.projectName,
-            taskProjectColor: currentTask?.projectColor,
-            jiraIssueKey:     currentJiraIssue?.key,
-            jiraIssueSummary: currentJiraIssue?.summary
+            taskProjectColor: currentTask?.projectColor
         )
         if let data = try? JSONEncoder().encode(state) {
             UserDefaults.standard.set(data, forKey: kPersistedSession)
@@ -567,11 +441,14 @@ class TrackingManager: ObservableObject {
         UserDefaults.standard.removeObject(forKey: kPersistedSession)
     }
 
+    /// On app launch: if there is a saved session from today, restore it and
+    /// resume local timers (the server session stays open from the previous run).
     private func restoreSessionIfNeeded() {
         guard let data  = UserDefaults.standard.data(forKey: kPersistedSession),
               let state = try? JSONDecoder().decode(PersistedSession.self, from: data)
         else { return }
 
+        // Only restore if the session started today
         let today = dayFormatter.string(from: Date())
         guard state.date == today else {
             clearSessionState()
@@ -585,28 +462,12 @@ class TrackingManager: ObservableObject {
         isTracking       = true
         statusMessage    = "Tracking resumed"
 
-        // Restore task
-        if let taskId = state.taskId, let taskName = state.taskName {
-            currentTask = TaskItem(
-                id: taskId, projectId: 0, name: taskName, description: "",
-                status: "in_progress",
-                projectName: state.taskProjectName ?? "",
-                projectColor: state.taskProjectColor ?? "6366f1",
-                assignedToName: nil
-            )
-        }
-
-        // Restore Jira issue (minimal — enough to show the chip)
-        if let key = state.jiraIssueKey, let summary = state.jiraIssueSummary {
-            currentJiraIssue = JiraIssue(
-                id: key, key: key, summary: summary,
-                status: "", statusCategory: "indeterminate",
-                priority: "", issueType: "", projectKey: "", projectName: "", url: ""
-            )
-        }
+        // Rebuild a minimal TaskItem from persisted fields if needed
+        // (We can't do a full decode without all fields, so we skip re-linking the task object.
+        //  The task chip just won't show after restore – acceptable trade-off.)
 
         startAllServices(sessionId: state.sessionId)
-        TMLog("[TrackingManager] Restored session \(state.sessionId) with \(state.trackedMinutes) min")
+        print("[TrackingManager] Restored session \(state.sessionId) with \(state.trackedMinutes) min")
     }
 
     // MARK: - Services
@@ -615,6 +476,7 @@ class TrackingManager: ObservableObject {
         startMinuteTimer(sessionId: sessionId)
         startResumeTimer()
 
+        // Screenshots — interval + enabled flag from employee profile
         let screenshotInterval = TimeInterval(api.employee?.screenshotInterval ?? 300)
         let screenshotsOn      = api.employee?.screenshotsEnabled ?? true
         screenshots.start(interval: screenshotInterval, enabled: screenshotsOn) { [weak self] imageData in
@@ -622,6 +484,7 @@ class TrackingManager: ObservableObject {
             Task { await self.uploadScreenshot(imageData, sessionId: sessionId) }
         }
 
+        // Initial screenshot 10 s after start so admin sees activity immediately
         if screenshotsOn {
             let initialShot = Timer(timeInterval: 10, repeats: false) { [weak self] _ in
                 guard ScreenshotService.hasPermission() else { return }
@@ -630,6 +493,7 @@ class TrackingManager: ObservableObject {
             RunLoop.main.add(initialShot, forMode: .common)
         }
 
+        // App / window tracking
         appTracker.onAppChange = { [weak self] appName, windowTitle, startTime, endTime in
             guard let self else { return }
             let duration = Int(endTime.timeIntervalSince(startTime))
@@ -642,9 +506,11 @@ class TrackingManager: ObservableObject {
         }
         appTracker.start(pollInterval: 30)
 
+        // Idle detection — thresholds from employee config
         idleDetector.warningThresholdSeconds = (api.employee?.idleWarningMinutes ?? 2) * 60
         idleDetector.stopThresholdSeconds    = (api.employee?.idleStopMinutes    ?? 5) * 60
 
+        // Warning: show countdown to user before auto-stop
         idleDetector.onIdleWarning = { [weak self] secondsLeft in
             guard let self else { return }
             Task { @MainActor in
@@ -660,17 +526,20 @@ class TrackingManager: ObservableObject {
             }
         }
 
+        // Stop threshold reached — pause the minute timer, record idle start
         idleDetector.onIdleStart = { [weak self] idleStart in
             guard let self else { return }
             Task { @MainActor in
                 self.pendingIdleStart = idleStart
                 self.showIdleWarning  = false
                 self.idleWarningSecondsLeft = 0
+                // Stop counting time
                 self.sessionTimer?.invalidate(); self.sessionTimer = nil
                 self.resumeTimer?.invalidate();  self.resumeTimer  = nil
             }
         }
 
+        // User returned after stop — show idle alert (count/subtract)
         idleDetector.onIdleEnd = { [weak self] idleStart, idleEnd in
             guard let self else { return }
             let idleMinutes = max(1, Int(idleEnd.timeIntervalSince(idleStart)) / 60)
@@ -688,47 +557,25 @@ class TrackingManager: ObservableObject {
     private func startMinuteTimer(sessionId: Int) {
         sessionTimer?.invalidate()
         heartbeatTickCount = 0
-        // Timer runs on RunLoop.main — no Task wrapper needed for synchronous work.
-        // Only the async heartbeat spawns a Task (infrequent, every kHeartbeatEvery minutes).
+        // Use .common run-loop mode so the timer fires even during UI interactions
+        // (.default mode is paused while menus/drags/events are active).
         let t = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.trackedMinutes     += 1
-            self.heartbeatTickCount += 1
+            Task { @MainActor in
+                self.trackedMinutes     += 1
+                self.heartbeatTickCount += 1
+                self.saveSessionState()
 
-            // Reset daily counter if date has changed (app ran past midnight)
-            let currentDay = dayFormatter.string(from: Date())
-            let savedDay   = UserDefaults.standard.string(forKey: kTodayDate) ?? currentDay
-            if savedDay != currentDay {
-                TMLog("New day detected (\(savedDay) → \(currentDay)) — resetting todayMinutes")
-                self.todayMinutes = 0
-            }
-            self.todayMinutes += 1
-
-            self.saveSessionState()
-            self.saveTodayMinutes()
-
-            // Slow work alert
-            let alertEnabled   = APIService.shared.employee?.slowWorkAlertEnabled ?? false
-            let alertThreshold = APIService.shared.employee?.slowWorkAlertMinutes ?? 10
-            if alertEnabled && self.activityPercent < 25 && !self.isIdle {
-                self.lowActivityMinutes += 1
-                if self.lowActivityMinutes == alertThreshold { self.showSlowWorkAlert = true }
-            } else {
-                self.lowActivityMinutes = 0
-                self.showSlowWorkAlert  = false
-            }
-
-            if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
-                let mins = self.trackedMinutes
-                // Re-check live permission each heartbeat so the backend stays in sync
-                // if the user revokes/grants access while tracking.
-                let perm = ScreenshotService.hasPermission()
-                self.hasScreenPermission = perm
-                Task {
-                    try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: mins,
-                                                  screenPermission: perm)
+                // Send heartbeat every kHeartbeatEvery minutes (not every minute)
+                // to reduce server load and battery/network usage.
+                if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
+                    try? await self.api.heartbeat(
+                        sessionId:       sessionId,
+                        totalMinutes:    self.trackedMinutes,
+                        screenPermission: self.hasScreenPermission
+                    )
+                    self.heartbeatTickCount = 0   // reset to avoid Int overflow over long sessions
                 }
-                self.heartbeatTickCount = 0
             }
         }
         RunLoop.main.add(t, forMode: .common)
@@ -737,10 +584,12 @@ class TrackingManager: ObservableObject {
 
     private func startResumeTimer() {
         resumeTimer?.invalidate()
-        // Timer runs on RunLoop.main — direct property access is safe, no Task needed.
         let t = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
-            guard let self, let resume = self.lastResumeTime else { return }
-            self.minutesSinceResume = Int(Date().timeIntervalSince(resume)) / 60
+            guard let self else { return }
+            Task { @MainActor in
+                guard let resume = self.lastResumeTime else { return }
+                self.minutesSinceResume = Int(Date().timeIntervalSince(resume)) / 60
+            }
         }
         RunLoop.main.add(t, forMode: .common)
         resumeTimer = t

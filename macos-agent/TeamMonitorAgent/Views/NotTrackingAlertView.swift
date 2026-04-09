@@ -1,4 +1,4 @@
-// NotTrackingAlertView.swift — modal popup shown after 5 min of no tracking
+// NotTrackingAlertView.swift — modal popup shown when idle (not tracking)
 
 import SwiftUI
 
@@ -65,13 +65,24 @@ struct NotTrackingAlertView: View {
                 Button {
                     manager.showNotTrackingAlert = false
                 } label: {
-                    Text("Remind me in 5 minutes")
+                    Text("Remind me in \(manager.nextReminderMinutes) minutes")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(Color(hex: "6b7280"))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(Color(hex: "f3f4f6"))
                         .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    manager.disableIdleReminder()
+                } label: {
+                    Text("Don't show again")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(hex: "9ca3af"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
             }
