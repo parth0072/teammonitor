@@ -108,6 +108,12 @@ class TrackingManager: ObservableObject {
 
     private let kRecentTaskIds  = "tm_recent_task_ids"
     private let kRecentJiraKeys = "tm_recent_jira_keys"
+    private let kLastTask       = "tm_last_task"      // persists last active task across restarts
+
+    // Last task/jira before punch-out — used by auto check-in so it always resumes with context
+    private(set) var lastActiveTask:      TaskItem?   = nil
+    private(set) var lastActiveJiraIssue: JiraIssue?  = nil
+
     var lastResumeTime:  Date?
     private var pendingIdleStart: Date?
     private var cancellables = Set<AnyCancellable>()
@@ -237,9 +243,18 @@ class TrackingManager: ObservableObject {
 
     private func handleActivityDetected(reason: String) {
         guard !isTracking, !isOnBreak, api.token != nil else { return }
-        TMLog("[AutoCheckIn] \(reason)")
+        // Auto check-in must always resume with the last active task/jira.
+        // If there is no last task (e.g. employee never tracked anything), skip
+        // auto punch-in — the not-tracking reminder will prompt them manually.
+        let resumeTask  = currentTask  ?? lastActiveTask
+        let resumeJira  = currentJiraIssue ?? lastActiveJiraIssue
+        guard resumeTask != nil || resumeJira != nil else {
+            TMLog("[AutoCheckIn] \(reason) — no previous task, skipping auto punch-in")
+            return
+        }
+        TMLog("[AutoCheckIn] \(reason) — resuming task: \(resumeTask?.name ?? resumeJira?.key ?? "?")")
         Task {
-            await punchIn(task: currentTask, jiraIssue: currentJiraIssue)
+            await punchIn(task: resumeTask, jiraIssue: resumeJira)
         }
     }
 
@@ -455,6 +470,9 @@ class TrackingManager: ObservableObject {
 
         clearSessionState()
         currentSessionId   = nil
+        // Preserve task/jira so auto check-in (wake/activity) always resumes with context
+        lastActiveTask      = currentTask
+        lastActiveJiraIssue = currentJiraIssue
         currentTask        = nil
         currentJiraIssue   = nil
         punchInTime        = nil
