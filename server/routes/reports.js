@@ -338,7 +338,15 @@ Respond with JSON: { "trend": "one sentence", "bestDay": "best time/day pattern"
   try {
     const text = await callGroq(prompt, { maxTokens: 400 });
     if (!text) return null;
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    // Ensure all fields are strings — guard against AI returning objects
+    const str = v => (typeof v === 'string' ? v : null);
+    return {
+      trend:         str(parsed.trend),
+      bestDay:       str(parsed.bestDay),
+      insight:       str(parsed.insight),
+      encouragement: str(parsed.encouragement),
+    };
   } catch { return null; }
 }
 

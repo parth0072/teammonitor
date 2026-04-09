@@ -248,32 +248,33 @@ export default function Reports() {
               )}
 
               {/* 7-Day Pattern Analysis */}
-              {dailyReport.pattern && (
+              {dailyReport.pattern && typeof dailyReport.pattern === 'object' &&
+               typeof dailyReport.pattern.trend === 'string' && (
                 <div style={{ background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:12, padding:"20px 24px", marginBottom:24 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
                     <div style={{ fontSize:15, fontWeight:700, color:"#0369a1" }}>📊 7-Day Pattern Analysis</div>
                     <div style={{ fontSize:11, color:"#7dd3fc", background:"#e0f2fe", borderRadius:20, padding:"2px 10px", fontWeight:600 }}>AI</div>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                    {dailyReport.pattern.trend && (
+                    {typeof dailyReport.pattern.trend === 'string' && dailyReport.pattern.trend && (
                       <div style={{ background:"#fff", borderRadius:8, padding:"12px 16px", border:"1px solid #e0f2fe" }}>
                         <div style={{ fontSize:11, fontWeight:600, color:"#7dd3fc", textTransform:"uppercase", letterSpacing:.5, marginBottom:5 }}>Weekly Trend</div>
                         <div style={{ fontSize:13, color:"#1e293b", lineHeight:1.5 }}>{dailyReport.pattern.trend}</div>
                       </div>
                     )}
-                    {dailyReport.pattern.bestDay && (
+                    {typeof dailyReport.pattern.bestDay === 'string' && dailyReport.pattern.bestDay && (
                       <div style={{ background:"#fff", borderRadius:8, padding:"12px 16px", border:"1px solid #e0f2fe" }}>
                         <div style={{ fontSize:11, fontWeight:600, color:"#7dd3fc", textTransform:"uppercase", letterSpacing:.5, marginBottom:5 }}>Best Time</div>
                         <div style={{ fontSize:13, color:"#1e293b", lineHeight:1.5 }}>{dailyReport.pattern.bestDay}</div>
                       </div>
                     )}
-                    {dailyReport.pattern.insight && (
+                    {typeof dailyReport.pattern.insight === 'string' && dailyReport.pattern.insight && (
                       <div style={{ background:"#fff", borderRadius:8, padding:"12px 16px", border:"1px solid #e0f2fe" }}>
                         <div style={{ fontSize:11, fontWeight:600, color:"#7dd3fc", textTransform:"uppercase", letterSpacing:.5, marginBottom:5 }}>💡 Tip</div>
                         <div style={{ fontSize:13, color:"#1e293b", lineHeight:1.5 }}>{dailyReport.pattern.insight}</div>
                       </div>
                     )}
-                    {dailyReport.pattern.encouragement && (
+                    {typeof dailyReport.pattern.encouragement === 'string' && dailyReport.pattern.encouragement && (
                       <div style={{ background:"#eff6ff", borderRadius:8, padding:"12px 16px", border:"1px solid #bfdbfe" }}>
                         <div style={{ fontSize:11, fontWeight:600, color:"#7dd3fc", textTransform:"uppercase", letterSpacing:.5, marginBottom:5 }}>✨ Note</div>
                         <div style={{ fontSize:13, color:"#0369a1", fontStyle:"italic", lineHeight:1.5 }}>{dailyReport.pattern.encouragement}</div>
