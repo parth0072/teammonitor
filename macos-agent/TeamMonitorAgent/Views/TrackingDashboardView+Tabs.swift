@@ -101,7 +101,8 @@ extension TrackingDashboardView {
                                         if manager.isTracking { await manager.punchOut() }
                                         await manager.punchIn(task: task)
                                     }
-                                }
+                                },
+                                onStop: { Task { @MainActor in await manager.punchOut() } }
                             )
                         }
                         ForEach(recentJira.prefix(2)) { issue in
@@ -111,7 +112,7 @@ extension TrackingDashboardView {
                                     if manager.isTracking { await manager.punchOut() }
                                     await manager.punchIn(jiraIssue: issue)
                                 }
-                            })
+                            }, onStop: { Task { @MainActor in await manager.punchOut() } })
                         }
 
                         Rectangle()
@@ -200,7 +201,8 @@ extension TrackingDashboardView {
                                         if manager.isTracking { await manager.punchOut() }
                                         await manager.punchIn(task: task)
                                     }
-                                }
+                                },
+                                onStop: { Task { @MainActor in await manager.punchOut() } }
                             )
                             .transition(.asymmetric(
                                 insertion: .move(edge: .top).combined(with: .opacity),
@@ -212,25 +214,6 @@ extension TrackingDashboardView {
                     // Jira issues section
                     if jiraConnected {
                         jiraSectionHeader
-                        // Jira search bar
-                        HStack(spacing: 6) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 11))
-                                .foregroundColor(DS.textMuted)
-                            TextField("Search issues…", text: $jiraSearchText)
-                                .font(.system(size: 12)).textFieldStyle(.plain)
-                                .foregroundColor(DS.text)
-                            if !jiraSearchText.isEmpty {
-                                Button { jiraSearchText = "" } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(DS.textMuted)
-                                }.buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(Color(hex: "EFF6FF"))
-                        .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "BFDBFE")), alignment: .bottom)
 
                         if jiraLoading {
                             ProgressView().padding(.vertical, 16).frame(maxWidth: .infinity)
@@ -243,13 +226,13 @@ extension TrackingDashboardView {
                                 .background(DS.surface)
                         } else {
                             let filteredJira = jiraIssues.filter {
-                                jiraSearchText.isEmpty
-                                || $0.summary.localizedCaseInsensitiveContains(jiraSearchText)
-                                || $0.key.localizedCaseInsensitiveContains(jiraSearchText)
-                                || $0.projectName.localizedCaseInsensitiveContains(jiraSearchText)
+                                searchText.isEmpty
+                                || $0.summary.localizedCaseInsensitiveContains(searchText)
+                                || $0.key.localizedCaseInsensitiveContains(searchText)
+                                || $0.projectName.localizedCaseInsensitiveContains(searchText)
                             }
                             if filteredJira.isEmpty {
-                                Text("No issues match \"\(jiraSearchText)\"")
+                                Text(searchText.isEmpty ? "No open Jira issues assigned to you" : "No issues match \"\(searchText)\"")
                                     .font(.system(size: 12))
                                     .foregroundColor(DS.textMuted)
                                     .frame(maxWidth: .infinity)
@@ -263,7 +246,7 @@ extension TrackingDashboardView {
                                             if manager.isTracking { await manager.punchOut() }
                                             await manager.punchIn(jiraIssue: issue)
                                         }
-                                    })
+                                    }, onStop: { Task { @MainActor in await manager.punchOut() } })
                                 }
                             }
                         }
@@ -354,6 +337,7 @@ struct JiraIssueRow: View {
     let issue: JiraIssue
     var isActive: Bool = false
     var onStart: (() -> Void)? = nil
+    var onStop:  (() -> Void)? = nil
 
     private var statusColor: Color {
         switch issue.statusCategory {
@@ -402,15 +386,17 @@ struct JiraIssueRow: View {
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(statusBg).cornerRadius(8)
                 if isActive {
-                    HStack(spacing: 5) {
-                        Circle().fill(DS.emerald).frame(width: 6, height: 6)
-                            .shadow(color: DS.emerald.opacity(0.5), radius: 4)
-                        Text("Active")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(DS.emerald)
+                    Button { onStop?() } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "pause.fill").font(.system(size: 9, weight: .bold))
+                            Text("Pause").font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 9).padding(.vertical, 4)
+                        .background(DS.emerald)
+                        .cornerRadius(7)
                     }
-                    .padding(.horizontal, 9).padding(.vertical, 4)
-                    .background(DS.emeraldLight).cornerRadius(10)
+                    .buttonStyle(.plain)
                 } else if let onStart {
                     Button(action: onStart) {
                         Image(systemName: "play.fill")

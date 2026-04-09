@@ -369,6 +369,17 @@ class TrackingManager: ObservableObject {
             // take effect without requiring a logout/login.
             await api.refreshEmployee()
 
+            // Gate: if the admin has screenshots enabled for this employee, screen recording
+            // permission is required before we allow the timer to start.
+            let screenshotsRequired = api.employee?.screenshotsEnabled ?? true
+            if screenshotsRequired && !ScreenshotService.hasPermission() {
+                statusMessage = "Screen recording permission is required to start tracking. Please grant access in System Settings."
+                hasScreenPermission = false
+                ScreenshotService.requestPermission()
+                scheduleNotTrackingReminder()
+                return
+            }
+
             let sessionId    = try await api.punchIn(taskId: task?.id, jiraIssueKey: jiraIssue?.key)
             currentSessionId = sessionId
             currentTask      = task
@@ -682,7 +693,10 @@ class TrackingManager: ObservableObject {
 
             if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
                 let mins = self.trackedMinutes
-                let perm = self.hasScreenPermission
+                // Re-check live permission each heartbeat so the backend stays in sync
+                // if the user revokes/grants access while tracking.
+                let perm = ScreenshotService.hasPermission()
+                self.hasScreenPermission = perm
                 Task {
                     try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: mins,
                                                   screenPermission: perm)

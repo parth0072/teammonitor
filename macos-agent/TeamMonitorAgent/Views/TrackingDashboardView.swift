@@ -33,8 +33,6 @@ struct TrackingDashboardView: View {
     @State var jiraConnected:  Bool         = false
     @State var jiraLoading:    Bool         = false
     @State var jiraLoadedAt:   Date?        = nil
-    @State var jiraSearchText: String       = ""
-
     @State var toast:      ToastMessage? = nil
     @State var toastTimer: Timer?        = nil
     @State var breakTimer: Timer?        = nil

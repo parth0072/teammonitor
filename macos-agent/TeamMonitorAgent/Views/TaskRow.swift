@@ -6,6 +6,7 @@ struct TaskRow2: View {
     let task:     TaskItem
     let isActive: Bool
     let onStart:  () -> Void
+    var onStop:   (() -> Void)? = nil
 
     @State private var hovered = false
 
@@ -69,18 +70,17 @@ struct TaskRow2: View {
 
             // Right badge / action
             if isActive {
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(DS.emerald)
-                        .frame(width: 6, height: 6)
-                        .shadow(color: DS.emerald.opacity(0.5), radius: 4)
-                    Text("Active")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(DS.emerald)
+                Button { onStop?() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pause.fill").font(.system(size: 8, weight: .bold))
+                        Text("Pause").font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(DS.emerald)
+                    .cornerRadius(7)
                 }
-                .padding(.horizontal, 9).padding(.vertical, 4)
-                .background(DS.emeraldLight)
-                .cornerRadius(10)
+                .buttonStyle(.plain)
             } else if task.status != "done" {
                 Button { onStart() } label: {
                     HStack(spacing: 4) {
