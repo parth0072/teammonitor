@@ -690,13 +690,16 @@ export default function EmployeeDetail() {
                 <div style={S.card}>
                   <div style={S.cardTitle}>📊 Productive Hours</div>
                   <div style={{ display:"flex", alignItems:"flex-end", gap:3, height:80 }}>
-                    {report.productive_hours.map((h, i) => (
-                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
-                        <div style={{ width:"100%", background: h.active_minutes > 30 ? "#3b82f6" : h.active_minutes > 0 ? "#bfdbfe" : "#f1f5f9",
-                                      height: Math.max(4, (h.active_minutes / 60) * 64), borderRadius:"3px 3px 0 0", transition:"height 0.2s" }} />
-                        {(i % 6 === 0) && <div style={{ fontSize:9, color:"#94a3b8", marginTop:2 }}>{String(i).padStart(2,"0")}</div>}
-                      </div>
-                    ))}
+                    {report.productive_hours.map((h, i) => {
+                      const mins = Math.min(h.active_minutes ?? 0, 60);
+                      return (
+                        <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
+                          <div style={{ width:"100%", background: mins > 30 ? "#3b82f6" : mins > 0 ? "#bfdbfe" : "#f1f5f9",
+                                        height: Math.max(4, (mins / 60) * 64), borderRadius:"3px 3px 0 0", transition:"height 0.2s" }} />
+                          {(i % 6 === 0) && <div style={{ fontSize:9, color:"#94a3b8", marginTop:2 }}>{String(i).padStart(2,"0")}</div>}
+                        </div>
+                      );
+                    })}
                   </div>
                   {report.peak_hours && report.peak_hours.length > 0 && (
                     <div style={{ marginTop:16, display:"flex", gap:8, flexWrap:"wrap" }}>
