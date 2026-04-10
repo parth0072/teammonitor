@@ -94,6 +94,18 @@ if (USE_MYSQL) {
         created_at     DATETIME DEFAULT NOW()
       )`);
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS session_breaks (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        session_id  INT NOT NULL,
+        employee_id INT NOT NULL,
+        break_start DATETIME NOT NULL,
+        break_end   DATETIME DEFAULT NULL,
+        date        DATE     NOT NULL,
+        KEY (session_id),
+        KEY (employee_id, date)
+      )`);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS idle_logs (
         id               INT AUTO_INCREMENT PRIMARY KEY,
         employee_id      INT NOT NULL,

@@ -543,6 +543,7 @@ class TrackingManager: ObservableObject {
 
         if let sessionId = currentSessionId {
             try? await api.heartbeat(sessionId: sessionId, totalMinutes: trackedMinutes, screenPermission: hasScreenPermission)
+            try? await api.breakStart(sessionId: sessionId)
         }
     }
 
@@ -555,6 +556,7 @@ class TrackingManager: ObservableObject {
         statusMessage  = "Tracking active"
         saveSessionState()
 
+        Task { try? await api.breakEnd(sessionId: sessionId) }
         startAllServices(sessionId: sessionId)
     }
 

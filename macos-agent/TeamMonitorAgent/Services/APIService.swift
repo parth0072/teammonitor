@@ -402,6 +402,14 @@ class APIService: ObservableObject {
         try await put("/sessions/\(sessionId)/punch-out", body: body)
     }
 
+    func breakStart(sessionId: Int) async throws {
+        try await post("/sessions/\(sessionId)/break/start", body: [:])
+    }
+
+    func breakEnd(sessionId: Int) async throws {
+        try await put("/sessions/\(sessionId)/break/end", body: [:])
+    }
+
     func heartbeat(sessionId: Int, totalMinutes: Int, screenPermission: Bool = true) async throws {
         let body: [String: Any] = [
             "totalMinutes":     totalMinutes,

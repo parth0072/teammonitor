@@ -205,29 +205,30 @@ function EmployeeTimeline({ employee, sessions }) {
         {/* Track */}
         <div style={{ position: "absolute", top: 4, left: 0, right: 0, height: 12, background: C.border, borderRadius: 6 }} />
 
-        {/* Break segments — gaps between consecutive sessions */}
-        {sorted.map((s, i) => {
-          const next = sorted[i + 1];
-          if (!next || !s.punch_out) return null;
-          const breakStart = s.punch_out;
-          const breakEnd   = next.punch_in;
-          const breakMins  = Math.round((new Date(breakEnd) - new Date(breakStart)) / 60000);
-          if (breakMins < 1) return null;
-          const x = xPct(breakStart);
-          const w = widthPct(breakStart, breakEnd);
-          return (
-            <div key={`break-${i}`}
-              title={`Break · ${format(new Date(breakStart), "h:mm a")} → ${format(new Date(breakEnd), "h:mm a")} (${breakMins}m)`}
-              style={{
-                position: "absolute", top: 4, height: 12, borderRadius: 4,
-                left: `${x}%`, width: `${w}%`,
-                background: "#FEF3C7",
-                border: "1px solid #FCD34D",
-                cursor: "default",
-              }}
-            />
-          );
-        })}
+        {/* Break segments — from session.breaks (recorded by macOS agent) */}
+        {sorted.flatMap((s, si) =>
+          (s.breaks || []).map((b, bi) => {
+            const bEnd = b.end ? new Date(b.end) : (s.status === "active" ? now : null);
+            if (!bEnd) return null;
+            const breakMins = Math.round((bEnd - new Date(b.start)) / 60000);
+            if (breakMins < 1) return null;
+            const x = xPct(b.start);
+            const w = widthPct(b.start, bEnd);
+            return (
+              <div key={`break-${si}-${bi}`}
+                title={`Break · ${format(new Date(b.start), "h:mm a")} → ${b.end ? format(bEnd, "h:mm a") : "ongoing"} (${breakMins}m)`}
+                style={{
+                  position: "absolute", top: 4, height: 12, borderRadius: 4,
+                  left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
+                  background: "#FEF3C7",
+                  border: "1px solid #FCD34D",
+                  cursor: "default",
+                  zIndex: 2,
+                }}
+              />
+            );
+          })
+        )}
 
         {/* Session segments */}
         {sorted.map((s, i) => {

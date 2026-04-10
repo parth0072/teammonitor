@@ -39,6 +39,32 @@ router.post('/punch-in', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/sessions/:id/break/start
+router.post('/:id/break/start', auth, async (req, res) => {
+  try {
+    const now  = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const [r] = await db.query(
+      'INSERT INTO session_breaks (session_id, employee_id, break_start, date) VALUES (?,?,?,?)',
+      [req.params.id, req.user.id, now, date]
+    );
+    res.json({ breakId: r.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/sessions/:id/break/end
+router.put('/:id/break/end', auth, async (req, res) => {
+  try {
+    const now = new Date();
+    // Close the most recent open break for this session
+    await db.query(
+      `UPDATE session_breaks SET break_end=? WHERE session_id=? AND employee_id=? AND break_end IS NULL ORDER BY break_start DESC LIMIT 1`,
+      [now, req.params.id, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // PUT /api/sessions/:id/punch-out
 router.put('/:id/punch-out', auth, async (req, res) => {
   try {
@@ -131,9 +157,23 @@ router.get('/', auth, adminOnly, async (req, res) => {
        FROM sessions s
        JOIN employees e ON s.employee_id = e.id
        LEFT JOIN tasks t ON s.task_id = t.id
-       WHERE s.date = ? ORDER BY s.punch_in DESC`,
+       WHERE s.date = ? ORDER BY s.punch_in ASC`,
       [date]
     );
+    // Attach breaks to each session
+    if (rows.length) {
+      const sessionIds = rows.map(r => r.id);
+      const [breaks] = await db.query(
+        `SELECT * FROM session_breaks WHERE session_id IN (?) AND date = ? ORDER BY break_start ASC`,
+        [sessionIds, date]
+      );
+      const breakMap = {};
+      for (const b of breaks) {
+        if (!breakMap[b.session_id]) breakMap[b.session_id] = [];
+        breakMap[b.session_id].push({ start: b.break_start, end: b.break_end });
+      }
+      rows.forEach(r => { r.breaks = breakMap[r.id] || []; });
+    }
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
