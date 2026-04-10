@@ -309,23 +309,11 @@ class TrackingManager: ObservableObject {
     // MARK: - Notifications
 
     func sendNotification(_ text: String, isWarning: Bool) {
-        // In-app persistent overlay (always visible, no user interaction needed to dismiss)
+        let title = isWarning ? "Timer Paused" : "Tracking Resumed"
         Task { @MainActor in
-            let title = isWarning ? "Timer Paused" : "Tracking Updated"
             NotificationOverlayManager.shared.show(title: title, message: text, isWarning: isWarning)
         }
-
-        // System notification (for when app is in background)
-        let content   = UNMutableNotificationContent()
-        content.title = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
-        content.body  = text
-        content.sound = .default
-        if isWarning { content.categoryIdentifier = "IDLE_REMINDER" }
-        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(req) { err in
-            if let err { TMLog("[Notifications] Delivery failed: \(err)") }
-            else       { TMLog("[Notifications] Sent: \(text)") }
-        }
+        TMLog("[Notifications] \(title): \(text)")
     }
 
     /// Idle-specific notification — uses IDLE_REMINDER category so macOS shows
@@ -731,7 +719,7 @@ class TrackingManager: ObservableObject {
                 NSApp.activate(ignoringOtherApps: true)
 
                 // Notification so the user is alerted even if they don't see the window
-                self.sendNotification("⏸ Timer paused — idle time will be deducted automatically when you return.", isWarning: true)
+                self.sendNotification("Idle time won't count as work — timer resumes when you return.", isWarning: true)
             }
         }
 
@@ -740,9 +728,11 @@ class TrackingManager: ObservableObject {
             let idleMinutes = max(1, Int(idleEnd.timeIntervalSince(idleStart)) / 60)
             Task { @MainActor in
                 self.idleAlertMinutes = idleMinutes
+                // Dismiss the persistent "Timer Paused" overlay
+                NotificationOverlayManager.shared.dismissWarnings()
                 // Auto-deduct idle time — never counted as work
                 self.resumeAfterIdle(countTime: false)
-                self.sendNotification("▶ Tracking resumed — \(idleMinutes) min idle time deducted", isWarning: false)
+                self.sendNotification("Tracking resumed — \(idleMinutes) min idle time deducted", isWarning: false)
             }
         }
         idleDetector.start()

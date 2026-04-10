@@ -1,16 +1,18 @@
-// NotificationOverlay.swift — floating in-app notification banner that persists on screen
+// NotificationOverlay.swift — floating in-app notification banner
 
 import SwiftUI
 import AppKit
 
-// MARK: - Notification Model
+// MARK: - Model
 
 struct OverlayNotification: Identifiable {
-    let id = UUID()
-    let title:     String
-    let message:   String
-    let isWarning: Bool
-    var progress:  Double = 1.0   // 1.0 → 0.0 as timer counts down
+    let id          = UUID()
+    let title:      String
+    let message:    String
+    let isWarning:  Bool
+    /// persistent = stays on screen until explicitly dismissed (no auto-dismiss)
+    let persistent: Bool
+    var progress:   Double = 1.0   // 1.0 → 0.0 for auto-dismiss countdown
 }
 
 // MARK: - Manager
@@ -21,44 +23,68 @@ final class NotificationOverlayManager: ObservableObject {
 
     @Published private(set) var notifications: [OverlayNotification] = []
 
-    private var panel:      NotificationOverlayPanel?
-    private var dismissTimers: [UUID: Timer] = [:]
+    private var panel:          NotificationOverlayPanel?
+    private var dismissTimers:  [UUID: Timer] = [:]
     private var progressTimers: [UUID: Timer] = [:]
-    private let displayDuration: TimeInterval = 8
+    private let autoDismissDuration: TimeInterval = 6
 
     private init() {}
 
+    /// Show a notification. Warnings are persistent (stay until dismissed).
     func show(title: String, message: String, isWarning: Bool) {
-        let note = OverlayNotification(title: title, message: message, isWarning: isWarning)
-        notifications.append(note)
+        // Replace any existing notification with the same title to avoid stacking
+        if let idx = notifications.firstIndex(where: { $0.title == title }) {
+            let old = notifications[idx].id
+            cancelTimers(for: old)
+            notifications.remove(at: idx)
+        }
+
+        let note = OverlayNotification(
+            title: title, message: message,
+            isWarning: isWarning, persistent: isWarning
+        )
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            notifications.append(note)
+        }
         ensurePanelVisible()
-        scheduleProgress(for: note.id)
-        scheduleDismiss(for: note.id)
+
+        if !note.persistent {
+            scheduleProgress(for: note.id)
+            scheduleDismiss(for: note.id)
+        }
     }
 
     func dismiss(_ id: UUID) {
-        dismissTimers[id]?.invalidate()
-        progressTimers[id]?.invalidate()
-        dismissTimers.removeValue(forKey: id)
-        progressTimers.removeValue(forKey: id)
+        cancelTimers(for: id)
         withAnimation(.easeInOut(duration: 0.25)) {
             notifications.removeAll { $0.id == id }
         }
         if notifications.isEmpty { hidePanel() }
     }
 
+    /// Dismiss all warning (persistent) notifications — call when idle ends.
+    func dismissWarnings() {
+        let ids = notifications.filter(\.persistent).map(\.id)
+        ids.forEach { dismiss($0) }
+    }
+
     // MARK: - Private
+
+    private func cancelTimers(for id: UUID) {
+        dismissTimers[id]?.invalidate();  dismissTimers.removeValue(forKey: id)
+        progressTimers[id]?.invalidate(); progressTimers.removeValue(forKey: id)
+    }
 
     private func scheduleProgress(for id: UUID) {
         let start = Date()
-        let dur   = displayDuration
+        let dur   = autoDismissDuration
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
-            guard let self else { return }
             let elapsed  = Date().timeIntervalSince(start)
-            let progress = max(0, 1.0 - elapsed / dur)
+            let progress = max(0.0, 1.0 - elapsed / dur)
             Task { @MainActor [weak self] in
                 guard let self,
-                      let idx = self.notifications.firstIndex(where: { $0.id == id }) else { return }
+                      let idx = self.notifications.firstIndex(where: { $0.id == id })
+                else { return }
                 self.notifications[idx].progress = progress
             }
         }
@@ -67,7 +93,7 @@ final class NotificationOverlayManager: ObservableObject {
     }
 
     private func scheduleDismiss(for id: UUID) {
-        let timer = Timer(timeInterval: displayDuration, repeats: false) { [weak self] _ in
+        let timer = Timer(timeInterval: autoDismissDuration, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in self?.dismiss(id) }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -75,9 +101,7 @@ final class NotificationOverlayManager: ObservableObject {
     }
 
     private func ensurePanelVisible() {
-        if panel == nil {
-            panel = NotificationOverlayPanel()
-        }
+        if panel == nil { panel = NotificationOverlayPanel() }
         panel?.orderFront(nil)
         panel?.repositionToTopRight()
     }
@@ -88,21 +112,18 @@ final class NotificationOverlayManager: ObservableObject {
     }
 }
 
-// MARK: - Panel (NSPanel)
+// MARK: - Panel
 
 final class NotificationOverlayPanel: NSPanel {
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 340, height: 300),
             styleMask:   [.nonactivatingPanel, .fullSizeContentView, .borderless],
             backing:     .buffered,
             defer:       false
         )
-
-        // Float above all other windows, including full-screen
-        level = .floating
+        level              = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-
         isOpaque           = false
         backgroundColor    = .clear
         isMovable          = false
@@ -110,122 +131,158 @@ final class NotificationOverlayPanel: NSPanel {
         ignoresMouseEvents = false
 
         let host = NSHostingController(rootView: NotificationOverlayView())
-        host.view.wantsLayer = true
-        host.view.layer?.backgroundColor = NSColor.clear.cgColor
+        host.view.wantsLayer              = true
+        host.view.layer?.backgroundColor  = NSColor.clear.cgColor
         contentView = host.view
 
         repositionToTopRight()
     }
 
-    /// Keeps the panel anchored to the top-right of the primary screen.
     func repositionToTopRight() {
         guard let screen = NSScreen.main else { return }
-        let sw = screen.visibleFrame.width
-        let sh = screen.visibleFrame.height
-        let sx = screen.visibleFrame.origin.x
-        let sy = screen.visibleFrame.origin.y
-        let w: CGFloat = 360
-        let x = sx + sw - w - 16
-        let y = sy + sh - 16
-        setFrameTopLeftPoint(NSPoint(x: x, y: y))
-        setContentSize(NSSize(width: w, height: 200))
+        let vf = screen.visibleFrame
+        let w: CGFloat = 340
+        setFrameTopLeftPoint(NSPoint(x: vf.maxX - w - 16, y: vf.maxY - 16))
+        setContentSize(NSSize(width: w, height: 300))
     }
 }
 
-// MARK: - SwiftUI View
+// MARK: - Container View
 
 struct NotificationOverlayView: View {
     @ObservedObject private var manager = NotificationOverlayManager.shared
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 8) {
+        VStack(alignment: .trailing, spacing: 10) {
             ForEach(manager.notifications) { note in
                 NotificationCard(note: note, onDismiss: { manager.dismiss(note.id) })
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .transition(.asymmetric(
+                        insertion:  .move(edge: .trailing).combined(with: .opacity),
+                        removal:    .move(edge: .trailing).combined(with: .opacity)
+                    ))
             }
             Spacer()
         }
         .padding(.top, 4)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: manager.notifications.map(\.id))
-        .frame(width: 360, alignment: .trailing)
+        .frame(width: 340, alignment: .trailing)
     }
 }
 
-// MARK: - Single Notification Card
+// MARK: - Card
 
 private struct NotificationCard: View {
     let note:      OverlayNotification
     let onDismiss: () -> Void
 
-    @State private var hovered = false
+    @State private var closeHovered = false
 
-    private var accentColor: Color { note.isWarning ? Color(hex: "f59e0b") : Color(hex: "22c55e") }
-    private var iconName:    String { note.isWarning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill" }
+    // Amber for warning, emerald for success
+    private var accent: Color {
+        note.isWarning ? Color(hex: "f59e0b") : Color(hex: "16a34a")
+    }
+    private var accentBg: Color {
+        note.isWarning ? Color(hex: "fffbeb") : Color(hex: "f0fdf4")
+    }
+    private var accentBorder: Color {
+        note.isWarning ? Color(hex: "fde68a") : Color(hex: "bbf7d0")
+    }
+    private var icon: String {
+        note.isWarning ? "pause.circle.fill" : "checkmark.circle.fill"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: iconName)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(accentColor)
-                    .padding(.top, 1)
+        VStack(spacing: 0) {
+            // Main content row
+            HStack(alignment: .top, spacing: 12) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(accent.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(accent)
+                }
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(note.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color(hex: "111827"))
-                        .lineLimit(1)
+                // Text
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(note.title)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(Color(hex: "111827"))
+
+                        if note.persistent {
+                            Text("LIVE")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(accent)
+                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                .background(accent.opacity(0.12))
+                                .cornerRadius(4)
+                        }
+                    }
+
                     Text(note.message)
                         .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "4b5563"))
+                        .foregroundColor(Color(hex: "6b7280"))
                         .fixedSize(horizontal: false, vertical: true)
-                        .lineLimit(3)
+                        .lineSpacing(2)
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
-                Button {
-                    withAnimation { onDismiss() }
-                } label: {
+                // Close button
+                Button(action: onDismiss) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(Color(hex: "9ca3af"))
-                        .frame(width: 20, height: 20)
-                        .background(hovered ? Color(hex: "f3f4f6") : Color.clear)
-                        .cornerRadius(4)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(closeHovered ? Color(hex: "374151") : Color(hex: "9ca3af"))
+                        .frame(width: 18, height: 18)
+                        .background(closeHovered ? Color(hex: "e5e7eb") : Color.clear)
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .onHover { hovered = $0 }
-                .padding(.top, -2)
+                .onHover { closeHovered = $0 }
             }
             .padding(.horizontal, 14)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
+            .padding(.vertical, 12)
 
-            // Progress bar showing time remaining
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Rectangle()
-                        .fill(accentColor.opacity(0.12))
-                        .frame(height: 3)
-                    Rectangle()
-                        .fill(accentColor.opacity(0.6))
-                        .frame(width: geo.size.width * note.progress, height: 3)
-                        .animation(.linear(duration: 0.05), value: note.progress)
+            // Bottom strip: progress bar (auto-dismiss) OR persistent indicator
+            if note.persistent {
+                // Subtle pulsing strip to indicate it's live/active
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(accent)
+                        .frame(width: 5, height: 5)
+                    Text("Stays until you resume activity")
+                        .font(.system(size: 10))
+                        .foregroundColor(accent.opacity(0.8))
+                    Spacer()
                 }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
+            } else {
+                // Auto-dismiss progress bar
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Rectangle().fill(accent.opacity(0.08))
+                        Rectangle()
+                            .fill(accent.opacity(0.45))
+                            .frame(width: geo.size.width * note.progress)
+                            .animation(.linear(duration: 0.05), value: note.progress)
+                    }
+                }
+                .frame(height: 2)
             }
-            .frame(height: 3)
         }
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.regularMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(accentColor.opacity(0.25), lineWidth: 1)
-                )
+            RoundedRectangle(cornerRadius: 14)
+                .fill(accentBg)
         )
-        .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(accentBorder, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
         .padding(.horizontal, 4)
     }
 }
