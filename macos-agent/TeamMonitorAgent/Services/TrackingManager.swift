@@ -73,6 +73,7 @@ class TrackingManager: ObservableObject {
     // Not-tracking reminder
     @Published var showStartReminder:    Bool    = false
     @Published var showNotTrackingAlert: Bool    = false
+    @Published var showTaskPicker:       Bool    = false
     @Published var secondsUntilNextReminder: Int = 2 * 60
 
     // Escalating reminder: 2 min → 5 min → 10 min repeating
@@ -308,10 +309,18 @@ class TrackingManager: ObservableObject {
     // MARK: - Notifications
 
     func sendNotification(_ text: String, isWarning: Bool) {
+        // In-app persistent overlay (always visible, no user interaction needed to dismiss)
+        Task { @MainActor in
+            let title = isWarning ? "Timer Paused" : "Tracking Updated"
+            NotificationOverlayManager.shared.show(title: title, message: text, isWarning: isWarning)
+        }
+
+        // System notification (for when app is in background)
         let content   = UNMutableNotificationContent()
         content.title = isWarning ? "⚠️ TeamMonitor Alert" : "⏱ TeamMonitor"
         content.body  = text
         content.sound = .default
+        if isWarning { content.categoryIdentifier = "IDLE_REMINDER" }
         let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req) { err in
             if let err { TMLog("[Notifications] Delivery failed: \(err)") }

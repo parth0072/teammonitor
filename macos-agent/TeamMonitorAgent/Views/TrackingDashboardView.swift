@@ -125,6 +125,12 @@ struct TrackingDashboardView: View {
             if showing { activeSheet = .notTrackingAlert }
             else if activeSheet == .notTrackingAlert { activeSheet = nil }
         }
+        .onChange(of: manager.showTaskPicker) { showing in
+            if showing {
+                activeSheet = .taskPicker
+                manager.showTaskPicker = false
+            }
+        }
         .onReceive(liveClock) { _ in
             // Only tick while actively tracking — no need to refresh a static value every second
             guard manager.isTracking && !manager.isOnBreak && !manager.isIdle else { return }

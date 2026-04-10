@@ -245,7 +245,13 @@ struct MenuBarView: View {
             }
             Button("Punch Out") { Task { await manager.punchOut() } }
         } else {
-            Button("Punch In") { Task { await manager.punchIn() } }
+            Button("Punch In") {
+                // Open main window so user can pick a task before tracking starts
+                NotificationCenter.default.post(name: .tmActivateWindow, object: nil)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    manager.showTaskPicker = true
+                }
+            }
         }
 
         Divider()

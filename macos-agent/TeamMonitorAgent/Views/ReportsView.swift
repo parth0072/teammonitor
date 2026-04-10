@@ -52,10 +52,35 @@ struct ReportsView: View {
                 case .aiReport: aiReportTab
                 }
             }
+            .id(selectedTab)
             .background(Color(hex: "f9fafb"))
         }
         .frame(width: 580, height: 660)
         .task { await loadData() }
+        .overlay {
+            if let err = loadError {
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(Color(hex: "f59e0b"))
+                    Text(err)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(hex: "374151"))
+                        .multilineTextAlignment(.center)
+                    Button("Try Again") { Task { await loadData() } }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16).padding(.vertical, 7)
+                        .background(Color(hex: "3b82f6")).cornerRadius(8)
+                        .buttonStyle(.plain)
+                }
+                .padding(24)
+                .background(.regularMaterial)
+                .cornerRadius(14)
+                .shadow(color: .black.opacity(0.1), radius: 20, x: 0, y: 8)
+                .padding(40)
+            }
+        }
     }
 
     // MARK: Header
@@ -160,12 +185,10 @@ struct ReportsView: View {
 
     // MARK: Patterns Tab
 
+    @ViewBuilder
     var patternsTab: some View {
-        VStack(spacing: 0) {
-            guard let r = report, !r.productiveHours.isEmpty else {
-                return AnyView(emptyState(icon: "chart.bar", message: "No activity recorded for this day"))
-            }
-            return AnyView(VStack(spacing: 0) {
+        if let r = report, !r.productiveHours.isEmpty {
+            VStack(spacing: 0) {
                 sectionHeader("Productive Hours — Activity per Hour")
                 ProductiveHoursChart(hours: r.productiveHours, peakHours: r.peakHours)
                     .padding(16).background(Color.white)
@@ -175,18 +198,20 @@ struct ReportsView: View {
 
                 sectionHeader("Work Pattern")
                 WorkPatternCard(pattern: r.workPattern).padding(16).background(Color.white)
-            })
+            }
+        } else {
+            emptyState(icon: "chart.bar", message: "No activity recorded for this day")
         }
     }
 
     // MARK: AI Report Tab
 
+    @ViewBuilder
     var aiReportTab: some View {
-        VStack(spacing: 0) {
-            guard let r = report else {
-                return AnyView(emptyState(icon: "sparkles", message: "No data available to generate a report"))
-            }
-            return AnyView(AIReportCard(date: selectedDate, report: r).padding(16).background(Color.white))
+        if let r = report {
+            AIReportCard(date: selectedDate, report: r).padding(16).background(Color.white)
+        } else {
+            emptyState(icon: "sparkles", message: "No data available to generate a report")
         }
     }
 
