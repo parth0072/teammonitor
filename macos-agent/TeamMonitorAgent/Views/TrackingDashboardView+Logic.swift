@@ -60,7 +60,7 @@ extension TrackingDashboardView {
         toastTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { _ in
             Task { @MainActor in withAnimation { toast = nil } }
         }
-        manager.sendNotification(text, isWarning: warning)
+        // Overlay is reserved for timer pause/resume events only (see TrackingManager)
     }
 
     // MARK: – Break Reminder
@@ -73,10 +73,7 @@ extension TrackingDashboardView {
             Task { @MainActor in
                 guard manager.isTracking else { return }
                 activeSheet = .breakReminder
-                manager.sendNotification(
-                    "Time for a break! You've been working \(manager.trackedMinutes / 60)h \(manager.trackedMinutes % 60)m",
-                    isWarning: false
-                )
+                // Break reminder is shown via in-app sheet only — no overlay toast
             }
         }
     }

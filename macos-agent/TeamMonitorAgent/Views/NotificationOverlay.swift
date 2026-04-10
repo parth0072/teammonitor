@@ -45,6 +45,8 @@ final class NotificationOverlayManager: ObservableObject {
             scheduleProgress(for: note.id)
             scheduleDismiss(for: note.id)
         }
+        // Sound feedback
+        NSSound(named: isWarning ? NSSound.Name("Funk") : NSSound.Name("Pop"))?.play()
     }
 
     func dismiss(_ id: UUID) {

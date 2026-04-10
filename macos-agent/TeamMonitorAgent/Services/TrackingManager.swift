@@ -719,7 +719,7 @@ class TrackingManager: ObservableObject {
                 NSApp.activate(ignoringOtherApps: true)
 
                 // Notification so the user is alerted even if they don't see the window
-                self.sendNotification("Idle time won't count as work — timer resumes when you return.", isWarning: true)
+                self.sendNotification("Idle time is not counted. Timer will resume when you return.", isWarning: true)
             }
         }
 
