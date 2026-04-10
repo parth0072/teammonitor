@@ -722,7 +722,7 @@ class TrackingManager: ObservableObject {
                 NSApp.activate(ignoringOtherApps: true)
 
                 // Notification so the user is alerted even if they don't see the window
-                self.sendNotification("⏸ Timer paused — you've been idle. Open TeamMonitor to decide whether to count this time.", isWarning: true)
+                self.sendNotification("⏸ Timer paused — idle time will be deducted automatically when you return.", isWarning: true)
             }
         }
 
@@ -731,8 +731,9 @@ class TrackingManager: ObservableObject {
             let idleMinutes = max(1, Int(idleEnd.timeIntervalSince(idleStart)) / 60)
             Task { @MainActor in
                 self.idleAlertMinutes = idleMinutes
-                self.showIdleAlert    = false
-                self.showIdleAlert    = true
+                // Auto-deduct idle time — never counted as work
+                self.resumeAfterIdle(countTime: false)
+                self.sendNotification("▶ Tracking resumed — \(idleMinutes) min idle time deducted", isWarning: false)
             }
         }
         idleDetector.start()
