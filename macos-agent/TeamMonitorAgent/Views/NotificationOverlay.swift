@@ -10,9 +10,8 @@ struct OverlayNotification: Identifiable {
     let title:      String
     let message:    String
     let isWarning:  Bool
-    /// persistent = stays on screen until explicitly dismissed (no auto-dismiss)
-    let persistent: Bool
-    var progress:   Double = 1.0   // 1.0 → 0.0 for auto-dismiss countdown
+    let persistent: Bool       // warning = stays until dismissed
+    var progress:   Double = 1.0
 }
 
 // MARK: - Manager
@@ -26,28 +25,22 @@ final class NotificationOverlayManager: ObservableObject {
     private var panel:          NotificationOverlayPanel?
     private var dismissTimers:  [UUID: Timer] = [:]
     private var progressTimers: [UUID: Timer] = [:]
-    private let autoDismissDuration: TimeInterval = 6
+    private let autoDismiss: TimeInterval = 6
 
     private init() {}
 
-    /// Show a notification. Warnings are persistent (stay until dismissed).
     func show(title: String, message: String, isWarning: Bool) {
-        // Replace any existing notification with the same title to avoid stacking
+        // Replace existing notification with same title
         if let idx = notifications.firstIndex(where: { $0.title == title }) {
-            let old = notifications[idx].id
-            cancelTimers(for: old)
+            cancelTimers(for: notifications[idx].id)
             notifications.remove(at: idx)
         }
-
-        let note = OverlayNotification(
-            title: title, message: message,
-            isWarning: isWarning, persistent: isWarning
-        )
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        let note = OverlayNotification(title: title, message: message,
+                                       isWarning: isWarning, persistent: isWarning)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
             notifications.append(note)
         }
         ensurePanelVisible()
-
         if !note.persistent {
             scheduleProgress(for: note.id)
             scheduleDismiss(for: note.id)
@@ -56,19 +49,17 @@ final class NotificationOverlayManager: ObservableObject {
 
     func dismiss(_ id: UUID) {
         cancelTimers(for: id)
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             notifications.removeAll { $0.id == id }
         }
         if notifications.isEmpty { hidePanel() }
     }
 
-    /// Dismiss all warning (persistent) notifications — call when idle ends.
     func dismissWarnings() {
-        let ids = notifications.filter(\.persistent).map(\.id)
-        ids.forEach { dismiss($0) }
+        notifications.filter(\.persistent).map(\.id).forEach { dismiss($0) }
     }
 
-    // MARK: - Private
+    // MARK: Private
 
     private func cancelTimers(for id: UUID) {
         dismissTimers[id]?.invalidate();  dismissTimers.removeValue(forKey: id)
@@ -76,28 +67,22 @@ final class NotificationOverlayManager: ObservableObject {
     }
 
     private func scheduleProgress(for id: UUID) {
-        let start = Date()
-        let dur   = autoDismissDuration
-        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
-            let elapsed  = Date().timeIntervalSince(start)
-            let progress = max(0.0, 1.0 - elapsed / dur)
+        let start = Date(); let dur = autoDismiss
+        let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] _ in
+            let p = max(0.0, 1.0 - Date().timeIntervalSince(start) / dur)
             Task { @MainActor [weak self] in
-                guard let self,
-                      let idx = self.notifications.firstIndex(where: { $0.id == id })
-                else { return }
-                self.notifications[idx].progress = progress
+                guard let self, let i = self.notifications.firstIndex(where: { $0.id == id }) else { return }
+                self.notifications[i].progress = p
             }
         }
-        RunLoop.main.add(timer, forMode: .common)
-        progressTimers[id] = timer
+        RunLoop.main.add(t, forMode: .common); progressTimers[id] = t
     }
 
     private func scheduleDismiss(for id: UUID) {
-        let timer = Timer(timeInterval: autoDismissDuration, repeats: false) { [weak self] _ in
+        let t = Timer(timeInterval: autoDismiss, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in self?.dismiss(id) }
         }
-        RunLoop.main.add(timer, forMode: .common)
-        dismissTimers[id] = timer
+        RunLoop.main.add(t, forMode: .common); dismissTimers[id] = t
     }
 
     private func ensurePanelVisible() {
@@ -107,8 +92,7 @@ final class NotificationOverlayManager: ObservableObject {
     }
 
     private func hidePanel() {
-        panel?.orderOut(nil)
-        panel = nil
+        panel?.orderOut(nil); panel = nil
     }
 }
 
@@ -117,10 +101,9 @@ final class NotificationOverlayManager: ObservableObject {
 final class NotificationOverlayPanel: NSPanel {
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 348, height: 300),
             styleMask:   [.nonactivatingPanel, .fullSizeContentView, .borderless],
-            backing:     .buffered,
-            defer:       false
+            backing:     .buffered, defer: false
         )
         level              = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
@@ -131,40 +114,38 @@ final class NotificationOverlayPanel: NSPanel {
         ignoresMouseEvents = false
 
         let host = NSHostingController(rootView: NotificationOverlayView())
-        host.view.wantsLayer              = true
-        host.view.layer?.backgroundColor  = NSColor.clear.cgColor
+        host.view.wantsLayer             = true
+        host.view.layer?.backgroundColor = NSColor.clear.cgColor
         contentView = host.view
-
         repositionToTopRight()
     }
 
     func repositionToTopRight() {
         guard let screen = NSScreen.main else { return }
         let vf = screen.visibleFrame
-        let w: CGFloat = 340
-        setFrameTopLeftPoint(NSPoint(x: vf.maxX - w - 16, y: vf.maxY - 16))
-        setContentSize(NSSize(width: w, height: 300))
+        setFrameTopLeftPoint(NSPoint(x: vf.maxX - 348 - 16, y: vf.maxY - 16))
+        setContentSize(NSSize(width: 348, height: 300))
     }
 }
 
-// MARK: - Container View
+// MARK: - Container
 
 struct NotificationOverlayView: View {
-    @ObservedObject private var manager = NotificationOverlayManager.shared
+    @ObservedObject private var mgr = NotificationOverlayManager.shared
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 10) {
-            ForEach(manager.notifications) { note in
-                NotificationCard(note: note, onDismiss: { manager.dismiss(note.id) })
+            ForEach(mgr.notifications) { note in
+                NotificationCard(note: note, onDismiss: { mgr.dismiss(note.id) })
                     .transition(.asymmetric(
-                        insertion:  .move(edge: .trailing).combined(with: .opacity),
-                        removal:    .move(edge: .trailing).combined(with: .opacity)
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal:   .move(edge: .trailing).combined(with: .opacity)
                     ))
             }
             Spacer()
         }
         .padding(.top, 4)
-        .frame(width: 340, alignment: .trailing)
+        .frame(width: 348, alignment: .trailing)
     }
 }
 
@@ -175,114 +156,177 @@ private struct NotificationCard: View {
     let onDismiss: () -> Void
 
     @State private var closeHovered = false
+    @State private var pulsing      = false
 
-    // Amber for warning, emerald for success
-    private var accent: Color {
-        note.isWarning ? Color(hex: "f59e0b") : Color(hex: "16a34a")
-    }
-    private var accentBg: Color {
-        note.isWarning ? Color(hex: "fffbeb") : Color(hex: "f0fdf4")
-    }
-    private var accentBorder: Color {
-        note.isWarning ? Color(hex: "fde68a") : Color(hex: "bbf7d0")
-    }
-    private var icon: String {
-        note.isWarning ? "pause.circle.fill" : "checkmark.circle.fill"
-    }
+    // Paused → indigo brand; Resumed → emerald
+    private var accent: Color      { note.isWarning ? Color(hex: "6366F1") : Color(hex: "10B981") }
+    private var accentSoft: Color  { note.isWarning ? Color(hex: "818CF8") : Color(hex: "34D399") }
+    private var iconName: String   { note.isWarning ? "pause.circle.fill"  : "checkmark.circle.fill" }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Main content row
-            HStack(alignment: .top, spacing: 12) {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(accent.opacity(0.15))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: icon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(accent)
-                }
-
-                // Text
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(note.title)
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(Color(hex: "111827"))
-
-                        if note.persistent {
-                            Text("LIVE")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(accent)
-                                .padding(.horizontal, 5).padding(.vertical, 2)
-                                .background(accent.opacity(0.12))
-                                .cornerRadius(4)
-                        }
-                    }
-
-                    Text(note.message)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "6b7280"))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .lineSpacing(2)
-                }
-
-                Spacer(minLength: 4)
-
-                // Close button
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(closeHovered ? Color(hex: "374151") : Color(hex: "9ca3af"))
-                        .frame(width: 18, height: 18)
-                        .background(closeHovered ? Color(hex: "e5e7eb") : Color.clear)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .onHover { closeHovered = $0 }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-
-            // Bottom strip: progress bar (auto-dismiss) OR persistent indicator
-            if note.persistent {
-                // Subtle pulsing strip to indicate it's live/active
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(accent)
-                        .frame(width: 5, height: 5)
-                    Text("Stays until you resume activity")
-                        .font(.system(size: 10))
-                        .foregroundColor(accent.opacity(0.8))
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 10)
-            } else {
-                // Auto-dismiss progress bar
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Rectangle().fill(accent.opacity(0.08))
-                        Rectangle()
-                            .fill(accent.opacity(0.45))
-                            .frame(width: geo.size.width * note.progress)
-                            .animation(.linear(duration: 0.05), value: note.progress)
-                    }
-                }
-                .frame(height: 2)
-            }
+            mainRow
+            footerStrip
         }
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(accentBg)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(accentBorder, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color(hex: "0F172A").opacity(0.35), radius: 20, x: 0, y: 8)
+        .shadow(color: accent.opacity(note.isWarning ? 0.18 : 0.10), radius: 14, x: 0, y: 4)
         .padding(.horizontal, 4)
+        .onAppear { withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) { pulsing = true } }
+    }
+
+    // MARK: Main content
+
+    private var mainRow: some View {
+        HStack(alignment: .top, spacing: 13) {
+            iconBadge
+            textBlock
+            Spacer(minLength: 4)
+            closeBtn
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, note.persistent ? 10 : 12)
+    }
+
+    private var iconBadge: some View {
+        ZStack {
+            // Outer glow ring (pulse for persistent)
+            if note.persistent {
+                Circle()
+                    .stroke(accent.opacity(pulsing ? 0.35 : 0.10), lineWidth: 2)
+                    .frame(width: 44, height: 44)
+                    .scaleEffect(pulsing ? 1.08 : 1.0)
+            }
+            // Filled circle
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [accentSoft.opacity(0.25), accent.opacity(0.15)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 38, height: 38)
+            Image(systemName: iconName)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(accentSoft)
+        }
+        .frame(width: 44)
+    }
+
+    private var textBlock: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
+                Text(note.title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+
+                if note.persistent {
+                    HStack(spacing: 3) {
+                        Circle()
+                            .fill(accent)
+                            .frame(width: 4, height: 4)
+                            .opacity(pulsing ? 1 : 0.4)
+                        Text("LIVE")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundColor(accentSoft)
+                    }
+                    .padding(.horizontal, 6).padding(.vertical, 3)
+                    .background(accent.opacity(0.18))
+                    .clipShape(Capsule())
+                }
+            }
+
+            Text(note.message)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(Color(hex: "94A3B8"))
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(2.5)
+                .lineLimit(3)
+        }
+    }
+
+    private var closeBtn: some View {
+        Button(action: onDismiss) {
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(closeHovered ? Color.white : Color(hex: "64748B"))
+                .frame(width: 22, height: 22)
+                .background(closeHovered ? Color(hex: "334155") : Color.clear)
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { closeHovered = $0 }
+        .padding(.top, 1)
+    }
+
+    // MARK: Footer
+
+    @ViewBuilder
+    private var footerStrip: some View {
+        if note.persistent {
+            // Subtle info row
+            HStack(spacing: 6) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 9))
+                    .foregroundColor(Color(hex: "475569"))
+                Text("Waiting for activity · stays until you return")
+                    .font(.system(size: 10))
+                    .foregroundColor(Color(hex: "475569"))
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 11)
+        } else {
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Rectangle().fill(Color(hex: "1E293B"))
+                    Rectangle()
+                        .fill(
+                            LinearGradient(colors: [accent, accentSoft],
+                                           startPoint: .leading, endPoint: .trailing)
+                        )
+                        .frame(width: geo.size.width * note.progress)
+                        .animation(.linear(duration: 0.04), value: note.progress)
+                }
+            }
+            .frame(height: 2)
+        }
+    }
+
+    // MARK: Background
+
+    private var cardBackground: some View {
+        ZStack {
+            // Dark base
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(hex: "1E293B"))
+
+            // Top edge shimmer
+            VStack {
+                LinearGradient(
+                    colors: [Color.white.opacity(0.06), Color.clear],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: 40)
+                Spacer()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+
+            // Border
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            accent.opacity(0.45),
+                            Color(hex: "2D3D55").opacity(0.8)
+                        ],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        }
     }
 }
