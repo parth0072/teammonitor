@@ -46,7 +46,12 @@ router.put('/:id/punch-out', auth, async (req, res) => {
     const [rows] = await db.query('SELECT * FROM sessions WHERE id=? AND employee_id=?', [req.params.id, req.user.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Session not found' });
 
-    const mins = Math.round((now - new Date(rows[0].punch_in)) / 60000);
+    // Prefer client-reported totalMinutes (already excludes break/idle time).
+    // Fall back to wall-clock diff only when client sends nothing (e.g. admin force-close).
+    const clientMins = req.body?.totalMinutes;
+    const mins = (clientMins != null && clientMins >= 0)
+      ? clientMins
+      : Math.round((now - new Date(rows[0].punch_in)) / 60000);
     await db.query(
       "UPDATE sessions SET punch_out=?, total_minutes=?, status='completed' WHERE id=?",
       [now, mins, req.params.id]
