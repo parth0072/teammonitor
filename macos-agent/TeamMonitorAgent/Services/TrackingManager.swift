@@ -714,6 +714,15 @@ class TrackingManager: ObservableObject {
                 self.idleWarningSecondsLeft = 0
                 self.sessionTimer?.invalidate(); self.sessionTimer = nil
                 self.resumeTimer?.invalidate();  self.resumeTimer  = nil
+
+                // Bring window to front so the idle banner is visible
+                if let win = NSApp.windows.first(where: { $0.canBecomeMain && $0.canBecomeKey }) {
+                    win.makeKeyAndOrderFront(nil)
+                }
+                NSApp.activate(ignoringOtherApps: true)
+
+                // Notification so the user is alerted even if they don't see the window
+                self.sendNotification("⏸ Timer paused — you've been idle. Open TeamMonitor to decide whether to count this time.", isWarning: true)
             }
         }
 
