@@ -18,7 +18,7 @@ const EMP_COLS = `id, name, email, department, role, is_active,
 // GET /api/employees  (admin)
 router.get('/', auth, adminOnly, async (req, res) => {
   try {
-    const [rows] = await db.query(`SELECT ${EMP_COLS} FROM employees ORDER BY created_at DESC`);
+    const [rows] = await db.query(`SELECT ${EMP_COLS} FROM employees WHERE is_active = 1 ORDER BY created_at DESC`);
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
