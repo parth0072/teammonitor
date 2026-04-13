@@ -734,12 +734,17 @@ function AdminDashboard() {
 
   if (loading) return <SkeletonDashboard />;
 
-  const totalMins    = sessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
+  // Only consider sessions belonging to active employees — prevents deactivated/deleted
+  // employee sessions from inflating active/total counts.
+  const activeEmpIds = new Set(employees.map(e => e.id));
+  const activeSessions = sessions.filter(s => activeEmpIds.has(s.employee_id));
+
+  const totalMins    = activeSessions.reduce((a, s) => a + (s.total_minutes || 0), 0);
 
   // sum all sessions per employee for accurate daily total
   const totalMinsByEmp = {};
   const sessionsByEmpAll = {};
-  sessions.forEach(s => {
+  activeSessions.forEach(s => {
     totalMinsByEmp[s.employee_id] = (totalMinsByEmp[s.employee_id] || 0) + (s.total_minutes || 0);
     if (!sessionsByEmpAll[s.employee_id]) sessionsByEmpAll[s.employee_id] = [];
     sessionsByEmpAll[s.employee_id].push(s);
@@ -749,7 +754,7 @@ function AdminDashboard() {
 
   // Build latest-session-per-employee map
   const sessionByEmp = {};
-  sessions.forEach(s => {
+  activeSessions.forEach(s => {
     const prev = sessionByEmp[s.employee_id];
     if (!prev || s.status === "active" || new Date(s.punch_in) > new Date(prev.punch_in)) {
       sessionByEmp[s.employee_id] = s;
