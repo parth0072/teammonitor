@@ -89,13 +89,16 @@ router.put('/:id/punch-out', auth, async (req, res) => {
 // PUT /api/sessions/:id/heartbeat  – update running minutes
 router.put('/:id/heartbeat', auth, async (req, res) => {
   try {
-    const { totalMinutes, screenPermission } = req.body;
+    const { totalMinutes, screenPermission, agentVersion } = req.body;
     await db.query('UPDATE sessions SET total_minutes=? WHERE id=? AND employee_id=?',
       [totalMinutes, req.params.id, req.user.id]);
-    // Store screen recording permission status on the employee record
-    if (screenPermission !== undefined) {
-      await db.query('UPDATE employees SET screen_permission=? WHERE id=?',
-        [screenPermission ? 1 : 0, req.user.id]);
+    const empUpdates = [];
+    const empValues  = [];
+    if (screenPermission !== undefined) { empUpdates.push('screen_permission=?'); empValues.push(screenPermission ? 1 : 0); }
+    if (agentVersion)                   { empUpdates.push('agent_version=?');     empValues.push(agentVersion); }
+    if (empUpdates.length) {
+      empValues.push(req.user.id);
+      await db.query(`UPDATE employees SET ${empUpdates.join(', ')} WHERE id=?`, empValues);
     }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

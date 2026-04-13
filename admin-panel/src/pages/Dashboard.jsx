@@ -511,12 +511,23 @@ function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot })
           </div>
         )}
 
-        {/* Screenshot time */}
-        {lastScreenshot?.captured_at && (
-          <div style={{ fontSize: 10, color: "#CBD5E1", marginTop: 4 }}>
-            📷 {format(new Date(lastScreenshot.captured_at), "h:mm a")}
-          </div>
-        )}
+        {/* Bottom row: screenshot time + agent version */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+          {lastScreenshot?.captured_at ? (
+            <div style={{ fontSize: 10, color: "#CBD5E1" }}>
+              📷 {format(new Date(lastScreenshot.captured_at), "h:mm a")}
+            </div>
+          ) : <div />}
+          {employee.agent_version && (
+            <div style={{
+              fontSize: 9, fontWeight: 600, color: "#64748B",
+              background: "#F1F5F9", borderRadius: 4, padding: "2px 6px",
+              letterSpacing: "0.02em",
+            }} title="macOS agent version">
+              v{employee.agent_version}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

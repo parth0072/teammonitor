@@ -411,9 +411,11 @@ class APIService: ObservableObject {
     }
 
     func heartbeat(sessionId: Int, totalMinutes: Int, screenPermission: Bool = true) async throws {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let body: [String: Any] = [
             "totalMinutes":     totalMinutes,
             "screenPermission": screenPermission,
+            "agentVersion":     version,
         ]
         try await put("/sessions/\(sessionId)/heartbeat", body: body)
     }

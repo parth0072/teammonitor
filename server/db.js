@@ -66,6 +66,7 @@ if (USE_MYSQL) {
         created_at     DATETIME    DEFAULT NOW()
       )`);
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS task_id INT DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS agent_version VARCHAR(20) DEFAULT NULL`).catch(() => {});
     await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`).catch(() => {});
     await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by INT DEFAULT NULL`).catch(() => {});
     await pool.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INT DEFAULT NULL`).catch(() => {});
