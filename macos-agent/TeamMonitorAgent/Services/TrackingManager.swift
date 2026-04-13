@@ -66,6 +66,7 @@ class TrackingManager: ObservableObject {
     @Published var showIdleWarning:         Bool = false
     @Published var idleWarningSecondsLeft:  Int  = 0
     private var idleWarningCountdownTimer:  Timer?
+    private var reminderDeadline:           Date?
 
     // Offline state
     @Published var isOffline:           Bool     = false
@@ -338,6 +339,7 @@ class TrackingManager: ObservableObject {
         guard !idleReminderDisabled else { return }
 
         let interval = reminderIntervals[min(reminderPhase, reminderIntervals.count - 1)]
+        reminderDeadline = Date().addingTimeInterval(interval)
         secondsUntilNextReminder = Int(interval)
         startCountdownTimer()
 
@@ -373,6 +375,7 @@ class TrackingManager: ObservableObject {
         notTrackingTimer = nil
         countdownTimer?.invalidate()
         countdownTimer = nil
+        reminderDeadline = nil
         secondsUntilNextReminder = Int(reminderIntervals[0])
     }
 
@@ -390,10 +393,13 @@ class TrackingManager: ObservableObject {
 
     private func startCountdownTimer() {
         countdownTimer?.invalidate()
-        // Runs on RunLoop.main — no Task wrapper needed.
-        let c = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+        // Fires every 10 s (not 1 s) — avoids a @Published update + SwiftUI re-render
+        // every second. Reads the stored deadline so the displayed value stays accurate.
+        let c = Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             guard let self, !self.isTracking || self.isOnBreak else { return }
-            if self.secondsUntilNextReminder > 0 { self.secondsUntilNextReminder -= 1 }
+            guard let deadline = self.reminderDeadline else { return }
+            let secs = max(0, Int(deadline.timeIntervalSinceNow))
+            if secs != self.secondsUntilNextReminder { self.secondsUntilNextReminder = secs }
         }
         RunLoop.main.add(c, forMode: .common)
         countdownTimer = c
@@ -460,6 +466,9 @@ class TrackingManager: ObservableObject {
             lowActivityMinutes = 0
             showSlowWorkAlert  = false
             statusMessage      = "Tracking active"
+            MenuBarState.shared.isTracking   = true
+            MenuBarState.shared.isOnBreak    = false
+            MenuBarState.shared.todayMinutes = todayMinutes
 
             // Persist recent task / jira for "recently used" feature
             if let t = task {
@@ -489,6 +498,8 @@ class TrackingManager: ObservableObject {
         statusMessage = "Stopping session…"
         isTracking    = false
         showIdleAlert = false
+        MenuBarState.shared.isTracking = false
+        MenuBarState.shared.isOnBreak  = false
         stopAllServices()
 
         do {
@@ -538,6 +549,7 @@ class TrackingManager: ObservableObject {
         stoppedTrackingAt = Date()
         reminderPhase     = 0
         statusMessage     = "On break"
+        MenuBarState.shared.isOnBreak = true
         saveSessionState()
         scheduleNotTrackingReminder()
 
@@ -554,6 +566,7 @@ class TrackingManager: ObservableObject {
         isOnBreak      = false
         lastResumeTime = Date()
         statusMessage  = "Tracking active"
+        MenuBarState.shared.isOnBreak = false
         saveSessionState()
 
         Task { try? await api.breakEnd(sessionId: sessionId) }
@@ -649,6 +662,10 @@ class TrackingManager: ObservableObject {
                 priority: "", issueType: "", projectKey: "", projectName: "", url: ""
             )
         }
+
+        MenuBarState.shared.isTracking   = true
+        MenuBarState.shared.isOnBreak    = false
+        MenuBarState.shared.todayMinutes = trackedMinutes
 
         startAllServices(sessionId: state.sessionId)
         TMLog("[TrackingManager] Restored session \(state.sessionId) with \(state.trackedMinutes) min")
@@ -760,6 +777,7 @@ class TrackingManager: ObservableObject {
                 self.todayMinutes = 0
             }
             self.todayMinutes += 1
+            MenuBarState.shared.todayMinutes = self.todayMinutes
 
             self.saveSessionState()
             self.saveTodayMinutes()

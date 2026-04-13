@@ -43,7 +43,8 @@ class IdleDetectionService: ObservableObject {
         idleStart          = nil
         totalActiveSeconds = 0
         totalIdleSeconds   = 0
-        let t = Timer(timeInterval: 5, repeats: true) { [weak self] _ in self?.check() }
+        // 10 s poll — accurate enough for 2-5 min thresholds; halves IOKit call frequency
+        let t = Timer(timeInterval: 10, repeats: true) { [weak self] _ in self?.check() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
     }
@@ -64,11 +65,12 @@ class IdleDetectionService: ObservableObject {
         updateActivityPercent()
     }
 
-    // MARK: - Check (every 5 s)
+    // MARK: - Check (every 10 s)
 
     private func check() {
         let idle = systemIdleSeconds()
-        DispatchQueue.main.async { self.idleSeconds = idle }
+        // Only publish idleSeconds when it actually changed to avoid spurious SwiftUI updates
+        if idle != idleSeconds { DispatchQueue.main.async { self.idleSeconds = idle } }
 
         switch state {
         case .active:
@@ -79,14 +81,14 @@ class IdleDetectionService: ObservableObject {
                 idleStart = now
                 DispatchQueue.main.async { self.isIdle = true }
                 onIdleStart?(now)
-                totalIdleSeconds += 5
+                totalIdleSeconds += 10
             } else if idle >= warningThresholdSeconds {
                 state = .warning
                 let remaining = stopThresholdSeconds - idle
                 onIdleWarning?(remaining)
-                totalIdleSeconds += 5
+                totalIdleSeconds += 10
             } else {
-                totalActiveSeconds += 5
+                totalActiveSeconds += 10
             }
 
         case .warning:
@@ -94,7 +96,7 @@ class IdleDetectionService: ObservableObject {
                 // User moved — cancel warning
                 state = .active
                 onIdleWarningCancelled?()
-                totalActiveSeconds += 5
+                totalActiveSeconds += 10
             } else if idle >= stopThresholdSeconds {
                 // Countdown expired — stop
                 let now = Date()
@@ -102,12 +104,12 @@ class IdleDetectionService: ObservableObject {
                 idleStart = now
                 DispatchQueue.main.async { self.isIdle = true }
                 onIdleStart?(now)
-                totalIdleSeconds += 5
+                totalIdleSeconds += 10
             } else {
                 // Still in warning window — update remaining
                 let remaining = stopThresholdSeconds - idle
                 onIdleWarning?(remaining)
-                totalIdleSeconds += 5
+                totalIdleSeconds += 10
             }
 
         case .stopped:
@@ -119,9 +121,9 @@ class IdleDetectionService: ObservableObject {
                 DispatchQueue.main.async { self.isIdle = false }
                 onIdleEnd?(start, now)
                 idleStart = nil
-                totalActiveSeconds += 5
+                totalActiveSeconds += 10
             } else {
-                totalIdleSeconds += 5
+                totalIdleSeconds += 10
             }
         }
 
@@ -131,7 +133,8 @@ class IdleDetectionService: ObservableObject {
     private func updateActivityPercent() {
         let total = totalActiveSeconds + totalIdleSeconds
         let pct   = total > 0 ? Int(Double(totalActiveSeconds) / Double(total) * 100) : 100
-        DispatchQueue.main.async { self.activityPercent = pct }
+        // Only publish when value actually changed
+        if pct != activityPercent { DispatchQueue.main.async { self.activityPercent = pct } }
     }
 
     // MARK: - IOKit idle time

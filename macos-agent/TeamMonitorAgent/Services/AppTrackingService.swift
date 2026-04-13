@@ -81,6 +81,9 @@ class AppTrackingService: ObservableObject {
     private func getWindowTitle(for app: NSRunningApplication) -> String {
         guard let pid = app.processIdentifier as pid_t? else { return "" }
         let element = AXUIElementCreateApplication(pid)
+        // Cap AX calls to 0.5 s — a frozen/unresponsive app would otherwise block
+        // the main thread indefinitely and cause the whole Mac to feel hung.
+        AXUIElementSetMessagingTimeout(element, 0.5)
         var windowRef: AnyObject?
         guard AXUIElementCopyAttributeValue(element, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
               let window = windowRef else { return "" }

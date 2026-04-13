@@ -185,23 +185,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 }
 
+// MARK: - MenuBarState (minimal observable — avoids re-rendering menu bar on every TrackingManager change)
+
+/// Holds only the three values MenuBarLabel needs. Updated explicitly from TrackingManager
+/// at punch-in/out, break, and the minute timer — not on every @Published change.
+@MainActor
+class MenuBarState: ObservableObject {
+    static let shared = MenuBarState()
+    @Published var isTracking:    Bool = false
+    @Published var isOnBreak:     Bool = false
+    @Published var todayMinutes:  Int  = 0
+}
+
 // MARK: - Menu Bar Label (live time display)
 
 struct MenuBarLabel: View {
-    @ObservedObject private var manager = TrackingManager.shared
+    // Observes only 3 fields — never re-renders due to idleSeconds, activityPercent, etc.
+    @ObservedObject private var state = MenuBarState.shared
 
     var body: some View {
-        if manager.isTracking || manager.todayMinutes > 0 {
+        if state.isTracking || state.todayMinutes > 0 {
             HStack(spacing: 4) {
-                if manager.isOnBreak {
-                    // Amber pause dot
+                if state.isOnBreak {
                     Circle().fill(Color.orange).frame(width: 7, height: 7)
-                } else if manager.isTracking {
+                } else if state.isTracking {
                     Circle().fill(.green).frame(width: 7, height: 7)
                 } else {
                     Circle().fill(Color.gray).frame(width: 7, height: 7)
                 }
-                Text(formatHM(manager.todayMinutes))
+                Text(formatHM(state.todayMinutes))
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
             }
         } else {
@@ -217,17 +229,21 @@ struct MenuBarLabel: View {
 // MARK: - Menu Bar Dropdown
 
 struct MenuBarView: View {
-    @StateObject private var manager = TrackingManager.shared
+    // MenuBarState for display (isTracking, isOnBreak, todayMinutes)
+    // TrackingManager only for actions (punchIn, punchOut, etc.) — not observed for rendering
+    @ObservedObject private var state = MenuBarState.shared
     @Environment(\.openWindow) private var openWindow
+
+    private var manager: TrackingManager { TrackingManager.shared }
 
     var body: some View {
         // Status line
-        if manager.isTracking {
-            Text(manager.isOnBreak
-                 ? "⏸ On Break – \(formatHM(manager.todayMinutes))"
-                 : "● Tracking – \(formatHM(manager.todayMinutes))")
+        if state.isTracking {
+            Text(state.isOnBreak
+                 ? "⏸ On Break – \(formatHM(state.todayMinutes))"
+                 : "● Tracking – \(formatHM(state.todayMinutes))")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(manager.isOnBreak ? .orange : .green)
+                .foregroundColor(state.isOnBreak ? .orange : .green)
         } else {
             Text("○ Not tracking")
                 .font(.system(size: 12, weight: .medium))
@@ -237,8 +253,8 @@ struct MenuBarView: View {
         Divider()
 
         // Quick punch in / out / break / resume
-        if manager.isTracking {
-            if manager.isOnBreak {
+        if state.isTracking {
+            if state.isOnBreak {
                 Button("▶  Resume") { manager.resumeFromBreak() }
             } else {
                 Button("⏸  Take a Break") { Task { await manager.takeBreak() } }
@@ -265,7 +281,7 @@ struct MenuBarView: View {
         Divider()
 
         Button("Quit") {
-            if manager.isTracking {
+            if state.isTracking {
                 Task {
                     await manager.punchOut()
                     NSApp.terminate(nil)
