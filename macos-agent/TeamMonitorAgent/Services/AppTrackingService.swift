@@ -29,11 +29,12 @@ class AppTrackingService: ObservableObject {
     }
 
     func stop() {
-        // Flush the last app entry
+        // Flush the last app entry (skip our own app)
+        let ownBundleId = Bundle.main.bundleIdentifier ?? ""
         if let last = lastApp {
             let now = Date()
             let duration = Int(now.timeIntervalSince(lastAppStart))
-            if duration > 2 {
+            if duration > 2 && last.bundleId != ownBundleId {
                 onAppChange?(last.appName, last.windowTitle, lastAppStart, now)
             }
         }
@@ -61,11 +62,12 @@ class AppTrackingService: ObservableObject {
             timestamp: Date()
         )
 
-        // App changed — log the previous one
+        // App changed — log the previous one (skip our own app)
+        let ownBundleId = Bundle.main.bundleIdentifier ?? ""
         if let last = lastApp, last.appName != newInfo.appName || last.windowTitle != newInfo.windowTitle {
             let now = Date()
             let duration = Int(now.timeIntervalSince(lastAppStart))
-            if duration > 5 {  // ignore < 5 second blips
+            if duration > 5 && last.bundleId != ownBundleId {
                 onAppChange?(last.appName, last.windowTitle, lastAppStart, now)
             }
             lastAppStart = now

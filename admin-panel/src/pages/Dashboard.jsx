@@ -205,6 +205,30 @@ function EmployeeTimeline({ employee, sessions }) {
         {/* Track */}
         <div style={{ position: "absolute", top: 4, left: 0, right: 0, height: 12, background: C.border, borderRadius: 6 }} />
 
+        {/* Inactive gaps — periods between sessions where employee was punched out */}
+        {sorted.slice(0, -1).map((s, i) => {
+          const gapStart = s.punch_out;
+          const gapEnd   = sorted[i + 1]?.punch_in;
+          if (!gapStart || !gapEnd) return null;
+          const gapMins = Math.round((new Date(gapEnd) - new Date(gapStart)) / 60000);
+          if (gapMins < 2) return null;
+          const x = xPct(gapStart);
+          const w = widthPct(gapStart, gapEnd);
+          return (
+            <div key={`gap-${i}`}
+              title={`Inactive · ${format(new Date(gapStart), "h:mm a")} → ${format(new Date(gapEnd), "h:mm a")} (${gapMins}m)`}
+              style={{
+                position: "absolute", top: 4, height: 12, borderRadius: 4,
+                left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
+                background: "#FEE2E2",
+                border: "1px solid #FCA5A5",
+                cursor: "default",
+                zIndex: 1,
+              }}
+            />
+          );
+        })}
+
         {/* Break segments — from session.breaks (recorded by macOS agent) */}
         {sorted.flatMap((s, si) =>
           (s.breaks || []).map((b, bi) => {
@@ -866,6 +890,7 @@ function AdminDashboard() {
                 { color: C.green,   label: "Active" },
                 { color: C.blue,    label: "Worked", opacity: 0.85 },
                 { color: "#FCD34D", label: "Break", border: true },
+                { color: "#FCA5A5", label: "Inactive", border: true },
               ].map(({ color, label, opacity, border }) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <div style={{ width: 12, height: 8, borderRadius: 2, background: color, opacity: opacity || 1, border: border ? "1px solid #FCD34D" : "none" }} />
