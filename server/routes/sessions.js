@@ -90,7 +90,7 @@ router.put('/:id/punch-out', auth, async (req, res) => {
 router.put('/:id/heartbeat', auth, async (req, res) => {
   try {
     const { totalMinutes, screenPermission, agentVersion } = req.body;
-    await db.query('UPDATE sessions SET total_minutes=? WHERE id=? AND employee_id=?',
+    await db.query('UPDATE sessions SET total_minutes=?, last_heartbeat_at=NOW() WHERE id=? AND employee_id=?',
       [totalMinutes, req.params.id, req.user.id]);
     const empUpdates = [];
     const empValues  = [];

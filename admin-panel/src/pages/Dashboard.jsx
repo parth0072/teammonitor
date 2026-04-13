@@ -51,12 +51,17 @@ function fmtHMdec(mins) {
   return (mins / 60).toFixed(1) + "h";
 }
 
-// A session is "stale" if it's active but no heartbeat for >10 minutes
-// (punch_in + total_minutes tracked + 10 min buffer < now)
+// A session is "stale" if active but no heartbeat for >10 minutes.
+// Uses last_heartbeat_at when available (accurate); falls back to
+// punch_in + total_minutes heuristic for sessions pre-dating this column.
 function isStaleSession(s) {
   if (s?.status !== "active") return false;
-  const punchIn = new Date(s.punch_in).getTime();
-  const trackedMs = (s.total_minutes || 0) * 60000;
+  if (s.last_heartbeat_at) {
+    return Date.now() > new Date(s.last_heartbeat_at).getTime() + 10 * 60000;
+  }
+  // Fallback: punch_in + tracked time + 10 min buffer
+  const punchIn    = new Date(s.punch_in).getTime();
+  const trackedMs  = (s.total_minutes || 0) * 60000;
   return Date.now() > punchIn + trackedMs + 10 * 60000;
 }
 
