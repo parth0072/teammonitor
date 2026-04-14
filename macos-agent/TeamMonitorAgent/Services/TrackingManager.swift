@@ -378,29 +378,9 @@ class TrackingManager: ObservableObject {
         pendingDeliveredCommandIds.append(contentsOf: newDelivered)
     }
 
-    /// Show a system notification sent by admin, with optional action button.
+    /// Show an admin-sent notification as the custom in-app overlay only.
     private func showAdminNotification(id: Int, title: String, message: String, action: String) {
-        // Show overlay immediately
         NotificationOverlayManager.shared.show(title: title, message: message, isWarning: false)
-
-        // Also post a system (UNUserNotification) alert so user sees it even if not looking at the menu
-        let content              = UNMutableNotificationContent()
-        content.title            = title
-        content.body             = message
-        content.sound            = .default
-
-        // Pick category based on action button
-        switch action {
-        case "take_break":  content.categoryIdentifier = "ADMIN_NOTIFY_BREAK"
-        case "punch_out":   content.categoryIdentifier = "ADMIN_NOTIFY_PUNCHOUT"
-        default:            content.categoryIdentifier = "ADMIN_NOTIFY_ACK"
-        }
-
-        let identifier = "tm.admin.\(id)"
-        let req = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(req) { err in
-            if let err { TMLog("[Notifications] Admin notification failed: \(err)") }
-        }
     }
 
     func scheduleNotTrackingReminder() {
