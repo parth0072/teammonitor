@@ -798,33 +798,23 @@ class TrackingManager: ObservableObject {
         idleDetector.onIdleStart = { [weak self] idleStart in
             guard let self else { return }
             Task { @MainActor in
-                self.pendingIdleStart = idleStart
-                self.showIdleWarning  = false
+                guard self.isTracking else { return }
+                self.showIdleWarning        = false
                 self.idleWarningSecondsLeft = 0
-                self.sessionTimer?.invalidate(); self.sessionTimer = nil
-                self.resumeTimer?.invalidate();  self.resumeTimer  = nil
+                self.pendingIdleStart       = nil  // no idle log — session is ending
 
-                // Bring window to front so the idle banner is visible
-                if let win = NSApp.windows.first(where: { $0.canBecomeMain && $0.canBecomeKey }) {
-                    win.makeKeyAndOrderFront(nil)
-                }
-                NSApp.activate(ignoringOtherApps: true)
-
-                // Notification so the user is alerted even if they don't see the window
-                self.sendNotification("Idle time is not counted. Timer will resume when you return.", isWarning: true)
+                // Punch out — gap until next punch-in is treated as a break, not idle deduction
+                await self.punchOut()
+                self.sendNotification("Session ended — you were idle too long. Start tracking when you're back.", isWarning: true)
             }
         }
 
-        idleDetector.onIdleEnd = { [weak self] idleStart, idleEnd in
+        idleDetector.onIdleEnd = { [weak self] _, _ in
             guard let self else { return }
-            let idleMinutes = max(1, Int(idleEnd.timeIntervalSince(idleStart)) / 60)
             Task { @MainActor in
-                self.idleAlertMinutes = idleMinutes
-                // Dismiss the persistent "Timer Paused" overlay
+                // Session was punched out on idle start; auto check-in resumes if a task exists
                 NotificationOverlayManager.shared.dismissWarnings()
-                // Auto-deduct idle time — never counted as work
-                self.resumeAfterIdle(countTime: false)
-                self.sendNotification("Tracking resumed — \(idleMinutes) min idle time deducted", isWarning: false)
+                self.handleActivityDetected(reason: "IdleEnd")
             }
         }
         idleDetector.start()
