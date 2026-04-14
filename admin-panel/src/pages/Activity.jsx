@@ -165,7 +165,9 @@ export default function Activity() {
   const today     = format(new Date(), "yyyy-MM-dd");
   const [sessions,   setSessions]   = useState([]);
   const [appSummary, setAppSummary] = useState([]);
+  const [appTotal,   setAppTotal]   = useState(0);
   const [activity,   setActivity]   = useState([]);
+  const [actTotal,   setActTotal]   = useState(0);
   const [employees,  setEmployees]  = useState([]);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [loading,    setLoading]    = useState(true);
@@ -180,7 +182,9 @@ export default function Activity() {
           api.getEmployees(),
         ]);
         setSessions(sess);
+        setAppTotal(apps.length);
         setAppSummary(apps.slice(0, 8));
+        setActTotal(act.length);
         setActivity(act.slice(-50).reverse());
         setEmployees(emps);
       } else {
@@ -190,7 +194,9 @@ export default function Activity() {
           api.getMyActivity(today),
         ]);
         setSessions(sess);
+        setAppTotal(apps.length);
         setAppSummary(apps.slice(0, 8));
+        setActTotal(act.length);
         setActivity(act.slice(-50).reverse());
       }
       setLastRefresh(new Date());
@@ -231,15 +237,16 @@ export default function Activity() {
 
       {/* Summary strip */}
       {(() => {
+        const totalOnline = new Set(sessions.map(s => s.employee_id)).size;
         const cards = isAdmin ? [
-          { label:"Active Now",    value:activeCount,        color:"#16a34a", bg:"#dcfce7", icon:"🟢" },
-          { label:"Total Online",  value:sessions.length,    color:"#3b82f6", bg:"#eff6ff", icon:"👥" },
-          { label:"Apps Tracked",  value:appSummary.length,  color:"#8b5cf6", bg:"#f5f3ff", icon:"💻" },
-          { label:"Events Today",  value:activity.length,    color:"#f59e0b", bg:"#fffbeb", icon:"📊" },
+          { label:"Active Now",    value:activeCount,   color:"#16a34a", bg:"#dcfce7", icon:"🟢" },
+          { label:"Total Online",  value:totalOnline,   color:"#3b82f6", bg:"#eff6ff", icon:"👥" },
+          { label:"Apps Tracked",  value:appTotal,      color:"#8b5cf6", bg:"#f5f3ff", icon:"💻" },
+          { label:"Events Today",  value:actTotal,      color:"#f59e0b", bg:"#fffbeb", icon:"📊" },
         ] : [
           { label:"Status",        value: activeCount > 0 ? "Active" : "Offline", color: activeCount > 0 ? "#16a34a" : "#64748b", bg: activeCount > 0 ? "#dcfce7" : "#f1f5f9", icon:"🟢" },
           { label:"Tracked Today", value: fmtHM(myTotalMins), color:"#3b82f6", bg:"#eff6ff", icon:"⏱" },
-          { label:"Apps Used",     value: appSummary.length,  color:"#8b5cf6", bg:"#f5f3ff", icon:"💻" },
+          { label:"Apps Used",     value: appTotal,     color:"#8b5cf6", bg:"#f5f3ff", icon:"💻" },
         ];
         return (
           <div style={{ display:"grid", gridTemplateColumns:`repeat(${cards.length},1fr)`, gap:16, marginBottom:24 }}>
