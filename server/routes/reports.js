@@ -90,7 +90,7 @@ function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets,
 // ── AI summary (individual) ───────────────────────────────────────────────────
 
 async function buildAiSummary(data) {
-  const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent, breaks = [], historyRows = [] } = data;
+  const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent, breaks = [], historyRows = [], idleLogs = [] } = data;
   const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
@@ -116,6 +116,21 @@ async function buildAiSummary(data) {
   const avgWorkBetweenBreaks = breaks.length > 0 && sessions.length > 0
     ? Math.round(totalTrackedMinutes / (breaks.length + 1))
     : totalTrackedMinutes;
+
+  // ── Idle / away-from-keyboard analysis ───────────────────────────────────────
+  const idleCount      = idleLogs.length;
+  const idleTotalSecs  = idleLogs.reduce((s, i) => s + (i.duration_seconds || 0), 0);
+  const idleTotalMins  = Math.round(idleTotalSecs / 60);
+  const avgIdleMins    = idleCount ? Math.round(idleTotalMins / idleCount) : 0;
+  const shortIdles_    = idleLogs.filter(i => i.duration_seconds < 120).length;  // < 2 min
+  const longIdles_     = idleLogs.filter(i => i.duration_seconds > 600).length;  // > 10 min
+  const idlePercent    = totalTrackedMinutes > 0
+    ? Math.round(idleTotalSecs / (totalTrackedMinutes * 60) * 100) : 0;
+  // Idle frequency: avg tracked minutes between idle events
+  const avgWorkBetweenIdles = idleCount > 0 ? Math.round(totalTrackedMinutes / idleCount) : totalTrackedMinutes;
+  const idleLines      = idleCount === 0
+    ? '  No idle events recorded'
+    : `  ${idleCount} idle event(s) — ${fmtDuration(idleTotalMins)} total, avg ${avgIdleMins}m each`;
 
   // ── Session pattern ───────────────────────────────────────────────────────────
   const avgSessionMins = sessions.length ? Math.round(totalTrackedMinutes / sessions.length) : 0;
@@ -162,6 +177,12 @@ Time-of-day productivity:
 - Evening (17–22): ${fmtDuration(eveningMins)} active
 - Peak hour: ${hourLabel(peakHour)} (${Math.round(hourBuckets[peakHour] / 60)} min)
 
+Idle / away-from-keyboard events (${idleCount} total):
+${idleLines}
+- Short idles (<2 min): ${shortIdles_} (micro-distractions), long idles (>10 min): ${longIdles_} (away from desk)
+- Idle as % of tracked time: ${idlePercent}%
+- Avg tracked time between idle events: ${fmtDuration(avgWorkBetweenIdles)}
+
 Overall stats:
 - Total tracked: ${fmtDuration(totalTrackedMinutes)}, active app time: ${fmtDuration(Math.round(totalActiveSeconds / 60))}
 - Productive ratio: ${productivePercent}%, focus score: ${focusScore}/10
@@ -177,6 +198,9 @@ Flag specifically if:
 - High day-to-day fluctuation → inconsistent work habits
 - Heavy afternoon drop-off compared to morning → energy management issue
 - Many short sessions (<15 min each) → context switching problem
+- High idle count (>10 idle events/day, or going idle more than once every 20 min of tracked time) → frequently stepping away or distracted
+- Idle time >30% of tracked time → significant away time, actual focus may be lower than it appears
+- Many short idles (<2 min each) → repeatedly getting up and coming back, fragmented attention
 
 Respond with JSON: { "summary": "2-3 sentences covering overall performance and biggest pattern", "insights": "1-2 specific sentences on break/session/fluctuation patterns with concrete suggestion", "topAppText": "1 sentence", "peakText": "1 sentence" }`;
 
@@ -233,6 +257,12 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
     [employeeId, date]
   );
 
+  const [idleLogs] = await db.query(
+    `SELECT idle_start, idle_end, duration_seconds
+     FROM idle_logs WHERE employee_id = ? AND date = ? ORDER BY idle_start ASC`,
+    [employeeId, date]
+  );
+
   const hourBuckets = new Array(24).fill(0);
   for (const log of actLogs) {
     const h = new Date(log.start_time).getHours();
@@ -282,7 +312,7 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
     [employeeId, date, date]
   );
 
-  const ai_summary = await buildAiSummary({ totalTrackedMinutes, totalActiveSeconds, sessions: activeSessions, topApps, hourBuckets, productivePercent, breaks, historyRows });
+  const ai_summary = await buildAiSummary({ totalTrackedMinutes, totalActiveSeconds, sessions: activeSessions, topApps, hourBuckets, productivePercent, breaks, historyRows, idleLogs });
 
   if (saveToMemory) {
     await saveMemory(employeeId, date, {
@@ -439,13 +469,19 @@ router.get('/team', auth, adminOnly, async (req, res) => {
       `SELECT app_name, SUM(duration_seconds) AS total_seconds
        FROM activity_logs WHERE date = ? GROUP BY app_name ORDER BY total_seconds DESC LIMIT 5`, [date]
     );
+    const [allIdle] = await db.query(
+      `SELECT employee_id, COUNT(*) AS idle_count, SUM(duration_seconds) AS idle_seconds
+       FROM idle_logs WHERE date = ? GROUP BY employee_id`, [date]
+    );
 
     const sessMap = Object.fromEntries(allSessions.map(r => [r.employee_id, r]));
     const actMap  = Object.fromEntries(allActivity.map(r => [r.employee_id, r]));
+    const idleMap = Object.fromEntries(allIdle.map(r => [r.employee_id, r]));
 
     const members = employees.map(emp => {
       const s = sessMap[emp.id] || { total_minutes: 0, session_count: 0 };
       const a = actMap[emp.id]  || { active_seconds: 0 };
+      const il = idleMap[emp.id] || { idle_count: 0, idle_seconds: 0 };
       const productive_percent = s.total_minutes > 0
         ? Math.min(100, Math.round(a.active_seconds / (s.total_minutes * 60) * 100)) : 0;
       const focus_score = Math.min(10, Math.round((productive_percent + Math.min(s.session_count * 5, 20)) / 12));
@@ -455,6 +491,8 @@ router.get('/team', auth, adminOnly, async (req, res) => {
         total_minutes:       s.total_minutes || 0,
         session_count:       s.session_count || 0,
         active_seconds:      a.active_seconds || 0,
+        idle_count:          il.idle_count || 0,
+        idle_seconds:        il.idle_seconds || 0,
         productive_percent,
         focus_score,
       };
@@ -468,9 +506,11 @@ router.get('/team', auth, adminOnly, async (req, res) => {
     // Team AI summary
     let team_ai_summary = null;
     if (process.env.GROQ_API_KEY && members.length > 0) {
-      const memberLines = members.map(m =>
-        `- ${m.name}: ${fmtDuration(m.total_minutes)}, focus ${m.focus_score}/10, ${m.productive_percent}% productive`
-      ).join('\n');
+      const memberLines = members.map(m => {
+        const idleNote = m.idle_count > 0
+          ? `, ${m.idle_count} idle events (${fmtDuration(Math.round(m.idle_seconds / 60))} idle)` : '';
+        return `- ${m.name}: ${fmtDuration(m.total_minutes)}, focus ${m.focus_score}/10, ${m.productive_percent}% productive${idleNote}`;
+      }).join('\n');
 
       const prompt = `You are a team productivity coach. Analyze the team's work day and give an executive summary.
 
@@ -480,12 +520,14 @@ Total team hours: ${fmtDuration(totalTeamMinutes)}
 Average focus score: ${avgFocusScore}/10
 Top apps across team: ${teamTopApps.map(a => a.app_name).join(', ') || 'none'}
 
-Per-employee breakdown:
+Per-employee breakdown (includes idle events = times the employee stepped away from keyboard):
 ${memberLines}
+
+Flag if any employee has unusually high idle counts (suggests frequent distractions or stepping away repeatedly).
 
 Respond with JSON: {
   "summary": "2-3 sentences about team performance",
-  "insights": "1-2 sentences on standout patterns or concerns",
+  "insights": "1-2 sentences on standout patterns or concerns (mention idle behavior if notable)",
   "recommendation": "1 actionable suggestion for the team tomorrow"
 }`;
 
