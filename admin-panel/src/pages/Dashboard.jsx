@@ -643,7 +643,7 @@ function EmployeeDashboard({ user }) {
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
+      <div className="tm-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
         <StatCard label="Status"           value={activeSession ? "Active" : "Offline"} color={activeSession ? C.green : C.muted} icon={activeSession ? "🟢" : "⚫"} sub={activeSession ? `since ${format(new Date(activeSession.punch_in), "h:mm a")}` : "not tracking"} />
         <StatCard label="Hours Today"      value={fmtHMdec(totalMins)}  color={C.blue}   icon="⏱" sub={`${sessions.length} session${sessions.length !== 1 ? "s" : ""}`} />
         <StatCard label="Screenshots"      value={screenshots.length}   color={C.purple} icon="📷" sub="captured today" />
@@ -651,7 +651,7 @@ function EmployeeDashboard({ user }) {
       </div>
 
       {/* Chart row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 16 }}>
+      <div className="tm-chart-row" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 16 }}>
         <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
             <div>
@@ -835,7 +835,7 @@ function AdminDashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 16, marginBottom: 20 }}>
+      <div className="tm-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 16, marginBottom: 20 }}>
         <StatCard label="Active Now"         value={activeCount}             color={C.green}  icon="🟢" sub={idleCount > 0 ? `${idleCount} idle` : `of ${employees.length} employees`} />
         <StatCard label="Total Employees"    value={employees.length}        color={C.blue}   icon="👥" sub="registered" />
         <StatCard label="Screenshots Today"  value={screenshots.length}      color={C.purple} icon="📷" sub="captured today" />
@@ -844,7 +844,7 @@ function AdminDashboard() {
       </div>
 
       {/* Chart row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 16 }}>
+      <div className="tm-chart-row" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, marginBottom: 16 }}>
 
         {/* Hours bar chart */}
         <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
@@ -943,7 +943,7 @@ function AdminDashboard() {
             No employees yet. Add employees to see them here.
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>
+          <div className="tm-employee-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>
             {sortedEmployees.map(emp => (
               <EmployeeCard
                 key={emp.id}

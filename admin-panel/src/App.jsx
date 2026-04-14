@@ -1,5 +1,6 @@
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React, { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
+import "./responsive.css";
 import { hasToken, clearToken, api } from "./api";
 import Login from "./pages/Login";
 import Setup from "./pages/Setup";
@@ -55,42 +56,82 @@ const EMPLOYEE_NAV = [
   { path: "/timelines",    label: "My Timeline",   icon: "⏱" },
 ];
 
-function Sidebar() {
-  const { user, setUser } = useAuth();
-  const navigate = useNavigate();
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return isMobile;
+}
+
+function Sidebar({ open, onClose }) {
+  const { user } = useAuth();
+  const isMobile = useIsMobile();
   const isAdmin = user?.role === "admin";
   const navItems = isAdmin ? ADMIN_NAV : EMPLOYEE_NAV;
   const handleLogout = () => { clearToken(); window.location.href = (import.meta.env.BASE_URL || '/') + 'login'; };
 
   return (
-    <div style={S.sidebar}>
-      <div style={S.logo}><span>🖥</span> TeamMonitor</div>
-      <nav style={S.nav}>
-        {navItems.map(item => (
-          <NavLink key={item.path} to={item.path}
-            style={({ isActive }) => ({ ...S.navLink, ...(isActive ? S.navLinkActive : {}) })}>
-            <span>{item.icon}</span>{item.label}
-          </NavLink>
-        ))}
-      </nav>
-      <div style={S.footer}>
-        {user && (
-          <div style={{ marginBottom: 10, padding: "8px 0" }}>
-            <div style={{ color: "#e2e8f0", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
-            <div style={{ color: "#64748b", fontSize: 11, marginTop: 2 }}>{isAdmin ? "Administrator" : "Employee"}</div>
-          </div>
-        )}
-        <button style={S.logoutBtn} onClick={handleLogout}>⏻ &nbsp;Sign Out</button>
+    <>
+      {/* Backdrop (mobile only) */}
+      <div
+        className={`tm-sidebar-backdrop${open ? " open" : ""}`}
+        onClick={onClose}
+      />
+      <div className={`tm-sidebar${open ? " open" : ""}`} style={S.sidebar}>
+        <div style={S.logo}>
+          {isMobile && (
+            <button
+              onClick={onClose}
+              style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", marginRight: 4, padding: 4, display: "flex" }}
+              aria-label="Close menu"
+            >✕</button>
+          )}
+          <span>🖥</span> TeamMonitor
+        </div>
+        <nav style={S.nav}>
+          {navItems.map(item => (
+            <NavLink key={item.path} to={item.path}
+              onClick={isMobile ? onClose : undefined}
+              style={({ isActive }) => ({ ...S.navLink, ...(isActive ? S.navLinkActive : {}) })}>
+              <span>{item.icon}</span>{item.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div style={S.footer}>
+          {user && (
+            <div style={{ marginBottom: 10, padding: "8px 0" }}>
+              <div style={{ color: "#e2e8f0", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
+              <div style={{ color: "#64748b", fontSize: 11, marginTop: 2 }}>{isAdmin ? "Administrator" : "Employee"}</div>
+            </div>
+          )}
+          <button style={S.logoutBtn} onClick={handleLogout}>⏻ &nbsp;Sign Out</button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
 function Layout({ children }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div>
-      <Sidebar />
-      <main style={S.main}>{children}</main>
+      {/* Mobile topbar */}
+      <div className="tm-topbar">
+        <button className="tm-hamburger" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <rect y="3" width="20" height="2" rx="1"/>
+            <rect y="9" width="20" height="2" rx="1"/>
+            <rect y="15" width="20" height="2" rx="1"/>
+          </svg>
+        </button>
+        <span className="tm-topbar-title">🖥 TeamMonitor</span>
+      </div>
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <main className="tm-main" style={S.main}>{children}</main>
     </div>
   );
 }

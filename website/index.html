@@ -1078,6 +1078,28 @@
 
     @media (max-width: 680px) {
       .nav-links { display: none; }
+      .nav-links.mobile-open {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 68px; left: 0; right: 0;
+        background: rgba(15,23,42,0.98);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        padding: 16px 5% 24px;
+        gap: 4px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        z-index: 99;
+      }
+      .nav-links.mobile-open li { list-style: none; }
+      .nav-links.mobile-open a {
+        display: block;
+        padding: 12px 8px;
+        font-size: 1rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        color: #e2e8f0;
+      }
+      .nav-cta { display: none; }
       .mobile-menu-btn { display: block; }
 
       .features-grid { grid-template-columns: 1fr; }
@@ -1088,6 +1110,16 @@
       .trust-inner { flex-direction: column; gap: 16px; }
 
       section { padding: 64px 5%; }
+
+      #hero { padding: 100px 5% 60px; }
+      .hero-stats { gap: 20px; flex-wrap: wrap; }
+
+      .section-title { font-size: clamp(1.6rem, 6vw, 2rem); }
+    }
+
+    @media (max-width: 400px) {
+      .int-grid { grid-template-columns: 1fr; }
+      .how-step { padding: 24px 20px; }
     }
 
     /* ── Fade-in animation ───────────────────────────────────────────── */
@@ -1121,7 +1153,7 @@
     <a href="https://github.com/parth0072/teammonitor/releases" target="_blank" class="btn btn-secondary">Download Agent</a>
     <a href="https://api.alphabyteinnovation.com/teammonitor/" target="_blank" class="btn btn-primary">Open Admin Panel →</a>
   </div>
-  <button class="mobile-menu-btn" onclick="document.querySelector('.nav-links').style.display = document.querySelector('.nav-links').style.display === 'flex' ? 'none' : 'flex'">☰</button>
+  <button class="mobile-menu-btn" onclick="document.querySelector('.nav-links').classList.toggle('mobile-open')">☰</button>
 </nav>
 
 <!-- ── Hero ────────────────────────────────────────────────────── -->
