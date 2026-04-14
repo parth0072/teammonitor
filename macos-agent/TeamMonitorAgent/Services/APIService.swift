@@ -96,6 +96,24 @@ struct PunchInResponse: Decodable {
     enum CodingKeys: String, CodingKey { case sessionId }
 }
 
+// MARK: - Heartbeat / Admin Command Models
+
+struct AdminCommand: Decodable {
+    let id:      Int
+    let type:    String
+    let title:   String?
+    let message: String?
+    let action:  String?
+    enum CodingKeys: String, CodingKey { case id, type, title, message, action }
+}
+
+struct HeartbeatResponse: Decodable {
+    let ok:             Bool
+    let trackingLocked: Bool
+    let commands:       [AdminCommand]
+    enum CodingKeys: String, CodingKey { case ok, trackingLocked, commands }
+}
+
 // MARK: - Project / Task Models
 
 struct ProjectItem: Decodable, Identifiable, Hashable {
@@ -410,14 +428,16 @@ class APIService: ObservableObject {
         try await put("/sessions/\(sessionId)/break/end", body: [:])
     }
 
-    func heartbeat(sessionId: Int, totalMinutes: Int, screenPermission: Bool = true) async throws {
+    func heartbeat(sessionId: Int, totalMinutes: Int, screenPermission: Bool = true,
+                   deliveredCommandIds: [Int] = []) async throws -> HeartbeatResponse {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let body: [String: Any] = [
-            "totalMinutes":     totalMinutes,
-            "screenPermission": screenPermission,
-            "agentVersion":     version,
+            "totalMinutes":        totalMinutes,
+            "screenPermission":    screenPermission,
+            "agentVersion":        version,
+            "deliveredCommandIds": deliveredCommandIds,
         ]
-        try await put("/sessions/\(sessionId)/heartbeat", body: body)
+        return try await put("/sessions/\(sessionId)/heartbeat", body: body)
     }
 
     // MARK: - Activity
@@ -626,6 +646,12 @@ class APIService: ObservableObject {
         var req = try makeRequest("PUT", path: path)
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let _: [String: Bool] = try await send(req)
+    }
+
+    private func put<T: Decodable>(_ path: String, body: [String: Any]) async throws -> T {
+        var req = try makeRequest("PUT", path: path)
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(req)
     }
 
     private func makeRequest(_ method: String, path: String, auth: Bool = true) throws -> URLRequest {

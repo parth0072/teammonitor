@@ -121,6 +121,53 @@ export default function EmployeeDetail() {
     setSettingsSaving(false);
   }
 
+  // Remote Control state
+  const [rcTitle,       setRcTitle]       = useState("");
+  const [rcMessage,     setRcMessage]     = useState("");
+  const [rcAction,      setRcAction]      = useState("none");
+  const [rcSending,     setRcSending]     = useState(false);
+  const [rcMsg,         setRcMsg]         = useState("");
+  const [rcCommands,    setRcCommands]    = useState([]);
+  const [lockSaving,    setLockSaving]    = useState(false);
+
+  async function loadRcCommands() {
+    try { setRcCommands(await api.getAdminCommands(id)); } catch(_) {}
+  }
+  useEffect(() => { if (tab === 5) loadRcCommands(); }, [tab, id]);
+
+  async function sendNotification() {
+    if (!rcMessage.trim()) { setRcMsg("✗ Message is required"); return; }
+    setRcSending(true); setRcMsg("");
+    try {
+      await api.sendAdminCommand({ employeeId: id, commandType: "notify", title: rcTitle || "Admin", message: rcMessage, action: rcAction });
+      setRcMsg("✓ Notification queued — delivered on next heartbeat (~5 min)");
+      setRcTitle(""); setRcMessage(""); setRcAction("none");
+      loadRcCommands();
+    } catch(err) { setRcMsg("✗ " + err.message); }
+    setRcSending(false);
+  }
+
+  async function sendForceAction(commandType) {
+    setRcMsg("");
+    try {
+      await api.sendAdminCommand({ employeeId: id, commandType });
+      setRcMsg(`✓ ${commandType === "force_punch_out" ? "Force punch-out" : "Force break"} queued`);
+      loadRcCommands();
+    } catch(err) { setRcMsg("✗ " + err.message); }
+  }
+
+  async function toggleTrackingLock() {
+    setLockSaving(true); setRcMsg("");
+    try {
+      const newLocked = !emp.tracking_locked;
+      await api.setTrackingLock(id, newLocked);
+      setEmp(e => ({ ...e, tracking_locked: newLocked ? 1 : 0 }));
+      setRcMsg(`✓ Tracking ${newLocked ? "locked" : "unlocked"}`);
+      loadRcCommands();
+    } catch(err) { setRcMsg("✗ " + err.message); }
+    setLockSaving(false);
+  }
+
   // Reports state
   const [reportDate,   setReportDate]   = useState(today);
   const [report,       setReport]       = useState(null);
@@ -398,7 +445,7 @@ export default function EmployeeDetail() {
         </div>
       )}
 
-      {tab===5 && (
+      {tab===5 && (<>
         <div style={S.card}>
           <div style={S.cardTitle}>macOS Agent Settings</div>
           <p style={{ color:"#64748b", fontSize:14, marginBottom:24 }}>
@@ -537,7 +584,109 @@ export default function EmployeeDetail() {
             {settingsSaving ? "Saving…" : "Save Settings"}
           </button>
         </div>
-      )}
+
+        {/* ── Remote Control ───────────────────────────────────────────────── */}
+        <div style={S.card}>
+          <div style={S.cardTitle}>Remote Control</div>
+          <p style={{ color:"#64748b", fontSize:14, marginBottom:24 }}>
+            Commands are delivered to the macOS agent on its next heartbeat (within 5 minutes).
+          </p>
+
+          {/* Tracking lock */}
+          <div style={{ marginBottom:28, padding:16, background: emp?.tracking_locked ? "#fef2f2" : "#f0fdf4", borderRadius:10, border:`1px solid ${emp?.tracking_locked ? "#fecaca" : "#bbf7d0"}` }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:8 }}>
+              {emp?.tracking_locked ? "🔒 Tracking Locked" : "🔓 Tracking Unlocked"}
+            </div>
+            <div style={{ fontSize:13, color:"#64748b", marginBottom:12 }}>
+              {emp?.tracking_locked
+                ? "Employee cannot start the timer. The agent will punch them out and disable the Start button."
+                : "Employee can start and stop tracking normally."}
+            </div>
+            <button onClick={toggleTrackingLock} disabled={lockSaving}
+              style={{ background: emp?.tracking_locked ? "#16a34a" : "#ef4444", color:"#fff", border:"none", borderRadius:8, padding:"8px 20px", cursor:"pointer", fontSize:13, fontWeight:600, opacity:lockSaving?0.7:1 }}>
+              {lockSaving ? "Saving…" : emp?.tracking_locked ? "Unlock Tracking" : "Lock Tracking"}
+            </button>
+          </div>
+
+          {/* Force actions */}
+          <div style={{ marginBottom:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:12 }}>Force Actions</div>
+            <div style={{ display:"flex", gap:12 }}>
+              <button onClick={() => sendForceAction("force_punch_out")}
+                style={{ background:"#ef4444", color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600 }}>
+                Force Punch Out
+              </button>
+              <button onClick={() => sendForceAction("force_break")}
+                style={{ background:"#f59e0b", color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600 }}>
+                Force Break
+              </button>
+            </div>
+          </div>
+
+          {/* Send notification */}
+          <div style={{ marginBottom:24 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:12 }}>Send Notification</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+              <div>
+                <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>Title (optional)</label>
+                <input value={rcTitle} onChange={e => setRcTitle(e.target.value)} placeholder="Admin"
+                  style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, boxSizing:"border-box" }} />
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>Action button</label>
+                <select value={rcAction} onChange={e => setRcAction(e.target.value)}
+                  style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, background:"#fff" }}>
+                  <option value="none">None (dismiss only)</option>
+                  <option value="acknowledge">Acknowledge</option>
+                  <option value="take_break">Take Break</option>
+                  <option value="punch_out">Punch Out</option>
+                </select>
+              </div>
+            </div>
+            <label style={{ display:"block", fontSize:13, fontWeight:600, color:"#374151", marginBottom:6 }}>Message *</label>
+            <textarea value={rcMessage} onChange={e => setRcMessage(e.target.value)} rows={3}
+              placeholder="e.g. Please wrap up your current task and take a break."
+              style={{ width:"100%", padding:"9px 12px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:14, boxSizing:"border-box", resize:"vertical", fontFamily:"inherit" }} />
+            <button onClick={sendNotification} disabled={rcSending}
+              style={{ marginTop:10, background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"9px 20px", cursor:"pointer", fontSize:13, fontWeight:600, opacity:rcSending?0.7:1 }}>
+              {rcSending ? "Sending…" : "Send Notification"}
+            </button>
+          </div>
+
+          {rcMsg && <div style={{ marginBottom:16, fontSize:13, fontWeight:600, color: rcMsg.startsWith("✓")?"#16a34a":"#ef4444" }}>{rcMsg}</div>}
+
+          {/* Recent commands */}
+          {rcCommands.length > 0 && (
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#1e293b", marginBottom:8 }}>Recent Commands</div>
+              <div style={{ borderRadius:8, border:"1px solid #e2e8f0", overflow:"hidden" }}>
+                {rcCommands.slice(0, 10).map(c => (
+                  <div key={c.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", borderBottom:"1px solid #f1f5f9", fontSize:13 }}>
+                    <div>
+                      <span style={{ fontWeight:600, color:"#1e293b" }}>{c.command_type}</span>
+                      {c.payload?.message && <span style={{ color:"#64748b", marginLeft:8 }}>"{c.payload.message.slice(0,40)}{c.payload.message.length>40?"…":""}"</span>}
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <span style={{ fontSize:11, color:"#94a3b8" }}>{c.created_at ? new Date(c.created_at).toLocaleTimeString() : ""}</span>
+                      <span style={{ fontSize:11, fontWeight:600, padding:"2px 8px", borderRadius:10,
+                        background: c.status==="delivered"?"#dcfce7":c.status==="cancelled"?"#f1f5f9":"#fef9c3",
+                        color:      c.status==="delivered"?"#16a34a":c.status==="cancelled"?"#94a3b8":"#b45309" }}>
+                        {c.status}
+                      </span>
+                      {c.status === "pending" && (
+                        <button onClick={async () => { await api.cancelAdminCommand(c.id); loadRcCommands(); }}
+                          style={{ fontSize:11, color:"#ef4444", background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </>)}
 
       {tab===6 && (
         <div style={S.card}>

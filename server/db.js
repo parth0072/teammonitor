@@ -175,6 +175,20 @@ if (USE_MYSQL) {
         created_at    DATETIME     DEFAULT NOW()
       )`);
 
+    // ── Admin remote commands ─────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admin_commands (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id  INT          DEFAULT NULL,
+        command_type VARCHAR(50)  NOT NULL,
+        payload      TEXT         DEFAULT NULL,
+        status       VARCHAR(20)  DEFAULT 'pending',
+        created_by   INT          NOT NULL,
+        created_at   DATETIME     DEFAULT NOW(),
+        delivered_at DATETIME     DEFAULT NULL
+      )`);
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS tracking_locked TINYINT DEFAULT 0`).catch(() => {});
+
     console.log('✓  MySQL connected:', process.env.DB_NAME);
   }
 
@@ -321,6 +335,17 @@ if (USE_MYSQL) {
     `ALTER TABLE projects  ADD COLUMN status     TEXT DEFAULT 'active'`,
     `ALTER TABLE projects  ADD COLUMN created_by INTEGER DEFAULT NULL`,
     `ALTER TABLE tasks     ADD COLUMN created_by INTEGER DEFAULT NULL`,
+    `ALTER TABLE employees ADD COLUMN tracking_locked INTEGER DEFAULT 0`,
+    `CREATE TABLE IF NOT EXISTS admin_commands (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id  INTEGER DEFAULT NULL,
+      command_type TEXT NOT NULL,
+      payload      TEXT DEFAULT NULL,
+      status       TEXT DEFAULT 'pending',
+      created_by   INTEGER NOT NULL,
+      created_at   TEXT DEFAULT (datetime('now')),
+      delivered_at TEXT DEFAULT NULL
+    )`,
   ];
   for (const m of migrations) {
     try { db.exec(m); } catch (_) { /* column already exists */ }

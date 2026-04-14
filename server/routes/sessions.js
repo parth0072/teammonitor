@@ -86,10 +86,10 @@ router.put('/:id/punch-out', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// PUT /api/sessions/:id/heartbeat  – update running minutes
+// PUT /api/sessions/:id/heartbeat  – update running minutes; return pending admin commands
 router.put('/:id/heartbeat', auth, async (req, res) => {
   try {
-    const { totalMinutes, screenPermission, agentVersion } = req.body;
+    const { totalMinutes, screenPermission, agentVersion, deliveredCommandIds = [] } = req.body;
     await db.query('UPDATE sessions SET total_minutes=?, last_heartbeat_at=NOW() WHERE id=? AND employee_id=?',
       [totalMinutes, req.params.id, req.user.id]);
     const empUpdates = [];
@@ -100,7 +100,33 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
       empValues.push(req.user.id);
       await db.query(`UPDATE employees SET ${empUpdates.join(', ')} WHERE id=?`, empValues);
     }
-    res.json({ ok: true });
+
+    // Mark delivered commands
+    if (Array.isArray(deliveredCommandIds) && deliveredCommandIds.length > 0) {
+      const placeholders = deliveredCommandIds.map(() => '?').join(',');
+      await db.query(
+        `UPDATE admin_commands SET status='delivered', delivered_at=NOW() WHERE id IN (${placeholders}) AND status='pending'`,
+        deliveredCommandIds
+      );
+    }
+
+    // Fetch pending commands for this employee (targeted + broadcast)
+    const [cmdRows] = await db.query(
+      `SELECT id, command_type, payload FROM admin_commands
+       WHERE status='pending' AND (employee_id=? OR employee_id IS NULL)
+       ORDER BY created_at ASC LIMIT 20`,
+      [req.user.id]
+    );
+    const commands = cmdRows.map(r => {
+      const p = r.payload ? JSON.parse(r.payload) : {};
+      return { id: r.id, type: r.command_type, title: p.title || null, message: p.message || null, action: p.action || 'none' };
+    });
+
+    // Fetch tracking_locked state
+    const [[emp]] = await db.query('SELECT tracking_locked FROM employees WHERE id=?', [req.user.id]);
+    const trackingLocked = !!(emp?.tracking_locked);
+
+    res.json({ ok: true, trackingLocked, commands });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

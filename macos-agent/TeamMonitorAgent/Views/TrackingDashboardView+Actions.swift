@@ -247,6 +247,15 @@ extension TrackingDashboardView {
                     style: .solid
                 ) { Task { await manager.punchOut() } }
 
+            } else if manager.trackingLocked {
+                PunchButton(
+                    label: "🔒 Locked by Admin",
+                    icon: "lock.fill",
+                    color: DS.textMuted,
+                    style: .solid
+                ) { }
+                .disabled(true)
+                .opacity(0.6)
             } else {
                 PunchButton(
                     label: "Start Tracking",

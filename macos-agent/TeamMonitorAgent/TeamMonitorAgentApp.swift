@@ -65,7 +65,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             intentIdentifiers: [],
             options: []
         )
-        UNUserNotificationCenter.current().setNotificationCategories([idleCategory])
+        // Admin notification categories
+        let takeBreakAction      = UNNotificationAction(identifier: "ADMIN_TAKE_BREAK", title: "Take Break", options: [])
+        let punchOutAction       = UNNotificationAction(identifier: "ADMIN_PUNCH_OUT",  title: "Punch Out",  options: [])
+        let ackAction            = UNNotificationAction(identifier: "ADMIN_ACK",        title: "OK",         options: [.destructive])
+        let adminBreakCategory   = UNNotificationCategory(identifier: "ADMIN_NOTIFY_BREAK",
+            actions: [takeBreakAction, ackAction], intentIdentifiers: [], options: [])
+        let adminPunchOutCategory = UNNotificationCategory(identifier: "ADMIN_NOTIFY_PUNCHOUT",
+            actions: [punchOutAction, ackAction], intentIdentifiers: [], options: [])
+        let adminAckCategory     = UNNotificationCategory(identifier: "ADMIN_NOTIFY_ACK",
+            actions: [ackAction], intentIdentifiers: [], options: [])
+
+        UNUserNotificationCenter.current().setNotificationCategories([
+            idleCategory, adminBreakCategory, adminPunchOutCategory, adminAckCategory
+        ])
 
         // Listen for window-activation requests from TrackingManager
         NotificationCenter.default.addObserver(
@@ -107,17 +120,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         activateMainWindow()
-        if response.actionIdentifier == "START_TRACKING" {
-            // Punch in with last active task if available
+        switch response.actionIdentifier {
+        case "START_TRACKING":
             DispatchQueue.main.async {
                 let manager = TrackingManager.shared
                 guard !manager.isTracking else { return }
                 Task { @MainActor in
-                    let task  = manager.currentTask  ?? manager.lastActiveTask
-                    let jira  = manager.currentJiraIssue ?? manager.lastActiveJiraIssue
+                    let task = manager.currentTask  ?? manager.lastActiveTask
+                    let jira = manager.currentJiraIssue ?? manager.lastActiveJiraIssue
                     await manager.punchIn(task: task, jiraIssue: jira)
                 }
             }
+        case "ADMIN_TAKE_BREAK":
+            Task { @MainActor in
+                let m = TrackingManager.shared
+                if m.isTracking && !m.isOnBreak { await m.takeBreak() }
+            }
+        case "ADMIN_PUNCH_OUT":
+            Task { @MainActor in
+                let m = TrackingManager.shared
+                if m.isTracking { await m.punchOut() }
+            }
+        default:
+            break
         }
         completionHandler()
     }

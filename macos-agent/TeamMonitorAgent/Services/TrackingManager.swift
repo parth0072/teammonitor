@@ -90,6 +90,9 @@ class TrackingManager: ObservableObject {
     @Published var showSlowWorkAlert: Bool = false
     @Published var reminderMessage:  String? = nil
 
+    // Admin remote control
+    @Published var trackingLocked: Bool = false
+
     // Work status options loaded from org settings
     @Published var workStatusOptions: [String] = ["WFO", "WFH", "Remote"]
 
@@ -117,9 +120,10 @@ class TrackingManager: ObservableObject {
     private var notTrackingTimer:     Timer?
     private var countdownTimer:       Timer?
     private var activityWatchTimer:   Timer?   // auto check-in when activity detected while not tracking
-    private var heartbeatTickCount:   Int   = 0
-    private let kHeartbeatEvery:      Int   = 5
-    private var lowActivityMinutes:   Int   = 0
+    private var heartbeatTickCount:        Int    = 0
+    private let kHeartbeatEvery:           Int    = 5
+    private var lowActivityMinutes:        Int    = 0
+    private var pendingDeliveredCommandIds: [Int] = []
 
     private let kRecentTaskIds  = "tm_recent_task_ids"
     private let kRecentJiraKeys = "tm_recent_jira_keys"
@@ -334,6 +338,74 @@ class TrackingManager: ObservableObject {
         }
     }
 
+    // MARK: - Admin Remote Commands
+
+    /// Called after every heartbeat response — applies server-sent commands.
+    func handleHeartbeatResponse(_ r: HeartbeatResponse) {
+        // 1. Tracking lock state
+        if trackingLocked != r.trackingLocked {
+            trackingLocked = r.trackingLocked
+        }
+        if r.trackingLocked && isTracking {
+            Task { await punchOut() }
+            sendNotification("Timer disabled by admin", isWarning: true)
+        }
+
+        // 2. One-shot commands
+        var newDelivered: [Int] = []
+        for cmd in r.commands {
+            switch cmd.type {
+            case "notify":
+                showAdminNotification(id: cmd.id, title: cmd.title ?? "Admin",
+                                      message: cmd.message ?? "", action: cmd.action ?? "none")
+            case "force_punch_out":
+                if isTracking { Task { await punchOut() } }
+                sendNotification("Admin ended your session", isWarning: true)
+            case "force_break":
+                if isTracking && !isOnBreak { Task { await takeBreak() } }
+                sendNotification("Admin started a break for you", isWarning: false)
+            case "lock_tracking":
+                trackingLocked = true
+                if isTracking { Task { await punchOut() } }
+                sendNotification("Tracking locked by admin", isWarning: true)
+            case "unlock_tracking":
+                trackingLocked = false
+                sendNotification("Tracking unlocked by admin", isWarning: false)
+            default:
+                break
+            }
+            newDelivered.append(cmd.id)
+        }
+        if !newDelivered.isEmpty {
+            pendingDeliveredCommandIds.append(contentsOf: newDelivered)
+        }
+    }
+
+    /// Show a system notification sent by admin, with optional action button.
+    private func showAdminNotification(id: Int, title: String, message: String, action: String) {
+        // Show overlay immediately
+        NotificationOverlayManager.shared.show(title: title, message: message, isWarning: false)
+
+        // Also post a system (UNUserNotification) alert so user sees it even if not looking at the menu
+        let content              = UNMutableNotificationContent()
+        content.title            = title
+        content.body             = message
+        content.sound            = .default
+
+        // Pick category based on action button
+        switch action {
+        case "take_break":  content.categoryIdentifier = "ADMIN_NOTIFY_BREAK"
+        case "punch_out":   content.categoryIdentifier = "ADMIN_NOTIFY_PUNCHOUT"
+        default:            content.categoryIdentifier = "ADMIN_NOTIFY_ACK"
+        }
+
+        let identifier = "tm.admin.\(id)"
+        let req = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req) { err in
+            if let err { TMLog("[Notifications] Admin notification failed: \(err)") }
+        }
+    }
+
     func scheduleNotTrackingReminder() {
         cancelNotTrackingReminder()
         guard !idleReminderDisabled else { return }
@@ -429,6 +501,10 @@ class TrackingManager: ObservableObject {
         stoppedTrackingAt        = nil
         secondsUntilNextReminder = 5 * 60
         guard !isTracking else { return }
+        guard !trackingLocked else {
+            sendNotification("Tracking is disabled by admin", isWarning: true)
+            return
+        }
         guard network.isOnline else {
             statusMessage = "No internet connection. Connect and try again."
             return
@@ -794,14 +870,19 @@ class TrackingManager: ObservableObject {
             }
 
             if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
-                let mins = self.trackedMinutes
+                let mins      = self.trackedMinutes
                 // Re-check live permission each heartbeat so the backend stays in sync
                 // if the user revokes/grants access while tracking.
-                let perm = ScreenshotService.hasPermission()
-                self.hasScreenPermission = perm
+                let perm      = ScreenshotService.hasPermission()
+                let delivered = self.pendingDeliveredCommandIds
+                self.hasScreenPermission        = perm
+                self.pendingDeliveredCommandIds = []
                 Task {
-                    try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: mins,
-                                                  screenPermission: perm)
+                    if let resp = try? await self.api.heartbeat(
+                        sessionId: sessionId, totalMinutes: mins,
+                        screenPermission: perm, deliveredCommandIds: delivered) {
+                        await self.handleHeartbeatResponse(resp)
+                    }
                 }
                 self.heartbeatTickCount = 0
             }
