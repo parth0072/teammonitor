@@ -342,16 +342,15 @@ class TrackingManager: ObservableObject {
 
     /// Called after every heartbeat response — applies server-sent commands.
     func handleHeartbeatResponse(_ r: HeartbeatResponse) {
-        // 1. Tracking lock state
+        // 1. Sync lock state silently — no side effects here.
+        //    Commands (lock_tracking / unlock_tracking) drive the actual punchOut/notification
+        //    so we don't double-act on every heartbeat while locked.
         if trackingLocked != r.trackingLocked {
             trackingLocked = r.trackingLocked
         }
-        if r.trackingLocked && isTracking {
-            Task { await punchOut() }
-            sendNotification("Timer disabled by admin", isWarning: true)
-        }
 
-        // 2. One-shot commands
+        // 2. One-shot commands — each delivered once, marked in pendingDeliveredCommandIds
+        guard !r.commands.isEmpty else { return }
         var newDelivered: [Int] = []
         for cmd in r.commands {
             switch cmd.type {
@@ -376,9 +375,7 @@ class TrackingManager: ObservableObject {
             }
             newDelivered.append(cmd.id)
         }
-        if !newDelivered.isEmpty {
-            pendingDeliveredCommandIds.append(contentsOf: newDelivered)
-        }
+        pendingDeliveredCommandIds.append(contentsOf: newDelivered)
     }
 
     /// Show a system notification sent by admin, with optional action button.
