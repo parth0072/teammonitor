@@ -235,13 +235,23 @@ function PolicyManager({ rules, onRulesChange, topAppsAcrossAll }) {
 export default function Productivity() {
   const { user }  = useAuth();
   const isAdmin   = user?.role === "admin";
-  const [days,        setDays]        = useState(7);
+  const todayStr     = format(new Date(), "yyyy-MM-dd");
+  const yesterdayStr = format(new Date(Date.now() - 86400000), "yyyy-MM-dd");
+
+  const [mode,        setMode]        = useState("today");   // "today" | "yesterday" | 7 | 14 | 30
   const [data,        setData]        = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [expanded,    setExpanded]    = useState(null);
   const [sortBy,      setSortBy]      = useState("score");
   const [rules,       setRules]       = useState([]);
   const [showPolicy,  setShowPolicy]  = useState(false);
+
+  // Derive days + startDate from mode
+  const { days, startDate } = React.useMemo(() => {
+    if (mode === "today")     return { days: 1, startDate: todayStr };
+    if (mode === "yesterday") return { days: 1, startDate: yesterdayStr };
+    return { days: mode, startDate: null };
+  }, [mode, todayStr, yesterdayStr]);
 
   // Build a map of app_name.toLowerCase() → category for fast lookup
   const rulesMap = {};
@@ -255,10 +265,10 @@ export default function Productivity() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await api.getProductivity(days, isAdmin ? undefined : user?.id));
+      setData(await api.getProductivity(days, isAdmin ? undefined : user?.id, startDate));
     } catch (e) { console.error(e); }
     setLoading(false);
-  }, [days, isAdmin, user?.id]);
+  }, [days, startDate, isAdmin, user?.id]);
 
   useEffect(() => { load(); loadRules(); }, [load, loadRules]);
 
@@ -299,7 +309,8 @@ export default function Productivity() {
             {isAdmin ? "Productivity Monitor" : "My Productivity"}
           </h1>
           <div style={{ color: "#64748b", fontSize: 13, marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
-            {isAdmin ? "Activity & productivity scores" : "Your activity & productivity scores"} for last {days} days
+            {isAdmin ? "Activity & productivity scores" : "Your activity & productivity scores"} —{" "}
+            {mode === "today" ? "Today" : mode === "yesterday" ? "Yesterday" : `Last ${days} days`}
             {hasCustomPolicy && (
               <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 8, background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>
                 Custom Policy Active
@@ -316,11 +327,17 @@ export default function Productivity() {
               ⚙ Policy {rules.length > 0 ? `(${rules.length})` : ""}
             </button>
           )}
-          {[7, 14, 30].map(d => (
-            <button key={d} onClick={() => setDays(d)}
+          {[
+            { key: "today",     label: "Today" },
+            { key: "yesterday", label: "Yesterday" },
+            { key: 7,  label: "7d" },
+            { key: 14, label: "14d" },
+            { key: 30, label: "30d" },
+          ].map(({ key, label }) => (
+            <button key={key} onClick={() => setMode(key)}
               style={{ padding: "7px 16px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
-                background: days === d ? "#3b82f6" : "#f1f5f9", color: days === d ? "#fff" : "#374151" }}>
-              {d}d
+                background: mode === key ? "#3b82f6" : "#f1f5f9", color: mode === key ? "#fff" : "#374151" }}>
+              {label}
             </button>
           ))}
           <button onClick={load} style={{ padding: "7px 16px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: "#f1f5f9", color: "#374151" }}>↻</button>

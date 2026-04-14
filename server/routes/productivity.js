@@ -54,16 +54,19 @@ router.delete('/rules/:id', auth, adminOnly, async (req, res) => {
 
 // ── Productivity Stats ────────────────────────────────────────────────────────
 
-// GET /api/productivity?days=7&employeeId=
+// GET /api/productivity?days=7&employeeId=&startDate=YYYY-MM-DD
 router.get('/', auth, async (req, res) => {
   try {
     const days       = Math.min(parseInt(req.query.days) || 7, 30);
     const employeeId = req.user.role !== 'admin' ? req.user.id : req.query.employeeId;
 
-    // Date list (today back N days)
+    // Optional startDate anchors the range (defaults to today)
+    const anchor = req.query.startDate ? new Date(req.query.startDate) : new Date();
+
+    // Date list (anchor back N days)
     const dateList = [];
     for (let i = 0; i < days; i++) {
-      const d = new Date(); d.setDate(d.getDate() - i);
+      const d = new Date(anchor); d.setDate(d.getDate() - i);
       dateList.push(d.toISOString().slice(0, 10));
     }
     const oldest = dateList[dateList.length - 1];

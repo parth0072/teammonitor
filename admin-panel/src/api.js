@@ -104,7 +104,7 @@ export const api = {
   testJiraConnection: (data)  => request('POST', '/jira/test', data),
 
   // Productivity
-  getProductivity: (days, empId)   => request('GET', `/productivity?days=${days}${empId ? `&employeeId=${empId}` : ''}`),
+  getProductivity: (days, empId, startDate) => request('GET', `/productivity?days=${days}${empId ? `&employeeId=${empId}` : ''}${startDate ? `&startDate=${startDate}` : ''}`),
   getProductivityRules:    ()             => request('GET',    '/productivity/rules'),
   createProductivityRule:  (data)         => request('POST',   '/productivity/rules', data),
   updateProductivityRule:  (id, data)     => request('PUT',    `/productivity/rules/${id}`, data),
