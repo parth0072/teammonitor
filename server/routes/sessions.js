@@ -101,30 +101,36 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
       await db.query(`UPDATE employees SET ${empUpdates.join(', ')} WHERE id=?`, empValues);
     }
 
-    // Mark delivered commands
+    // Mark delivered commands (graceful — table may not exist yet)
     if (Array.isArray(deliveredCommandIds) && deliveredCommandIds.length > 0) {
       const placeholders = deliveredCommandIds.map(() => '?').join(',');
       await db.query(
         `UPDATE admin_commands SET status='delivered', delivered_at=NOW() WHERE id IN (${placeholders}) AND status='pending'`,
         deliveredCommandIds
-      );
+      ).catch(() => {});
     }
 
-    // Fetch pending commands for this employee (targeted + broadcast)
-    const [cmdRows] = await db.query(
-      `SELECT id, command_type, payload FROM admin_commands
-       WHERE status='pending' AND (employee_id=? OR employee_id IS NULL)
-       ORDER BY created_at ASC LIMIT 20`,
-      [req.user.id]
-    );
-    const commands = cmdRows.map(r => {
-      const p = r.payload ? JSON.parse(r.payload) : {};
-      return { id: r.id, type: r.command_type, title: p.title || null, message: p.message || null, action: p.action || 'none' };
-    });
+    // Fetch pending commands for this employee (graceful — table may not exist yet)
+    let commands = [];
+    try {
+      const [cmdRows] = await db.query(
+        `SELECT id, command_type, payload FROM admin_commands
+         WHERE status='pending' AND (employee_id=? OR employee_id IS NULL)
+         ORDER BY created_at ASC LIMIT 20`,
+        [req.user.id]
+      );
+      commands = cmdRows.map(r => {
+        const p = r.payload ? JSON.parse(r.payload) : {};
+        return { id: r.id, type: r.command_type, title: p.title || null, message: p.message || null, action: p.action || 'none' };
+      });
+    } catch (_) { /* admin_commands table may not exist yet — return empty list */ }
 
-    // Fetch tracking_locked state
-    const [[emp]] = await db.query('SELECT tracking_locked FROM employees WHERE id=?', [req.user.id]);
-    const trackingLocked = !!(emp?.tracking_locked);
+    // Fetch tracking_locked state (graceful — column may not exist yet)
+    let trackingLocked = false;
+    try {
+      const [[emp]] = await db.query('SELECT tracking_locked FROM employees WHERE id=?', [req.user.id]);
+      trackingLocked = !!(emp?.tracking_locked);
+    } catch (_) { /* tracking_locked column may not exist yet */ }
 
     res.json({ ok: true, trackingLocked, commands });
   } catch (err) { res.status(500).json({ error: err.message }); }
