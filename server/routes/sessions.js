@@ -188,7 +188,12 @@ router.get('/', auth, adminOnly, async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const [rows] = await db.query(
-      `SELECT s.*, e.name AS employee_name, e.department, t.name AS task_name
+      `SELECT s.*,
+              CASE WHEN s.status='active'
+                THEN GREATEST(COALESCE(s.total_minutes, 0), TIMESTAMPDIFF(MINUTE, s.punch_in, NOW()))
+                ELSE COALESCE(s.total_minutes, 0)
+              END AS total_minutes,
+              e.name AS employee_name, e.department, t.name AS task_name
        FROM sessions s
        JOIN employees e ON s.employee_id = e.id
        LEFT JOIN tasks t ON s.task_id = t.id
