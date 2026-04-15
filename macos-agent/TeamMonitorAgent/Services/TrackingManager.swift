@@ -555,6 +555,7 @@ class TrackingManager: ObservableObject {
 
     func punchOut() async {
         guard isTracking, let sessionId = currentSessionId else { return }
+        let finalMinutes = trackedMinutes   // capture before clearing state
         statusMessage = "Stopping session…"
         isTracking    = false
         showIdleAlert = false
@@ -562,8 +563,22 @@ class TrackingManager: ObservableObject {
         MenuBarState.shared.isOnBreak  = false
         stopAllServices()
 
+        // Clear UserDefaults BEFORE the API call — if app crashes during the call,
+        // restoreSessionIfNeeded won't reload a completed session on next launch.
+        clearSessionState()
+        currentSessionId   = nil
+        // Preserve task/jira so auto check-in (wake/activity) always resumes with context
+        lastActiveTask      = currentTask
+        lastActiveJiraIssue = currentJiraIssue
+        currentTask        = nil
+        currentJiraIssue   = nil
+        punchInTime        = nil
+        lastResumeTime     = nil
+        recentApps         = []
+        minutesSinceResume = 0
+
         do {
-            try await api.punchOut(sessionId: sessionId, totalMinutes: trackedMinutes)
+            try await api.punchOut(sessionId: sessionId, totalMinutes: finalMinutes)
         } catch { }
 
         statusMessage      = "Session ended. Have a great day!"
@@ -580,18 +595,6 @@ class TrackingManager: ObservableObject {
                 await MainActor.run { self.reminderMessage = reminder }
             }
         }
-
-        clearSessionState()
-        currentSessionId   = nil
-        // Preserve task/jira so auto check-in (wake/activity) always resumes with context
-        lastActiveTask      = currentTask
-        lastActiveJiraIssue = currentJiraIssue
-        currentTask        = nil
-        currentJiraIssue   = nil
-        punchInTime        = nil
-        lastResumeTime     = nil
-        recentApps         = []
-        minutesSinceResume = 0
         // todayMinutes kept — shows total for the day even after punch out
     }
 
@@ -729,6 +732,47 @@ class TrackingManager: ObservableObject {
 
         startAllServices(sessionId: state.sessionId)
         TMLog("[TrackingManager] Restored session \(state.sessionId) with \(state.trackedMinutes) min")
+
+        // Server verification — confirm session is still active.
+        // If the session was completed (agent crash after API call but before clearSessionState),
+        // abort local tracking so we don't accumulate minutes against a closed session.
+        if api.token != nil {
+            let sid = state.sessionId
+            Task { await self.verifyRestoredSession(sessionId: sid, date: today) }
+        }
+    }
+
+    /// Background check: if restored session is no longer active on server, cancel local tracking.
+    private func verifyRestoredSession(sessionId: Int, date: String) async {
+        guard let sessions = try? await api.getMySessions(date: date) else {
+            TMLog("[TrackingManager] verifyRestoredSession: network error — keeping local state")
+            return
+        }
+        let match = sessions.first { $0.id == sessionId }
+        if match?.status == "active" {
+            TMLog("[TrackingManager] Session \(sessionId) verified active on server ✓")
+            return
+        }
+        let serverStatus = match?.status ?? "not found"
+        TMLog("[TrackingManager] Session \(sessionId) is '\(serverStatus)' on server — discarding stale restore")
+        await MainActor.run {
+            stopAllServices()
+            clearSessionState()
+            isTracking       = false
+            currentSessionId = nil
+            lastActiveTask      = currentTask
+            lastActiveJiraIssue = currentJiraIssue
+            currentTask        = nil
+            currentJiraIssue   = nil
+            punchInTime        = nil
+            lastResumeTime     = nil
+            MenuBarState.shared.isTracking = false
+            statusMessage     = "Ready"
+            stoppedTrackingAt = Date()
+            scheduleNotTrackingReminder()
+            startActivityWatcher()
+            sendNotification("Session was already closed — start tracking to begin.", isWarning: true)
+        }
     }
 
     // MARK: - Services
