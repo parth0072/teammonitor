@@ -120,20 +120,24 @@ function buildSlackPayload(date, employeeReports) {
       elements: [{ type: 'mrkdwn', text: `📋 ${sessionCount} session${sessionCount !== 1 ? 's' : ''}  ·  ☕ ${breakLine}  ·  ⚡ ${report.productive_percent ?? 0}% productive` }],
     });
 
+    // Trim to first sentence for Slack brevity
+    const summary  = (ai.summary  || '').split(/(?<=[.!?])\s+/)[0] || ai.summary || '';
+    const insight  = (ai.insights || '').split(/(?<=[.!?])\s+/)[0] || ai.insights || '';
+
     // Two-column: task list | AI summary
     blocks.push({
       type: 'section',
       fields: [
         { type: 'mrkdwn', text: `*Tasks:*\n${taskLine}` },
-        { type: 'mrkdwn', text: ai.summary ? `*Summary:*\n_${ai.summary}_` : '_No summary available_' },
+        { type: 'mrkdwn', text: summary ? `*Summary:*\n_${summary}_` : '_No summary available_' },
       ],
     });
 
     // Insight
-    if (ai.insights) {
+    if (insight) {
       blocks.push({
         type: 'context',
-        elements: [{ type: 'mrkdwn', text: `💡 ${ai.insights}` }],
+        elements: [{ type: 'mrkdwn', text: `💡 ${insight}` }],
       });
     }
 

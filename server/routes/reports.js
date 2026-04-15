@@ -209,7 +209,14 @@ Focus score guide (1–10):
 - 3–4: frequent interruptions, high idle %, many short sessions
 - 1–2: very fragmented, high idle, very low productivity
 
-Respond with JSON: { "focusScore": <1-10 integer>, "summary": "2-3 sentences covering overall performance and biggest pattern", "insights": "1-2 specific sentences on break/session/fluctuation patterns with concrete suggestion", "topAppText": "1 sentence", "peakText": "1 sentence" }`;
+Respond with JSON:
+{
+  "focusScore": <1-10 integer>,
+  "summary": "1-2 sentences max. Describe what the employee worked on and overall performance. Do NOT mention the focus score number — it is shown separately.",
+  "insights": "1 sentence max. Single most important observation about breaks, idle, or session patterns with one concrete tip.",
+  "topAppText": "1 sentence",
+  "peakText": "1 sentence"
+}`;
 
   try {
     const text = await callGroq(prompt);
