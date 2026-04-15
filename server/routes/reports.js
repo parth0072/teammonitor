@@ -477,7 +477,9 @@ router.get('/team', auth, adminOnly, async (req, res) => {
 
     // Per-employee sessions + activity for the date
     const [allSessions] = await db.query(
-      `SELECT s.employee_id, SUM(s.total_minutes) AS total_minutes, COUNT(*) AS session_count
+      `SELECT s.employee_id,
+              SUM(LEAST(COALESCE(s.total_minutes, 0), 1440)) AS total_minutes,
+              COUNT(*) AS session_count
        FROM sessions s WHERE s.date = ? GROUP BY s.employee_id`, [date]
     );
     const [allActivity] = await db.query(
