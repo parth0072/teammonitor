@@ -183,10 +183,10 @@ async function runMigrations() {
 }
 
 // ── Daily report email scheduler ──────────────────────────────────────────────
-// Fires at DAILY_REPORT_HOUR (default 18 = 6 PM) server local time every day.
+// Fires at DAILY_REPORT_HOUR (default 20 = 8 PM) server local time every day.
 function scheduleDailyReports() {
   const { sendDailyReports } = require('./utils/dailyMail');
-  const targetHour = parseInt(process.env.DAILY_REPORT_HOUR || '18', 10);
+  const targetHour = parseInt(process.env.DAILY_REPORT_HOUR || '20', 10);
 
   function msUntilNext() {
     const now  = new Date();
