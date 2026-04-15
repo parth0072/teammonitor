@@ -82,34 +82,51 @@ function buildSlackPayload(date, employeeReports) {
     const focus   = ai.focusScore ?? 0;
     const tracked = fmtMins(report.total_tracked_minutes);
 
-    // One-line status: AI summary first sentence only (no Jira keys)
-    const rawSummary = ai.summary || '';
+    // AI summary — first sentence only
+    const rawSummary    = ai.summary || '';
     const firstSentence = rawSummary.split(/(?<=[.!?])\s+/)[0] || rawSummary;
 
-    // Insight line (optional)
-    const insight = ai.insights || '';
+    // Task list — unique named tasks worked on today (no raw Jira keys)
+    const punchLog = report.punch_log || [];
+    const taskNames = [...new Set(
+      punchLog
+        .map(s => s.task_name || null)   // only admin-panel tasks (have human names)
+        .filter(Boolean)
+    )];
+    // Jira: group by project prefix (e.g. IOS-1819 + IOS-1807 → "IOS project")
+    const jiraProjects = [...new Set(
+      punchLog
+        .filter(s => !s.task_name && s.jira_issue_key)
+        .map(s => s.jira_issue_key.split('-')[0])  // "IOS", "AN", etc.
+    )];
+    const taskLine = [
+      ...taskNames.map(t => `• ${t}`),
+      ...jiraProjects.map(p => `• ${p} project`),
+    ].join('\n') || '• No specific task assigned';
 
+    // Header row: name + stats
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*${employee.name}*  ${focusEmoji(focus)} ${tracked}  ·  Focus ${focus}/10  \`${focusBar(focus)}\``,
+      },
+    });
+
+    // Two-column: task list | AI summary
     blocks.push({
       type: 'section',
       fields: [
-        {
-          type: 'mrkdwn',
-          text: `*${employee.name}*\n${focusEmoji(focus)} ${tracked}  ·  Focus ${focus}/10  \`${focusBar(focus)}\``,
-        },
-        {
-          type: 'mrkdwn',
-          text: firstSentence
-            ? `_${firstSentence}_`
-            : '_No summary available_',
-        },
+        { type: 'mrkdwn', text: `*Tasks worked on:*\n${taskLine}` },
+        { type: 'mrkdwn', text: firstSentence ? `*Summary:*\n_${firstSentence}_` : '_No summary available_' },
       ],
     });
 
-    // Insight as context row if present
-    if (insight) {
+    // Insight
+    if (ai.insights) {
       blocks.push({
         type: 'context',
-        elements: [{ type: 'mrkdwn', text: `💡 ${insight}` }],
+        elements: [{ type: 'mrkdwn', text: `💡 ${ai.insights}` }],
       });
     }
 
