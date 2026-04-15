@@ -83,19 +83,17 @@ function buildSlackPayload(date, employeeReports) {
     const tracked = fmtMins(report.total_tracked_minutes);
 
     // Breaks
-    const breaks       = report.breaks || [];
-    const breakMins    = breaks.reduce((s, b) => s + (b.minutes || 0), 0);
-    const breakLine    = breaks.length > 0
-      ? `${breaks.length} break${breaks.length > 1 ? 's' : ''} · ${fmtMins(breakMins)} total`
-      : 'No breaks';
+    const breaks    = report.breaks || [];
+    const breakMins = breaks.reduce((s, b) => s + (b.minutes || 0), 0);
+    const breakLine = breaks.length > 0
+      ? `☕ ${breaks.length} break${breaks.length > 1 ? 's' : ''} · ${fmtMins(breakMins)}`
+      : '☕ No breaks';
 
-    // Sessions
+    // Sessions + tasks
     const punchLog     = report.punch_log || [];
     const sessionCount = punchLog.length;
-
-    // Task list
-    const taskNames = [...new Set(punchLog.map(s => s.task_name || null).filter(Boolean))];
-    const jiraItems = [...new Map(
+    const taskNames    = [...new Set(punchLog.map(s => s.task_name || null).filter(Boolean))];
+    const jiraItems    = [...new Map(
       punchLog
         .filter(s => !s.task_name && s.jira_issue_key)
         .map(s => [s.jira_issue_summary || s.jira_issue_key, true])
@@ -105,41 +103,39 @@ function buildSlackPayload(date, employeeReports) {
       ...jiraItems.map(t => `• ${t}`),
     ].join('\n') || '• No specific task assigned';
 
-    // Header row: name + stats
+    // Trim to first sentence
+    const summary = (ai.summary  || '').split(/(?<=[.!?])\s+/)[0] || ai.summary || '';
+    const insight = (ai.insights || '').split(/(?<=[.!?])\s+/)[0] || ai.insights || '';
+
+    // Row 1: name + time + focus bar (prominent header)
     blocks.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*${employee.name}*  ${focusEmoji(focus)} ${tracked}  ·  Focus ${focus}/10  \`${focusBar(focus)}\``,
+        text: `${focusEmoji(focus)}  *${employee.name}*   \`${tracked}\`   Focus *${focus}/10*  \`${focusBar(focus)}\``,
       },
     });
 
-    // Stats row: sessions + breaks + productive %
-    blocks.push({
-      type: 'context',
-      elements: [{ type: 'mrkdwn', text: `📋 ${sessionCount} session${sessionCount !== 1 ? 's' : ''}  ·  ☕ ${breakLine}  ·  ⚡ ${report.productive_percent ?? 0}% productive` }],
-    });
-
-    // Trim to first sentence for Slack brevity
-    const summary  = (ai.summary  || '').split(/(?<=[.!?])\s+/)[0] || ai.summary || '';
-    const insight  = (ai.insights || '').split(/(?<=[.!?])\s+/)[0] || ai.insights || '';
-
-    // Two-column: task list | AI summary
+    // Row 2: two-column — tasks | summary
     blocks.push({
       type: 'section',
       fields: [
-        { type: 'mrkdwn', text: `*Tasks:*\n${taskLine}` },
-        { type: 'mrkdwn', text: summary ? `*Summary:*\n_${summary}_` : '_No summary available_' },
+        { type: 'mrkdwn', text: `*Tasks*\n${taskLine}` },
+        { type: 'mrkdwn', text: summary ? `*Summary*\n_${summary}_` : '_No summary available_' },
       ],
     });
 
-    // Insight
-    if (insight) {
-      blocks.push({
-        type: 'context',
-        elements: [{ type: 'mrkdwn', text: `💡 ${insight}` }],
-      });
-    }
+    // Row 3: compact context — sessions · breaks · productive · insight
+    const metaParts = [
+      `📋 ${sessionCount} session${sessionCount !== 1 ? 's' : ''}`,
+      breakLine,
+      `⚡ ${report.productive_percent ?? 0}% productive`,
+      ...(insight ? [`💡 ${insight}`] : []),
+    ];
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: metaParts.join('   ') }],
+    });
 
     blocks.push({ type: 'divider' });
   }
