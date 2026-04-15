@@ -91,9 +91,11 @@ export default function Reports() {
 
   // Slack digest
   const { user } = useAuth();
-  const [slackDate,    setSlackDate]    = useState(format(new Date(), "yyyy-MM-dd"));
-  const [slackSending, setSlackSending] = useState(false);
-  const [slackResult,  setSlackResult]  = useState(null); // { ok, employees } | { error }
+  const [slackDate,       setSlackDate]       = useState(format(new Date(), "yyyy-MM-dd"));
+  const [slackSending,    setSlackSending]    = useState(false);
+  const [slackResult,     setSlackResult]     = useState(null);
+  const [slackPreview,    setSlackPreview]    = useState(null);  // { date, previews[] }
+  const [previewLoading,  setPreviewLoading]  = useState(false);
 
   useEffect(() => { api.getEmployees().then(setEmployees); }, []);
   useEffect(() => { loadData(); }, [date, employeeId]);
@@ -755,38 +757,101 @@ export default function Reports() {
             <div style={S.cardTitle}>Send Slack Digest</div>
           </div>
           <div style={{ fontSize:13, color:"#64748b", marginBottom:16 }}>
-            Send the daily team summary to Slack for any date. Includes all employees who tracked time that day.
+            Preview the daily team summary before sending to Slack.
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
             <input
               type="date"
               value={slackDate}
-              onChange={e => { setSlackDate(e.target.value); setSlackResult(null); }}
+              onChange={e => { setSlackDate(e.target.value); setSlackResult(null); setSlackPreview(null); }}
               style={S.dateInput}
             />
             <button
-              disabled={slackSending}
+              disabled={previewLoading}
               onClick={async () => {
-                setSlackSending(true); setSlackResult(null);
-                try {
-                  const r = await api.sendSlackDigest(slackDate);
-                  setSlackResult(r);
-                } catch (err) {
-                  setSlackResult({ error: err.message || "Failed to send" });
-                } finally { setSlackSending(false); }
+                setPreviewLoading(true); setSlackPreview(null); setSlackResult(null);
+                try { setSlackPreview(await api.previewSlackDigest(slackDate)); }
+                catch (err) { setSlackResult({ error: err.message || "Preview failed" }); }
+                finally { setPreviewLoading(false); }
               }}
-              style={{ background: slackSending ? "#94a3b8" : "#4f46e5", color:"#fff", border:"none", borderRadius:8, padding:"9px 20px", cursor: slackSending ? "default" : "pointer", fontSize:13, fontWeight:600 }}
+              style={{ background: previewLoading ? "#94a3b8" : "#0f172a", color:"#fff", border:"none", borderRadius:8, padding:"9px 20px", cursor: previewLoading ? "default" : "pointer", fontSize:13, fontWeight:600 }}
             >
-              {slackSending ? "Sending…" : "Send to Slack"}
+              {previewLoading ? "Loading…" : "Preview"}
             </button>
             {slackResult && (
               slackResult.error
                 ? <span style={{ fontSize:13, color:"#ef4444" }}>⚠ {slackResult.error}</span>
-                : <span style={{ fontSize:13, color:"#16a34a" }}>
-                    ✓ Sent — {slackResult.employees} employee{slackResult.employees !== 1 ? "s" : ""} included
-                  </span>
+                : <span style={{ fontSize:13, color:"#16a34a" }}>✓ Sent — {slackResult.employees} employee{slackResult.employees !== 1 ? "s" : ""} included</span>
             )}
           </div>
+
+          {/* Preview panel */}
+          {slackPreview && (
+            <div style={{ marginTop:20, border:"1px solid #e2e8f0", borderRadius:10, overflow:"hidden" }}>
+              {/* Mock Slack header */}
+              <div style={{ background:"#4a154b", padding:"14px 18px", display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:18 }}>📊</span>
+                <div>
+                  <div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>Daily Team Report — {new Date(slackPreview.date + "T12:00:00").toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}</div>
+                  <div style={{ color:"rgba(255,255,255,0.7)", fontSize:12, marginTop:2 }}>
+                    {slackPreview.previews.length} active · Team total {Math.floor(slackPreview.previews.reduce((s,p) => s+p.total_minutes,0)/60)}h {slackPreview.previews.reduce((s,p) => s+p.total_minutes,0)%60}m
+                  </div>
+                </div>
+              </div>
+
+              {slackPreview.previews.length === 0 && (
+                <div style={{ padding:"24px", textAlign:"center", color:"#94a3b8", fontSize:13 }}>No tracked time for this date.</div>
+              )}
+
+              {slackPreview.previews.map((p, i) => {
+                const focusColor = p.focus_score >= 8 ? "#16a34a" : p.focus_score >= 5 ? "#d97706" : "#dc2626";
+                const fmtM = m => { const h=Math.floor(m/60),mn=m%60; return h>0?`${h}h ${mn>0?mn+"m":""}`.trim():`${mn}m`; };
+                return (
+                  <div key={i} style={{ padding:"16px 18px", borderTop: i>0 ? "1px solid #e2e8f0" : "none", background:"#fff" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                      <span style={{ fontSize:16 }}>{p.focus_score >= 8 ? "🟢" : p.focus_score >= 5 ? "🟡" : "🔴"}</span>
+                      <span style={{ fontWeight:700, fontSize:14, color:"#1e293b" }}>{p.employee.name}</span>
+                      <span style={{ fontSize:13, color:"#64748b" }}>{fmtM(p.total_minutes)}</span>
+                      <span style={{ marginLeft:"auto", fontSize:12, fontWeight:700, color: focusColor, background: focusColor+"18", borderRadius:20, padding:"2px 10px" }}>Focus {p.focus_score}/10</span>
+                    </div>
+                    <div style={{ fontSize:12, color:"#64748b", marginBottom:10 }}>
+                      📋 {p.sessions} session{p.sessions!==1?"s":""} · ☕ {p.breaks} break{p.breaks!==1?"s":""} ({fmtM(p.break_minutes)}) · ⚡ {p.productive_percent}% productive
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                      <div style={{ fontSize:12, color:"#374151" }}>
+                        <div style={{ fontWeight:600, marginBottom:4 }}>Tasks</div>
+                        {p.tasks.length ? p.tasks.map((t,j) => <div key={j}>• {t}</div>) : <div style={{ color:"#94a3b8" }}>• No task assigned</div>}
+                      </div>
+                      <div style={{ fontSize:12, color:"#374151" }}>
+                        <div style={{ fontWeight:600, marginBottom:4 }}>Summary</div>
+                        <div style={{ color:"#64748b", fontStyle:"italic", lineHeight:1.5 }}>{p.summary || "No summary available"}</div>
+                      </div>
+                    </div>
+                    {p.insights && <div style={{ marginTop:8, fontSize:12, color:"#7c3aed", background:"#faf5ff", borderRadius:6, padding:"6px 10px" }}>💡 {p.insights}</div>}
+                  </div>
+                );
+              })}
+
+              {/* Send button */}
+              {slackPreview.previews.length > 0 && (
+                <div style={{ padding:"14px 18px", borderTop:"1px solid #e2e8f0", background:"#f8fafc", display:"flex", justifyContent:"flex-end", gap:10 }}>
+                  <button onClick={() => { setSlackPreview(null); setSlackResult(null); }} style={{ background:"#f1f5f9", border:"none", borderRadius:8, padding:"8px 16px", cursor:"pointer", fontSize:13 }}>Cancel</button>
+                  <button
+                    disabled={slackSending}
+                    onClick={async () => {
+                      setSlackSending(true);
+                      try { setSlackResult(await api.sendSlackDigest(slackDate)); setSlackPreview(null); }
+                      catch (err) { setSlackResult({ error: err.message || "Failed to send" }); }
+                      finally { setSlackSending(false); }
+                    }}
+                    style={{ background: slackSending ? "#94a3b8" : "#4f46e5", color:"#fff", border:"none", borderRadius:8, padding:"8px 20px", cursor: slackSending ? "default" : "pointer", fontSize:13, fontWeight:600 }}
+                  >
+                    {slackSending ? "Sending…" : "Send to Slack ✈"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -89,6 +89,45 @@ router.put('/tracking-lock', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/admin/slack-report/preview?date=YYYY-MM-DD — preview data without sending
+router.get('/slack-report/preview', auth, adminOnly, async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+
+    const { buildReport } = require('./reports');
+    const [employees] = await db.query(`SELECT id, name, email FROM employees WHERE is_active = 1`);
+
+    const previews = [];
+    for (const emp of employees) {
+      try {
+        const report = await buildReport(emp.id, date, { saveToMemory: false });
+        if (!report.total_tracked_minutes) continue;
+        const ai     = report.ai_summary || {};
+        const breaks = report.breaks || [];
+        previews.push({
+          employee:          { id: emp.id, name: emp.name },
+          total_minutes:     report.total_tracked_minutes,
+          productive_percent:report.productive_percent,
+          focus_score:       ai.focusScore ?? 0,
+          sessions:          (report.punch_log || []).length,
+          breaks:            breaks.length,
+          break_minutes:     breaks.reduce((s, b) => s + (b.minutes || 0), 0),
+          tasks: [...new Set([
+            ...(report.punch_log || []).map(s => s.task_name).filter(Boolean),
+            ...(report.punch_log || []).filter(s => !s.task_name && s.jira_issue_key)
+              .map(s => s.jira_issue_summary || s.jira_issue_key),
+          ])],
+          summary:  ai.summary  || '',
+          insights: ai.insights || '',
+        });
+      } catch (_) {}
+    }
+    res.json({ date, previews });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/admin/slack-report  — send Slack digest for a specific date (admin only)
 // body: { date: 'YYYY-MM-DD' }
 router.post('/slack-report', auth, adminOnly, async (req, res) => {

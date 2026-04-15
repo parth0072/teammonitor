@@ -82,25 +82,23 @@ function buildSlackPayload(date, employeeReports) {
     const focus   = ai.focusScore ?? 0;
     const tracked = fmtMins(report.total_tracked_minutes);
 
-    // AI summary — first sentence only
-    const rawSummary    = ai.summary || '';
-    const firstSentence = rawSummary.split(/(?<=[.!?])\s+/)[0] || rawSummary;
+    // Breaks
+    const breaks       = report.breaks || [];
+    const breakMins    = breaks.reduce((s, b) => s + (b.minutes || 0), 0);
+    const breakLine    = breaks.length > 0
+      ? `${breaks.length} break${breaks.length > 1 ? 's' : ''} · ${fmtMins(breakMins)} total`
+      : 'No breaks';
 
-    // Task list — unique named tasks worked on today (no raw Jira keys)
-    const punchLog = report.punch_log || [];
-    const taskNames = [...new Set(
-      punchLog
-        .map(s => s.task_name || null)   // only admin-panel tasks (have human names)
-        .filter(Boolean)
-    )];
-    // Jira: prefer summary → issue key itself (shows "IOS-1234" not raw "IOS project")
+    // Sessions
+    const punchLog     = report.punch_log || [];
+    const sessionCount = punchLog.length;
+
+    // Task list
+    const taskNames = [...new Set(punchLog.map(s => s.task_name || null).filter(Boolean))];
     const jiraItems = [...new Map(
       punchLog
         .filter(s => !s.task_name && s.jira_issue_key)
-        .map(s => [
-          s.jira_issue_summary || s.jira_issue_key,   // "Fix login crash" or "IOS-1234"
-          true,
-        ])
+        .map(s => [s.jira_issue_summary || s.jira_issue_key, true])
     ).keys()];
     const taskLine = [
       ...taskNames.map(t => `• ${t}`),
@@ -116,12 +114,18 @@ function buildSlackPayload(date, employeeReports) {
       },
     });
 
+    // Stats row: sessions + breaks + productive %
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `📋 ${sessionCount} session${sessionCount !== 1 ? 's' : ''}  ·  ☕ ${breakLine}  ·  ⚡ ${report.productive_percent ?? 0}% productive` }],
+    });
+
     // Two-column: task list | AI summary
     blocks.push({
       type: 'section',
       fields: [
-        { type: 'mrkdwn', text: `*Tasks worked on:*\n${taskLine}` },
-        { type: 'mrkdwn', text: firstSentence ? `*Summary:*\n_${firstSentence}_` : '_No summary available_' },
+        { type: 'mrkdwn', text: `*Tasks:*\n${taskLine}` },
+        { type: 'mrkdwn', text: ai.summary ? `*Summary:*\n_${ai.summary}_` : '_No summary available_' },
       ],
     });
 

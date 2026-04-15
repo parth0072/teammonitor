@@ -202,7 +202,14 @@ Flag specifically if:
 - Idle time >30% of tracked time → significant away time, actual focus may be lower than it appears
 - Many short idles (<2 min each) → repeatedly getting up and coming back, fragmented attention
 
-Respond with JSON: { "summary": "2-3 sentences covering overall performance and biggest pattern", "insights": "1-2 specific sentences on break/session/fluctuation patterns with concrete suggestion", "topAppText": "1 sentence", "peakText": "1 sentence" }`;
+Focus score guide (1–10):
+- 9–10: long uninterrupted sessions, low idle %, high productivity, good break rhythm
+- 7–8: solid work with minor distractions or slightly fragmented sessions
+- 5–6: moderate idle, several short sessions, or inconsistent productivity
+- 3–4: frequent interruptions, high idle %, many short sessions
+- 1–2: very fragmented, high idle, very low productivity
+
+Respond with JSON: { "focusScore": <1-10 integer>, "summary": "2-3 sentences covering overall performance and biggest pattern", "insights": "1-2 specific sentences on break/session/fluctuation patterns with concrete suggestion", "topAppText": "1 sentence", "peakText": "1 sentence" }`;
 
   try {
     const text = await callGroq(prompt);
@@ -210,7 +217,8 @@ Respond with JSON: { "summary": "2-3 sentences covering overall performance and 
     const p = JSON.parse(text);
     console.log('[reports] AI summary OK');
     const str = v => (typeof v === 'string' ? v : '');
-    return { focusScore, summary: str(p.summary), insights: str(p.insights), topAppText: str(p.topAppText), peakText: str(p.peakText), pattern: '' };
+    const aiScore = Number.isInteger(p.focusScore) ? Math.min(10, Math.max(1, p.focusScore)) : focusScore;
+    return { focusScore: aiScore, summary: str(p.summary), insights: str(p.insights), topAppText: str(p.topAppText), peakText: str(p.peakText), pattern: '' };
   } catch (err) {
     console.error('[reports] AI summary fallback:', err.message);
     return buildRuleSummary(data);
