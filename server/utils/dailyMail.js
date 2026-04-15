@@ -205,27 +205,21 @@ async function sendEmployeeReport(employee, date, report) {
 // ── main: send reports to all active employees ────────────────────────────────
 
 async function sendDailyReports() {
-  // Disabled by default — set DAILY_MAIL_ENABLED=true in .env to activate
-  if (process.env.DAILY_MAIL_ENABLED !== 'true') {
-    console.log('[dailyMail] Automatic emails disabled (DAILY_MAIL_ENABLED != true)');
-    return;
-  }
-
-  const transport = createTransport();
-  if (!transport) {
-    console.warn('[dailyMail] Skipped — SMTP not configured (set SMTP_HOST, SMTP_USER, SMTP_PASS)');
-    return;
-  }
-
   const today = new Date().toISOString().slice(0, 10);
-  console.log(`[dailyMail] Sending daily reports for ${today}…`);
+  console.log(`[dailyMail] Running daily reports for ${today}…`);
 
   const [employees] = await db.query(
-    `SELECT id, name, email FROM employees WHERE role = 'employee' AND is_active = 1 AND email IS NOT NULL`
+    `SELECT id, name, email FROM employees WHERE is_active = 1`
   );
-  const { buildReport } = require('../routes/reports');
+  const { buildReport }    = require('../routes/reports');
+  const { sendSlackReport } = require('./slackReport');
+
+  const transport    = createTransport();
+  const emailEnabled = process.env.DAILY_MAIL_ENABLED === 'true' && !!transport;
 
   let sent = 0, failed = 0;
+  const slackReports = [];   // collect for team digest
+
   for (const emp of employees) {
     try {
       const report = await buildReport(emp.id, today, { saveToMemory: true });
@@ -233,15 +227,33 @@ async function sendDailyReports() {
         console.log(`[dailyMail] ${emp.name} — no tracked time, skipping`);
         continue;
       }
-      await sendEmployeeReport(emp, today, report);
-      sent++;
+
+      // Email (optional)
+      if (emailEnabled && emp.email) {
+        try {
+          await sendEmployeeReport(emp, today, report);
+          sent++;
+        } catch (err) {
+          console.error(`[dailyMail] Email failed for ${emp.email}:`, err.message);
+          failed++;
+        }
+      }
+
+      // Collect for Slack digest
+      slackReports.push({ employee: emp, report });
     } catch (err) {
-      console.error(`[dailyMail] Failed for ${emp.email}:`, err.message);
+      console.error(`[dailyMail] Report build failed for ${emp.name}:`, err.message);
       failed++;
     }
   }
 
-  console.log(`[dailyMail] Done — ${sent} sent, ${failed} failed`);
+  // Send one Slack team digest (all employees, AI summaries, no Jira key lists)
+  await sendSlackReport(today, slackReports).catch(err =>
+    console.error('[slack] Digest failed:', err.message)
+  );
+
+  if (emailEnabled) console.log(`[dailyMail] Emails — ${sent} sent, ${failed} failed`);
+  console.log(`[dailyMail] Slack digest — ${slackReports.length} employees included`);
 }
 
 module.exports = { sendDailyReports, sendEmployeeReport };

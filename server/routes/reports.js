@@ -402,6 +402,25 @@ router.get('/daily/employee', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /send-slack — admin manually triggers the Slack team digest
+router.post('/send-slack', auth, adminOnly, async (req, res) => {
+  try {
+    const date = req.body.date || new Date().toISOString().slice(0, 10);
+    const { sendSlackReport } = require('../utils/slackReport');
+
+    const [employees] = await db.query('SELECT id, name, email FROM employees WHERE is_active = 1');
+    const slackReports = [];
+    for (const emp of employees) {
+      try {
+        const report = await buildReport(emp.id, date, { saveToMemory: false });
+        if (report.total_tracked_minutes) slackReports.push({ employee: emp, report });
+      } catch { /* skip */ }
+    }
+    await sendSlackReport(date, slackReports);
+    res.json({ ok: true, employees: slackReports.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /send-email — admin manually sends the daily report email to one employee
 router.post('/send-email', auth, adminOnly, async (req, res) => {
   try {
