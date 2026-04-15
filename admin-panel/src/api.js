@@ -138,6 +138,7 @@ export const api = {
   getAdminCommands:   (empId) => request('GET',    `/admin/commands${empId ? '?employeeId=' + empId : ''}`),
   cancelAdminCommand: (id)    => request('DELETE', `/admin/commands/${id}`),
   setTrackingLock:    (employeeId, locked) => request('PUT', '/admin/tracking-lock', { employeeId, locked }),
+  sendSlackDigest:    (date)               => request('POST', '/admin/slack-report', { date }),
 };
 
 export function saveToken(token) { localStorage.setItem('tm_token', token); }

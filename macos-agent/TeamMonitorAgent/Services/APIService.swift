@@ -378,7 +378,7 @@ class APIService: ObservableObject {
 
     // MARK: - Sessions
 
-    func punchIn(taskId: Int? = nil, jiraIssueKey: String? = nil) async throws -> Int {
+    func punchIn(taskId: Int? = nil, jiraIssueKey: String? = nil, jiraIssueSummary: String? = nil) async throws -> Int {
         guard let token else { throw APIError.unauthorized }
         guard let url = URL(string: "\(API_BASE)/sessions/punch-in") else { throw APIError.badURL }
 
@@ -387,8 +387,9 @@ class APIService: ObservableObject {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         var bodyDict: [String: Any] = [:]
-        if let tid = taskId          { bodyDict["taskId"]       = tid }
-        if let key = jiraIssueKey    { bodyDict["jiraIssueKey"] = key }
+        if let tid = taskId             { bodyDict["taskId"]            = tid }
+        if let key = jiraIssueKey       { bodyDict["jiraIssueKey"]      = key }
+        if let sum = jiraIssueSummary   { bodyDict["jiraIssueSummary"]  = sum }
         req.httpBody = try JSONSerialization.data(withJSONObject: bodyDict)
 
         let (data, resp) = try await URLSession.shared.data(for: req)
@@ -635,8 +636,7 @@ class APIService: ObservableObject {
         return try await send(req)
     }
 
-    @discardableResult
-    private func post(_ path: String, body: [String: Any]) async throws -> Void {
+    private func post(_ path: String, body: [String: Any]) async throws {
         var req = try makeRequest("POST", path: path)
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let _: [String: Bool] = try await send(req)

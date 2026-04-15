@@ -511,7 +511,7 @@ class TrackingManager: ObservableObject {
                 return
             }
 
-            let sessionId    = try await api.punchIn(taskId: task?.id, jiraIssueKey: jiraIssue?.key)
+            let sessionId    = try await api.punchIn(taskId: task?.id, jiraIssueKey: jiraIssue?.key, jiraIssueSummary: jiraIssue?.summary)
             currentSessionId = sessionId
             currentTask      = task
             currentJiraIssue = jiraIssue

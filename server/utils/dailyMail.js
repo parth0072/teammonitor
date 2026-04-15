@@ -56,7 +56,7 @@ function buildHtml({ employee, date, report, pattern }) {
       <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-family:monospace;font-size:13px;color:#374151">${fmtTime(s.punch_in)}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-family:monospace;font-size:13px;color:#374151">${s.punch_out ? fmtTime(s.punch_out) : '<span style="color:#f59e0b">Active</span>'}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#6b7280">${fmtMins(s.duration_minutes)}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;color:#6366f1">${s.task_name || s.jira_issue_key || '—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;color:#6366f1">${s.task_name || s.jira_issue_summary || s.jira_issue_key || '—'}</td>
     </tr>`).join('');
 
   const appRows = (report.top_apps || []).slice(0, 5).map((a, i) => {
@@ -204,6 +204,32 @@ async function sendEmployeeReport(employee, date, report) {
 
 // ── main: send reports to all active employees ────────────────────────────────
 
+// ── send Slack digest for a specific date (called by scheduler + admin API) ───
+
+async function sendSlackDigestForDate(date) {
+  const { buildReport }     = require('../routes/reports');
+  const { sendSlackReport } = require('./slackReport');
+
+  const [employees] = await db.query(
+    `SELECT id, name, email FROM employees WHERE is_active = 1`
+  );
+
+  const slackReports = [];
+  for (const emp of employees) {
+    try {
+      const report = await buildReport(emp.id, date, { saveToMemory: false });
+      if (!report.total_tracked_minutes) continue;
+      slackReports.push({ employee: emp, report });
+    } catch (err) {
+      console.error(`[slack] Report build failed for ${emp.name}:`, err.message);
+    }
+  }
+
+  await sendSlackReport(date, slackReports);
+  console.log(`[slack] Digest sent for ${date} — ${slackReports.length} employees`);
+  return slackReports.length;
+}
+
 async function sendDailyReports() {
   const today = new Date().toISOString().slice(0, 10);
   console.log(`[dailyMail] Running daily reports for ${today}…`);
@@ -211,8 +237,7 @@ async function sendDailyReports() {
   const [employees] = await db.query(
     `SELECT id, name, email FROM employees WHERE is_active = 1`
   );
-  const { buildReport }    = require('../routes/reports');
-  const { sendSlackReport } = require('./slackReport');
+  const { buildReport } = require('../routes/reports');
 
   const transport    = createTransport();
   const emailEnabled = process.env.DAILY_MAIL_ENABLED === 'true' && !!transport;
@@ -247,7 +272,8 @@ async function sendDailyReports() {
     }
   }
 
-  // Send one Slack team digest (all employees, AI summaries, no Jira key lists)
+  // Send one Slack team digest
+  const { sendSlackReport } = require('./slackReport');
   await sendSlackReport(today, slackReports).catch(err =>
     console.error('[slack] Digest failed:', err.message)
   );
@@ -256,4 +282,4 @@ async function sendDailyReports() {
   console.log(`[dailyMail] Slack digest — ${slackReports.length} employees included`);
 }
 
-module.exports = { sendDailyReports, sendEmployeeReport };
+module.exports = { sendDailyReports, sendEmployeeReport, sendSlackDigestForDate };

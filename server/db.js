@@ -67,6 +67,7 @@ if (USE_MYSQL) {
       )`);
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS task_id INT DEFAULT NULL`).catch(() => {});
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_heartbeat_at DATETIME DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS jira_issue_summary VARCHAR(500) DEFAULT NULL`).catch(() => {});
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS agent_version VARCHAR(20) DEFAULT NULL`).catch(() => {});
     await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`).catch(() => {});
     await pool.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by INT DEFAULT NULL`).catch(() => {});
@@ -336,6 +337,8 @@ if (USE_MYSQL) {
     `ALTER TABLE projects  ADD COLUMN created_by INTEGER DEFAULT NULL`,
     `ALTER TABLE tasks     ADD COLUMN created_by INTEGER DEFAULT NULL`,
     `ALTER TABLE employees ADD COLUMN tracking_locked INTEGER DEFAULT 0`,
+    `ALTER TABLE sessions  ADD COLUMN jira_issue_key     TEXT DEFAULT NULL`,
+    `ALTER TABLE sessions  ADD COLUMN jira_issue_summary TEXT DEFAULT NULL`,
     `CREATE TABLE IF NOT EXISTS admin_commands (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       employee_id  INTEGER DEFAULT NULL,

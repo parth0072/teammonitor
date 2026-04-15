@@ -89,4 +89,21 @@ router.put('/tracking-lock', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/admin/slack-report  — send Slack digest for a specific date (admin only)
+// body: { date: 'YYYY-MM-DD' }
+router.post('/slack-report', auth, adminOnly, async (req, res) => {
+  try {
+    const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+    if (!webhookUrl) return res.status(400).json({ error: 'SLACK_WEBHOOK_URL is not configured on the server' });
+
+    const date = req.body.date || new Date().toISOString().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+
+    const { sendSlackDigestForDate } = require('../utils/dailyMail');
+    const count = await sendSlackDigestForDate(date);
+    res.json({ ok: true, date, employees: count });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

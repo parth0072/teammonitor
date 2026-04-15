@@ -93,15 +93,20 @@ function buildSlackPayload(date, employeeReports) {
         .map(s => s.task_name || null)   // only admin-panel tasks (have human names)
         .filter(Boolean)
     )];
-    // Jira: group by project prefix (e.g. IOS-1819 + IOS-1807 → "IOS project")
-    const jiraProjects = [...new Set(
+    // Jira: prefer issue summary (human title), fall back to "PROJECT project"
+    const jiraItems = [...new Map(
       punchLog
         .filter(s => !s.task_name && s.jira_issue_key)
-        .map(s => s.jira_issue_key.split('-')[0])  // "IOS", "AN", etc.
-    )];
+        .map(s => [
+          s.jira_issue_summary
+            ? s.jira_issue_summary                      // "Fix login crash"
+            : s.jira_issue_key.split('-')[0] + ' project',  // "IOS project"
+          true,
+        ])
+    ).keys()];
     const taskLine = [
       ...taskNames.map(t => `• ${t}`),
-      ...jiraProjects.map(p => `• ${p} project`),
+      ...jiraItems.map(t => `• ${t}`),
     ].join('\n') || '• No specific task assigned';
 
     // Header row: name + stats

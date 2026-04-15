@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api";
+import { useAuth } from "../App";
 import { format, subDays } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -87,6 +88,12 @@ export default function Reports() {
   const [manualEmpId,setManualEmpId]= useState("");
   const [manualForm, setManualForm] = useState({ date:"", startTime:"09:00", endTime:"10:00", note:"" });
   const [manualMsg,  setManualMsg]  = useState("");
+
+  // Slack digest
+  const { user } = useAuth();
+  const [slackDate,    setSlackDate]    = useState(format(new Date(), "yyyy-MM-dd"));
+  const [slackSending, setSlackSending] = useState(false);
+  const [slackResult,  setSlackResult]  = useState(null); // { ok, employees } | { error }
 
   useEffect(() => { api.getEmployees().then(setEmployees); }, []);
   useEffect(() => { loadData(); }, [date, employeeId]);
@@ -736,6 +743,49 @@ export default function Reports() {
                 <button type="submit" style={{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600 }}>Save Entry</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Send Slack Digest ─────────────────────────────────────────────── */}
+      {user?.role === "admin" && (
+        <div style={{ ...S.card, marginBottom:24 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+            <span style={{ fontSize:20 }}>💬</span>
+            <div style={S.cardTitle}>Send Slack Digest</div>
+          </div>
+          <div style={{ fontSize:13, color:"#64748b", marginBottom:16 }}>
+            Send the daily team summary to Slack for any date. Includes all employees who tracked time that day.
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <input
+              type="date"
+              value={slackDate}
+              onChange={e => { setSlackDate(e.target.value); setSlackResult(null); }}
+              style={S.dateInput}
+            />
+            <button
+              disabled={slackSending}
+              onClick={async () => {
+                setSlackSending(true); setSlackResult(null);
+                try {
+                  const r = await api.sendSlackDigest(slackDate);
+                  setSlackResult(r);
+                } catch (err) {
+                  setSlackResult({ error: err.message || "Failed to send" });
+                } finally { setSlackSending(false); }
+              }}
+              style={{ background: slackSending ? "#94a3b8" : "#4f46e5", color:"#fff", border:"none", borderRadius:8, padding:"9px 20px", cursor: slackSending ? "default" : "pointer", fontSize:13, fontWeight:600 }}
+            >
+              {slackSending ? "Sending…" : "Send to Slack"}
+            </button>
+            {slackResult && (
+              slackResult.error
+                ? <span style={{ fontSize:13, color:"#ef4444" }}>⚠ {slackResult.error}</span>
+                : <span style={{ fontSize:13, color:"#16a34a" }}>
+                    ✓ Sent — {slackResult.employees} employee{slackResult.employees !== 1 ? "s" : ""} included
+                  </span>
+            )}
           </div>
         </div>
       )}
