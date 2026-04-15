@@ -804,30 +804,38 @@ export default function Reports() {
               )}
 
               {slackPreview.previews.map((p, i) => {
-                const focusColor = p.focus_score >= 8 ? "#16a34a" : p.focus_score >= 5 ? "#d97706" : "#dc2626";
                 const fmtM = m => { const h=Math.floor(m/60),mn=m%60; return h>0?`${h}h ${mn>0?mn+"m":""}`.trim():`${mn}m`; };
+                const focusEmoji = p.focus_score >= 8 ? "🟢" : p.focus_score >= 5 ? "🟡" : "🔴";
+                const bar = "█".repeat(Math.round((p.focus_score/10)*8)) + "░".repeat(8-Math.round((p.focus_score/10)*8));
+                const breakLine = p.breaks > 0 ? `☕ ${p.breaks} break${p.breaks!==1?"s":""} · ${fmtM(p.break_minutes)}` : "☕ No breaks";
+                const firstSentence = s => (s||"").split(/(?<=[.!?])\s+/)[0] || s || "";
                 return (
-                  <div key={i} style={{ padding:"16px 18px", borderTop: i>0 ? "1px solid #e2e8f0" : "none", background:"#fff" }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                      <span style={{ fontSize:16 }}>{p.focus_score >= 8 ? "🟢" : p.focus_score >= 5 ? "🟡" : "🔴"}</span>
-                      <span style={{ fontWeight:700, fontSize:14, color:"#1e293b" }}>{p.employee.name}</span>
-                      <span style={{ fontSize:13, color:"#64748b" }}>{fmtM(p.total_minutes)}</span>
-                      <span style={{ marginLeft:"auto", fontSize:12, fontWeight:700, color: focusColor, background: focusColor+"18", borderRadius:20, padding:"2px 10px" }}>Focus {p.focus_score}/10</span>
+                  <div key={i} style={{ padding:"14px 18px", borderTop:"1px solid #e2e8f0", background:"#fff" }}>
+                    {/* Row 1: name + time + focus bar */}
+                    <div style={{ fontSize:13, color:"#1d1c1d", marginBottom:8 }}>
+                      {focusEmoji}&nbsp; <strong>{p.employee.name}</strong>&nbsp;&nbsp;
+                      <code style={{ background:"#f1f5f9", padding:"1px 6px", borderRadius:3, fontSize:12 }}>{fmtM(p.total_minutes)}</code>&nbsp;&nbsp;
+                      Focus <strong>{p.focus_score}/10</strong>&nbsp;
+                      <code style={{ background:"#f1f5f9", padding:"1px 6px", borderRadius:3, fontSize:12 }}>{bar}</code>
                     </div>
-                    <div style={{ fontSize:12, color:"#64748b", marginBottom:10 }}>
-                      📋 {p.sessions} session{p.sessions!==1?"s":""} · ☕ {p.breaks} break{p.breaks!==1?"s":""} ({fmtM(p.break_minutes)}) · ⚡ {p.productive_percent}% productive
-                    </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                    {/* Row 2: tasks | summary */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:8 }}>
                       <div style={{ fontSize:12, color:"#374151" }}>
-                        <div style={{ fontWeight:600, marginBottom:4 }}>Tasks</div>
+                        <div style={{ fontWeight:700, marginBottom:3 }}>Tasks</div>
                         {p.tasks.length ? p.tasks.map((t,j) => <div key={j}>• {t}</div>) : <div style={{ color:"#94a3b8" }}>• No task assigned</div>}
                       </div>
                       <div style={{ fontSize:12, color:"#374151" }}>
-                        <div style={{ fontWeight:600, marginBottom:4 }}>Summary</div>
-                        <div style={{ color:"#64748b", fontStyle:"italic", lineHeight:1.5 }}>{p.summary || "No summary available"}</div>
+                        <div style={{ fontWeight:700, marginBottom:3 }}>Summary</div>
+                        <div style={{ color:"#64748b", fontStyle:"italic", lineHeight:1.5 }}>{firstSentence(p.summary) || "No summary available"}</div>
                       </div>
                     </div>
-                    {p.insights && <div style={{ marginTop:8, fontSize:12, color:"#7c3aed", background:"#faf5ff", borderRadius:6, padding:"6px 10px" }}>💡 {p.insights}</div>}
+                    {/* Row 3: compact meta + insight */}
+                    <div style={{ fontSize:11, color:"#94a3b8" }}>
+                      📋 {p.sessions} session{p.sessions!==1?"s":""}
+                      &nbsp;&nbsp;&nbsp;{breakLine}
+                      &nbsp;&nbsp;&nbsp;⚡ {p.productive_percent}% productive
+                      {p.insights && <>&nbsp;&nbsp;&nbsp;💡 <em>{firstSentence(p.insights)}</em></>}
+                    </div>
                   </div>
                 );
               })}
