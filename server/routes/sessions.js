@@ -190,7 +190,8 @@ router.get('/', auth, adminOnly, async (req, res) => {
     const [rows] = await db.query(
       `SELECT s.*,
               CASE WHEN s.status='active'
-                THEN GREATEST(COALESCE(s.total_minutes, 0), TIMESTAMPDIFF(MINUTE, s.punch_in, NOW()))
+                THEN COALESCE(s.total_minutes, 0)
+                   + COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()), 0)
                 ELSE COALESCE(s.total_minutes, 0)
               END AS total_minutes,
               e.name AS employee_name, e.department, t.name AS task_name
