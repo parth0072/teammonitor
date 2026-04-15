@@ -160,10 +160,11 @@ private struct NotificationCard: View {
     @State private var closeHovered = false
     @State private var pulsing      = false
 
-    // Paused → indigo brand; Resumed → emerald
-    private var accent: Color      { note.isWarning ? Color(hex: "6366F1") : Color(hex: "10B981") }
-    private var accentSoft: Color  { note.isWarning ? Color(hex: "818CF8") : Color(hex: "34D399") }
-    private var iconName: String   { note.isWarning ? "pause.circle.fill"  : "checkmark.circle.fill" }
+    // Warning → amber; Resumed/info → emerald
+    private var accent: Color      { note.isWarning ? Color(hex: "F59E0B") : Color(hex: "10B981") }
+    private var accentSoft: Color  { note.isWarning ? Color(hex: "FCD34D") : Color(hex: "34D399") }
+    private var baseBg: Color      { note.isWarning ? Color(hex: "2D1A00") : Color(hex: "0A2018") }
+    private var iconName: String   { note.isWarning ? "exclamationmark.triangle.fill" : "checkmark.circle.fill" }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -302,14 +303,18 @@ private struct NotificationCard: View {
 
     private var cardBackground: some View {
         ZStack {
-            // Dark base
+            // Tinted base — amber for warnings, dark green for success
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(hex: "1E293B"))
+                .fill(baseBg)
+
+            // Accent colour wash over the base
+            RoundedRectangle(cornerRadius: 16)
+                .fill(accent.opacity(0.10))
 
             // Top edge shimmer
             VStack {
                 LinearGradient(
-                    colors: [Color.white.opacity(0.06), Color.clear],
+                    colors: [Color.white.opacity(0.07), Color.clear],
                     startPoint: .top, endPoint: .bottom
                 )
                 .frame(height: 40)
@@ -319,16 +324,7 @@ private struct NotificationCard: View {
 
             // Border
             RoundedRectangle(cornerRadius: 16)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            accent.opacity(0.45),
-                            Color(hex: "2D3D55").opacity(0.8)
-                        ],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+                .stroke(accent.opacity(0.55), lineWidth: 1)
         }
     }
 }
