@@ -183,15 +183,17 @@ async function runMigrations() {
 }
 
 // ── Daily report email scheduler ──────────────────────────────────────────────
-// Fires at DAILY_REPORT_HOUR (default 20 = 8 PM) server local time every day.
+// Fires at DAILY_REPORT_TIME (HH:MM, default "14:30" = 8:00 PM IST / UTC+5:30).
+// Override in .env: DAILY_REPORT_TIME=14:30
 function scheduleDailyReports() {
   const { sendDailyReports } = require('./utils/dailyMail');
-  const targetHour = parseInt(process.env.DAILY_REPORT_HOUR || '20', 10);
+  const [targetHour, targetMin] = (process.env.DAILY_REPORT_TIME || '14:30')
+    .split(':').map(Number);
 
   function msUntilNext() {
     const now  = new Date();
     const next = new Date(now);
-    next.setHours(targetHour, 0, 0, 0);
+    next.setHours(targetHour, targetMin || 0, 0, 0);
     if (next <= now) next.setDate(next.getDate() + 1);
     return next - now;
   }
