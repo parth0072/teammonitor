@@ -267,7 +267,7 @@ function EmployeeTimeline({ employee, sessions }) {
           const w = widthPct(segStart, segEnd);
           const isActive = s.status === "active";
           return (
-            <div key={i} title={`${s.task_name || "No task"} · ${format(new Date(segStart), "h:mm a")} → ${s.punch_out ? format(new Date(segEnd), "h:mm a") : "now"} (${s.total_minutes || 0}m)`}
+            <div key={i} title={`${s.task_name || s.jira_issue_key || "No task"} · ${format(new Date(segStart), "h:mm a")} → ${s.punch_out ? format(new Date(segEnd), "h:mm a") : "now"} (${s.total_minutes || 0}m)`}
               style={{
                 position: "absolute", top: 4, height: 12, borderRadius: 4,
                 left: `${x}%`, width: `${w}%`,
@@ -528,15 +528,17 @@ function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot })
           )}
         </div>
 
-        {/* Task chip */}
-        {session?.task_name && (
+        {/* Task / Jira chip */}
+        {(session?.task_name || session?.jira_issue_key) && (
           <div style={{
-            fontSize: 11, color: C.indigo, fontWeight: 500,
-            background: "#EEF2FF", borderRadius: 6, padding: "3px 8px",
+            fontSize: 11, fontWeight: 500,
+            color:      session?.task_name ? C.indigo : "#0052CC",
+            background: session?.task_name ? "#EEF2FF" : "#DBEAFE",
+            borderRadius: 6, padding: "3px 8px",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             marginBottom: 4,
           }}>
-            📌 {session.task_name}
+            {session?.task_name ? `📌 ${session.task_name}` : `🔗 ${session.jira_issue_key}`}
           </div>
         )}
 
