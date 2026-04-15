@@ -58,6 +58,7 @@ struct TrackingDashboardView: View {
                     timerHero
                     statsBar
                     punchSection
+                    resumePrompt
                     idleWarning
                     idleBanner
                     tabContent

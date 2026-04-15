@@ -75,6 +75,7 @@ class TrackingManager: ObservableObject {
     @Published var showStartReminder:    Bool    = false
     @Published var showNotTrackingAlert: Bool    = false
     @Published var showTaskPicker:       Bool    = false
+    @Published var showResumePrompt:     Bool    = false
     @Published var secondsUntilNextReminder: Int = 2 * 60
 
     // Escalating reminder: 2 min → 5 min → 10 min repeating
@@ -262,19 +263,24 @@ class TrackingManager: ObservableObject {
 
     private func handleActivityDetected(reason: String) {
         guard !isTracking, !isOnBreak, api.token != nil else { return }
-        // Auto check-in must always resume with the last active task/jira.
-        // If there is no last task (e.g. employee never tracked anything), skip
-        // auto punch-in — the not-tracking reminder will prompt them manually.
-        let resumeTask  = currentTask  ?? lastActiveTask
-        let resumeJira  = currentJiraIssue ?? lastActiveJiraIssue
+        let resumeTask = currentTask ?? lastActiveTask
+        let resumeJira = currentJiraIssue ?? lastActiveJiraIssue
         guard resumeTask != nil || resumeJira != nil else {
-            TMLog("[AutoCheckIn] \(reason) — no previous task, skipping auto punch-in")
+            TMLog("[AutoCheckIn] \(reason) — no previous task, skipping prompt")
             return
         }
-        TMLog("[AutoCheckIn] \(reason) — resuming task: \(resumeTask?.name ?? resumeJira?.key ?? "?")")
-        Task {
-            await punchIn(task: resumeTask, jiraIssue: resumeJira)
-        }
+        TMLog("[AutoCheckIn] \(reason) — showing resume prompt")
+        // Show in-app resume prompt instead of silently punching in
+        showResumePrompt = true
+        NotificationCenter.default.post(name: .tmActivateWindow, object: nil)
+    }
+
+    /// Called when user taps "Resume" in the resume prompt banner.
+    func confirmResume() {
+        showResumePrompt = false
+        let task = currentTask ?? lastActiveTask
+        let jira = currentJiraIssue ?? lastActiveJiraIssue
+        Task { await punchIn(task: task, jiraIssue: jira) }
     }
 
     // MARK: - Today Minutes (day-persistent display counter)
@@ -475,6 +481,7 @@ class TrackingManager: ObservableObject {
         activityWatchTimer?.invalidate(); activityWatchTimer = nil  // stop polling while tracking
         showStartReminder        = false
         showNotTrackingAlert     = false
+        showResumePrompt         = false
         stoppedTrackingAt        = nil
         secondsUntilNextReminder = 5 * 60
         guard !isTracking else { return }

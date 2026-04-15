@@ -276,6 +276,54 @@ extension TrackingDashboardView {
 
     // MARK: – Idle Warning
 
+    // MARK: – Resume Prompt (shown instead of auto punch-in)
+
+    @ViewBuilder
+    var resumePrompt: some View {
+        if manager.showResumePrompt {
+            HStack(spacing: 10) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 14))
+                    .foregroundColor(DS.indigo)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Ready to resume?")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(DS.text)
+                    let taskName = manager.currentTask?.name ?? manager.lastActiveTask?.name
+                                ?? manager.currentJiraIssue?.key ?? manager.lastActiveJiraIssue?.key
+                    if let name = taskName {
+                        Text(name)
+                            .font(.system(size: 11))
+                            .foregroundColor(DS.textSecond)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                Button("Dismiss") {
+                    manager.showResumePrompt = false
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(DS.textMuted)
+                .buttonStyle(.plain)
+
+                Button("Resume") { manager.confirmResume() }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(DS.indigo)
+                    .cornerRadius(6)
+                    .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .background(DS.indigoLight)
+            .overlay(Rectangle().frame(height: 1).foregroundColor(DS.indigo.opacity(0.2)), alignment: .bottom)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: manager.showResumePrompt)
+        }
+    }
+
+    // MARK: – Idle Warning
+
     @ViewBuilder
     var idleWarning: some View {
         if manager.showIdleWarning {
