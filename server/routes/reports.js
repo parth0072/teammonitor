@@ -238,8 +238,11 @@ async function saveMemory(employeeId, date, { totalTrackedMinutes, productivePer
 async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   const [sessions] = await db.query(
     `SELECT s.id, s.date, s.punch_in, s.punch_out, s.total_minutes, s.status,
-            t.name AS task_name, s.jira_issue_key, s.jira_issue_summary
-     FROM sessions s LEFT JOIN tasks t ON s.task_id = t.id
+            COALESCE(t.name, tj.name) AS task_name,
+            s.jira_issue_key, s.jira_issue_summary
+     FROM sessions s
+     LEFT JOIN tasks t  ON t.id = s.task_id
+     LEFT JOIN tasks tj ON tj.jira_issue_key = s.jira_issue_key AND s.task_id IS NULL
      WHERE s.employee_id = ? AND s.date = ? ORDER BY s.punch_in ASC`,
     [employeeId, date]
   );

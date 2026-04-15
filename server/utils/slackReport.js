@@ -93,14 +93,12 @@ function buildSlackPayload(date, employeeReports) {
         .map(s => s.task_name || null)   // only admin-panel tasks (have human names)
         .filter(Boolean)
     )];
-    // Jira: prefer issue summary (human title), fall back to "PROJECT project"
+    // Jira: prefer summary → issue key itself (shows "IOS-1234" not raw "IOS project")
     const jiraItems = [...new Map(
       punchLog
         .filter(s => !s.task_name && s.jira_issue_key)
         .map(s => [
-          s.jira_issue_summary
-            ? s.jira_issue_summary                      // "Fix login crash"
-            : s.jira_issue_key.split('-')[0] + ' project',  // "IOS project"
+          s.jira_issue_summary || s.jira_issue_key,   // "Fix login crash" or "IOS-1234"
           true,
         ])
     ).keys()];
