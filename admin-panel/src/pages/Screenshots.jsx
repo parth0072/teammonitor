@@ -61,8 +61,18 @@ function Lightbox({ screenshots, index, onClose }) {
                    width:44, height:44, fontSize:22, color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>
       )}
       <div onClick={e => e.stopPropagation()} style={{ textAlign:"center", maxWidth:"90vw" }}>
-        <img src={imgSrc(ss.file_path)} alt="Screenshot"
-          style={{ maxWidth:"88vw", maxHeight:"78vh", borderRadius:12, display:"block", margin:"0 auto" }} />
+        {ss.file_path
+          ? <img src={imgSrc(ss.file_path)} alt="Screenshot"
+              style={{ maxWidth:"88vw", maxHeight:"78vh", borderRadius:12, display:"block", margin:"0 auto" }}
+              onError={e => { e.currentTarget.replaceWith(Object.assign(document.createElement('div'), {
+                innerHTML: '<span style="font-size:52px">🗑️</span><div style="color:#94a3b8;margin-top:10px;font-size:14px">Screenshot deleted</div>',
+                style: 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;background:rgba(255,255,255,0.05);border-radius:12px'
+              })); }}
+            />
+          : <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40, background:"rgba(255,255,255,0.05)", borderRadius:12 }}>
+              <span style={{ fontSize:52 }}>🗑️</span>
+              <div style={{ color:"#94a3b8", marginTop:10, fontSize:14 }}>Screenshot deleted</div>
+            </div>}
         <div style={{ color:"#e2e8f0", marginTop:12, fontSize:14 }}>
           <span style={{ fontWeight:600 }}>{ss.employee_name}</span>
           {" · "}
@@ -194,8 +204,14 @@ export default function Screenshots() {
                 onMouseEnter={e => { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 6px 16px rgba(0,0,0,0.12)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow="0 1px 3px rgba(0,0,0,0.08)"; }}>
                 {ss.file_path
-                  ? <img style={S.img} src={imgSrc(ss.file_path)} alt="Screenshot" loading="lazy" />
-                  : <div style={{ ...S.img, display:"flex", alignItems:"center", justifyContent:"center", fontSize:32 }}>🖥</div>}
+                  ? <img style={S.img} src={imgSrc(ss.file_path)} alt="Screenshot" loading="lazy"
+                      onError={e => { e.currentTarget.style.display="none"; e.currentTarget.nextSibling.style.display="flex"; }}
+                    />
+                  : null}
+                <div style={{ ...S.img, display: ss.file_path ? "none" : "flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:6, background:"#f8fafc" }}>
+                  <span style={{ fontSize:28 }}>🗑️</span>
+                  <span style={{ fontSize:11, color:"#94a3b8" }}>Deleted</span>
+                </div>
                 <div style={S.time}>
                   {ss.captured_at ? format(new Date(ss.captured_at), "h:mm a") : "—"}
                   {ss.activity_level != null && (
