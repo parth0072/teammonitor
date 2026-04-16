@@ -32,7 +32,8 @@ final class NotificationOverlayManager: ObservableObject {
     func show(title: String, message: String, isWarning: Bool) {
         // Replace existing notification with same title
         if let idx = notifications.firstIndex(where: { $0.title == title }) {
-            cancelTimers(for: notifications[idx].id)
+            let old = notifications[idx].id
+            dismissTimers[old]?.invalidate(); dismissTimers.removeValue(forKey: old)
             notifications.remove(at: idx)
         }
         let note = OverlayNotification(title: title, message: message,
