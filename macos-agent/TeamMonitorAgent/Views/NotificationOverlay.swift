@@ -11,7 +11,7 @@ struct OverlayNotification: Identifiable {
     let message:    String
     let isWarning:  Bool
     let persistent: Bool       // warning = stays until dismissed
-    var progress:   Double = 1.0
+    // progress is now driven by SwiftUI @State animation in NotificationCard — no timer needed
 }
 
 // MARK: - Manager
@@ -22,10 +22,10 @@ final class NotificationOverlayManager: ObservableObject {
 
     @Published private(set) var notifications: [OverlayNotification] = []
 
-    private var panel:          NotificationOverlayPanel?
-    private var dismissTimers:  [UUID: Timer] = [:]
-    private var progressTimers: [UUID: Timer] = [:]
-    private let autoDismiss: TimeInterval = 2  // info banners dismiss after 2 s; warnings are persistent
+    private var panel:         NotificationOverlayPanel?
+    private var dismissTimers: [UUID: Timer] = [:]
+    // No progress timers — progress bar is driven by SwiftUI animation in NotificationCard
+    let autoDismiss: TimeInterval = 2  // info banners dismiss after 2 s; warnings stay until clicked
 
     private init() {}
 
@@ -42,15 +42,15 @@ final class NotificationOverlayManager: ObservableObject {
         }
         ensurePanelVisible()
         if !note.persistent {
-            scheduleProgress(for: note.id)
             scheduleDismiss(for: note.id)
+            // Progress bar animation driven by @State in NotificationCard — no timer needed
         }
         // Sound feedback
         NSSound(named: isWarning ? NSSound.Name("Funk") : NSSound.Name("Pop"))?.play()
     }
 
     func dismiss(_ id: UUID) {
-        cancelTimers(for: id)
+        dismissTimers[id]?.invalidate(); dismissTimers.removeValue(forKey: id)
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             notifications.removeAll { $0.id == id }
         }
@@ -62,23 +62,6 @@ final class NotificationOverlayManager: ObservableObject {
     }
 
     // MARK: Private
-
-    private func cancelTimers(for id: UUID) {
-        dismissTimers[id]?.invalidate();  dismissTimers.removeValue(forKey: id)
-        progressTimers[id]?.invalidate(); progressTimers.removeValue(forKey: id)
-    }
-
-    private func scheduleProgress(for id: UUID) {
-        let start = Date(); let dur = autoDismiss
-        let t = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in  // 10 fps — smooth enough, −60% Task allocs vs 25 fps
-            let p = max(0.0, 1.0 - Date().timeIntervalSince(start) / dur)
-            Task { @MainActor [weak self] in
-                guard let self, let i = self.notifications.firstIndex(where: { $0.id == id }) else { return }
-                self.notifications[i].progress = p
-            }
-        }
-        RunLoop.main.add(t, forMode: .common); progressTimers[id] = t
-    }
 
     private func scheduleDismiss(for id: UUID) {
         let t = Timer(timeInterval: autoDismiss, repeats: false) { [weak self] _ in
@@ -159,6 +142,7 @@ private struct NotificationCard: View {
 
     @State private var closeHovered = false
     @State private var pulsing      = false
+    @State private var progress:    Double = 1.0  // animates 1→0 via SwiftUI, no timer
 
     // Warning → amber; Resumed/info → emerald
     private var accent: Color      { note.isWarning ? Color(hex: "F59E0B") : Color(hex: "10B981") }
@@ -176,7 +160,13 @@ private struct NotificationCard: View {
         .shadow(color: Color(hex: "0F172A").opacity(0.35), radius: 20, x: 0, y: 8)
         .shadow(color: accent.opacity(note.isWarning ? 0.18 : 0.10), radius: 14, x: 0, y: 4)
         .padding(.horizontal, 4)
-        .onAppear { withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) { pulsing = true } }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) { pulsing = true }
+            // Sweep progress bar 1→0 over autoDismiss seconds — pure SwiftUI, zero timer allocations
+            if !note.persistent {
+                withAnimation(.linear(duration: NotificationOverlayManager.shared.autoDismiss)) { progress = 0 }
+            }
+        }
     }
 
     // MARK: Main content
@@ -291,8 +281,7 @@ private struct NotificationCard: View {
                             LinearGradient(colors: [accent, accentSoft],
                                            startPoint: .leading, endPoint: .trailing)
                         )
-                        .frame(width: geo.size.width * note.progress)
-                        .animation(.linear(duration: 0.04), value: note.progress)
+                        .frame(width: geo.size.width * progress)
                 }
             }
             .frame(height: 2)
