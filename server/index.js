@@ -36,13 +36,9 @@ router.use('/api/reports',      require('./routes/reports'));
 router.use('/api/settings',     require('./routes/settings'));
 router.use('/api/admin',        require('./routes/admin_commands'));
 
-// ── Cron endpoint — called by cPanel cron, no login needed, secret key only ──
-// POST /api/cron/daily-report?secret=YOUR_CRON_SECRET
+// ── Cron endpoint — called by cPanel cron, no auth needed ────────────────────
+// POST /api/cron/daily-report
 router.post('/api/cron/daily-report', async (req, res) => {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return res.status(500).json({ error: 'CRON_SECRET not set on server' });
-  if (req.query.secret !== secret) return res.status(401).json({ error: 'Invalid secret' });
-
   try {
     const { sendDailyReports } = require('./utils/dailyMail');
     await sendDailyReports();
