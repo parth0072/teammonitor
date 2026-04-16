@@ -918,7 +918,7 @@ class TrackingManager: ObservableObject {
     // MARK: - Day-change watcher (always running)
 
     /// Starts a 60-second repeating timer that detects midnight even when not tracking.
-    func startDayChangeWatcher() {
+    private func startDayChangeWatcher() {
         dayChangeTimer?.invalidate()
         let t = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             self?.checkDayChange()
@@ -930,7 +930,7 @@ class TrackingManager: ObservableObject {
     /// Called every minute (from day-change watcher) and from the minute timer.
     /// Punches out any active session at midnight and shows a punch-in reminder.
     @discardableResult
-    func checkDayChange() -> Bool {
+    private func checkDayChange() -> Bool {
         let currentDay = dayFormatter.string(from: Date())
         let savedDay   = UserDefaults.standard.string(forKey: kTodayDate) ?? currentDay
         guard savedDay != currentDay else { return false }
@@ -1016,8 +1016,9 @@ class TrackingManager: ObservableObject {
     }
 
     private func stopAllServices() {
-        sessionTimer?.invalidate(); sessionTimer = nil
-        resumeTimer?.invalidate();  resumeTimer  = nil
+        sessionTimer?.invalidate();      sessionTimer      = nil
+        resumeTimer?.invalidate();       resumeTimer       = nil
+        activityWatchTimer?.invalidate(); activityWatchTimer = nil  // restarted by punchOut/takeBreak
         heartbeatTickCount = 0
         screenshots.stop()
         appTracker.stop()

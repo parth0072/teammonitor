@@ -70,7 +70,7 @@ final class NotificationOverlayManager: ObservableObject {
 
     private func scheduleProgress(for id: UUID) {
         let start = Date(); let dur = autoDismiss
-        let t = Timer(timeInterval: 0.04, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in  // 10 fps — smooth enough, −60% Task allocs vs 25 fps
             let p = max(0.0, 1.0 - Date().timeIntervalSince(start) / dur)
             Task { @MainActor [weak self] in
                 guard let self, let i = self.notifications.firstIndex(where: { $0.id == id }) else { return }
