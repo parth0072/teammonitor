@@ -54,14 +54,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             title: "▶ Start Tracking",
             options: [.foreground]
         )
-        let dismissAction = UNNotificationAction(
-            identifier: "DISMISS",
-            title: "Dismiss",
+        let remindAgainAction = UNNotificationAction(
+            identifier: "REMIND_AGAIN",
+            title: "Remind me again",
+            options: []
+        )
+        let dontRemindAction = UNNotificationAction(
+            identifier: "DONT_REMIND",
+            title: "Don't remind me",
             options: [.destructive]
         )
         let idleCategory = UNNotificationCategory(
             identifier: "IDLE_REMINDER",
-            actions: [startAction, dismissAction],
+            actions: [startAction, remindAgainAction, dontRemindAction],
             intentIdentifiers: [],
             options: []
         )
@@ -130,6 +135,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     let jira = manager.currentJiraIssue ?? manager.lastActiveJiraIssue
                     await manager.punchIn(task: task, jiraIssue: jira)
                 }
+            }
+        case "REMIND_AGAIN":
+            // Next reminder is already scheduled — nothing to do
+            break
+        case "DONT_REMIND":
+            DispatchQueue.main.async {
+                TrackingManager.shared.disableIdleReminder()
             }
         case "ADMIN_TAKE_BREAK":
             Task { @MainActor in

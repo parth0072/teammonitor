@@ -52,8 +52,10 @@ struct NewTaskView: View {
                     Text("Description (optional)").font(.system(size: 12, weight: .semibold)).foregroundColor(Color(hex: "374151"))
                     TextEditor(text: $taskDesc)
                         .font(.system(size: 12)).frame(height: 60).padding(6)
+                        .scrollContentBackground(.hidden)   // removes default NSTextView dark background
                         .background(Color(hex: "f9fafb")).cornerRadius(6)
                         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(hex: "e5e7eb"), lineWidth: 1))
+                        .foregroundColor(Color(hex: "111827"))
                 }
 
                 if !error.isEmpty {

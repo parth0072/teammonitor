@@ -201,10 +201,13 @@ class TrackingManager: ObservableObject {
             }
         }
 
-        if !isTracking {
+        if !isTracking && currentSessionId == nil {
+            // No restored session — start the not-tracking reminder from scratch
             stoppedTrackingAt = Date()
             scheduleNotTrackingReminder()
         }
+        // If currentSessionId != nil (restored session), showResumePrompt is already set;
+        // reminder will start only after the user dismisses the prompt or punches out.
 
         // ── Sleep / wake / quit observers ─────────────────────────────────────
         // Punch OUT before sleep so the session closes cleanly in the DB.
@@ -278,9 +281,32 @@ class TrackingManager: ObservableObject {
     /// Called when user taps "Resume" in the resume prompt banner.
     func confirmResume() {
         showResumePrompt = false
-        let task = currentTask ?? lastActiveTask
-        let jira = currentJiraIssue ?? lastActiveJiraIssue
-        Task { await punchIn(task: task, jiraIssue: jira) }
+
+        // If we have a restored session that hasn't started yet, resume it directly
+        // without a new punch-in API call. Otherwise do a fresh punch-in.
+        if let sessionId = currentSessionId, !isTracking {
+            // Resume the existing server-side session
+            cancelNotTrackingReminder()
+            activityWatchTimer?.invalidate(); activityWatchTimer = nil
+            stoppedTrackingAt   = nil
+            punchInTime         = punchInTime ?? Date()
+            lastResumeTime      = Date()
+            trackedMinutes      = trackedMinutes   // keep restored value
+            isTracking          = true
+            isOnBreak           = false
+            showIdleAlert       = false
+            statusMessage       = "Tracking active"
+            MenuBarState.shared.isTracking   = true
+            MenuBarState.shared.isOnBreak    = false
+            MenuBarState.shared.todayMinutes = todayMinutes
+            saveSessionState()
+            startAllServices(sessionId: sessionId)
+            TMLog("[TrackingManager] Resumed restored session \(sessionId)")
+        } else {
+            let task = currentTask ?? lastActiveTask
+            let jira = currentJiraIssue ?? lastActiveJiraIssue
+            Task { await punchIn(task: task, jiraIssue: jira) }
+        }
     }
 
     // MARK: - Today Minutes (day-persistent display counter)
@@ -699,12 +725,15 @@ class TrackingManager: ObservableObject {
             return
         }
 
+        // Restore session context — but do NOT auto-start tracking.
+        // Show the resume prompt so the user explicitly confirms before the timer resumes.
         currentSessionId = state.sessionId
         punchInTime      = state.punchInTime
         trackedMinutes   = state.trackedMinutes
-        lastResumeTime   = Date()
-        isTracking       = true
-        statusMessage    = "Tracking resumed"
+        lastResumeTime   = nil
+        isTracking       = false   // wait for user confirmation
+        statusMessage    = "Session paused — tap Resume to continue"
+        stoppedTrackingAt = Date()
 
         // Restore task
         if let taskId = state.taskId, let taskName = state.taskName {
@@ -726,16 +755,20 @@ class TrackingManager: ObservableObject {
             )
         }
 
-        MenuBarState.shared.isTracking   = true
+        // Keep last-active context so auto check-in and resume prompt can use it
+        lastActiveTask      = currentTask
+        lastActiveJiraIssue = currentJiraIssue
+
+        MenuBarState.shared.isTracking   = false
         MenuBarState.shared.isOnBreak    = false
         MenuBarState.shared.todayMinutes = trackedMinutes
 
-        startAllServices(sessionId: state.sessionId)
-        TMLog("[TrackingManager] Restored session \(state.sessionId) with \(state.trackedMinutes) min")
+        // Show resume prompt in the main window
+        showResumePrompt = true
 
-        // Server verification — confirm session is still active.
-        // If the session was completed (agent crash after API call but before clearSessionState),
-        // abort local tracking so we don't accumulate minutes against a closed session.
+        TMLog("[TrackingManager] Restored session \(state.sessionId) context (\(state.trackedMinutes) min) — showing resume prompt")
+
+        // Server verification — confirm session is still active on the server.
         if api.token != nil {
             let sid = state.sessionId
             Task { await self.verifyRestoredSession(sessionId: sid, date: today) }
@@ -759,6 +792,7 @@ class TrackingManager: ObservableObject {
             stopAllServices()
             clearSessionState()
             isTracking       = false
+            showResumePrompt = false   // dismiss the resume prompt — session is gone
             currentSessionId = nil
             lastActiveTask      = currentTask
             lastActiveJiraIssue = currentJiraIssue
