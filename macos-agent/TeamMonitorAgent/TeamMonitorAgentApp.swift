@@ -48,28 +48,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Set delegate BEFORE requesting auth so foreground notifications work.
         UNUserNotificationCenter.current().delegate = self
 
-        // Register idle-reminder category — action buttons force Alert style (stays on screen)
-        let startAction = UNNotificationAction(
-            identifier: "START_TRACKING",
-            title: "▶ Start Tracking",
-            options: [.foreground]
-        )
-        let remindAgainAction = UNNotificationAction(
-            identifier: "REMIND_AGAIN",
-            title: "Remind me again",
-            options: []
-        )
-        let dontRemindAction = UNNotificationAction(
-            identifier: "DONT_REMIND",
-            title: "Don't remind me",
-            options: [.destructive]
-        )
-        let idleCategory = UNNotificationCategory(
-            identifier: "IDLE_REMINDER",
-            actions: [startAction, remindAgainAction, dontRemindAction],
-            intentIdentifiers: [],
-            options: []
-        )
         // Admin notification categories
         let takeBreakAction      = UNNotificationAction(identifier: "ADMIN_TAKE_BREAK", title: "Take Break", options: [])
         let punchOutAction       = UNNotificationAction(identifier: "ADMIN_PUNCH_OUT",  title: "Punch Out",  options: [])
@@ -82,7 +60,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             actions: [ackAction], intentIdentifiers: [], options: [])
 
         UNUserNotificationCenter.current().setNotificationCategories([
-            idleCategory, adminBreakCategory, adminPunchOutCategory, adminAckCategory
+            adminBreakCategory, adminPunchOutCategory, adminAckCategory
         ])
 
         // Listen for window-activation requests from TrackingManager
@@ -126,23 +104,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     ) {
         activateMainWindow()
         switch response.actionIdentifier {
-        case "START_TRACKING":
-            DispatchQueue.main.async {
-                let manager = TrackingManager.shared
-                guard !manager.isTracking else { return }
-                Task { @MainActor in
-                    let task = manager.currentTask  ?? manager.lastActiveTask
-                    let jira = manager.currentJiraIssue ?? manager.lastActiveJiraIssue
-                    await manager.punchIn(task: task, jiraIssue: jira)
-                }
-            }
-        case "REMIND_AGAIN":
-            // Next reminder is already scheduled — nothing to do
-            break
-        case "DONT_REMIND":
-            DispatchQueue.main.async {
-                TrackingManager.shared.disableIdleReminder()
-            }
         case "ADMIN_TAKE_BREAK":
             Task { @MainActor in
                 let m = TrackingManager.shared

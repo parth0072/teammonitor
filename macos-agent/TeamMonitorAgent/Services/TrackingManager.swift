@@ -3,7 +3,6 @@
 import AppKit
 import Foundation
 import Combine
-import UserNotifications
 
 extension Notification.Name {
     static let tmActivateWindow = Notification.Name("tm.activateWindow")
@@ -353,21 +352,15 @@ class TrackingManager: ObservableObject {
         TMLog("[Notifications] \(title): \(text)")
     }
 
-    /// Idle-specific notification — uses IDLE_REMINDER category so macOS shows
-    /// it as an Alert (stays on screen) with Start Tracking / Dismiss buttons.
+    /// Idle-specific notification — shows the custom in-app overlay banner
+    /// and opens the NotTrackingAlert modal (Start / Remind / Don't remind buttons).
     func sendIdleNotification(_ text: String) {
-        let content              = UNMutableNotificationContent()
-        content.title            = "⏱ TeamMonitor — Timer Not Running"
-        content.body             = text
-        content.sound            = UNNotificationSound(named: UNNotificationSoundName("alert_loud.aiff"))  // louder bundled sound, respects DND
-        content.categoryIdentifier = "IDLE_REMINDER"
-        // Replace any previous idle notification so they don't stack
-        let req = UNNotificationRequest(identifier: "tm.idle.reminder", content: content, trigger: nil)
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["tm.idle.reminder"])
-        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["tm.idle.reminder"])
-        UNUserNotificationCenter.current().add(req) { err in
-            if let err { TMLog("[Notifications] Idle delivery failed: \(err)") }
-        }
+        NotificationOverlayManager.shared.show(
+            title: "⏱ Timer Not Running",
+            message: text,
+            isWarning: true
+        )
+        showNotTrackingAlert = true
     }
 
     // MARK: - Admin Remote Commands
