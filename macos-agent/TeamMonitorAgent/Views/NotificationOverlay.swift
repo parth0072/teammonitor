@@ -25,7 +25,7 @@ final class NotificationOverlayManager: ObservableObject {
     private var panel:          NotificationOverlayPanel?
     private var dismissTimers:  [UUID: Timer] = [:]
     private var progressTimers: [UUID: Timer] = [:]
-    private let autoDismiss: TimeInterval = 6
+    private let autoDismiss: TimeInterval = 2  // info banners dismiss after 2 s; warnings are persistent
 
     private init() {}
 

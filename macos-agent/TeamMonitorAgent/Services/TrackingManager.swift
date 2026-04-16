@@ -121,6 +121,7 @@ class TrackingManager: ObservableObject {
     private var notTrackingTimer:     Timer?
     private var countdownTimer:       Timer?
     private var activityWatchTimer:   Timer?   // auto check-in when activity detected while not tracking
+    private var dayChangeTimer:       Timer?   // always-running — detects midnight even when not tracking
     private var heartbeatTickCount:        Int    = 0
     private let kHeartbeatEvery:           Int    = 5
     private var lowActivityMinutes:        Int    = 0
@@ -220,10 +221,12 @@ class TrackingManager: ObservableObject {
             Task { await self.punchOut() }
         }
 
-        // Punch OUT when Mac wakes from sleep → auto check-in handles re-login
+        // On wake: check for day change first (Mac may have slept over midnight),
+        // then handle activity (auto check-in if user returns to desk).
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
+            self?.checkDayChange()
             self?.handleActivityDetected(reason: "Mac woke from sleep")
         }
 
@@ -245,6 +248,9 @@ class TrackingManager: ObservableObject {
         // Poll every 2 min while not tracking — if system idle time just
         // dropped below 60 s the user moved; treat that as returning to desk.
         startActivityWatcher()
+
+        // Always-running day-change watcher (detects midnight even when not tracking)
+        startDayChangeWatcher()
     }
 
     // MARK: - Auto Check-In
@@ -909,6 +915,40 @@ class TrackingManager: ObservableObject {
         idleDetector.start()
     }
 
+    // MARK: - Day-change watcher (always running)
+
+    /// Starts a 60-second repeating timer that detects midnight even when not tracking.
+    func startDayChangeWatcher() {
+        dayChangeTimer?.invalidate()
+        let t = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            self?.checkDayChange()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        dayChangeTimer = t
+    }
+
+    /// Called every minute (from day-change watcher) and from the minute timer.
+    /// Punches out any active session at midnight and shows a punch-in reminder.
+    @discardableResult
+    func checkDayChange() -> Bool {
+        let currentDay = dayFormatter.string(from: Date())
+        let savedDay   = UserDefaults.standard.string(forKey: kTodayDate) ?? currentDay
+        guard savedDay != currentDay else { return false }
+
+        TMLog("[DayChange] \(savedDay) → \(currentDay) — resetting day")
+        todayMinutes = 0
+        saveTodayMinutes()
+        MenuBarState.shared.todayMinutes = 0
+
+        if isTracking {
+            Task { await punchOut() }
+        }
+
+        // Show persistent punch-in reminder (stays until user dismisses)
+        sendIdleNotification("A new day has started! Remember to start your timer.")
+        return true
+    }
+
     // MARK: - Timer helpers
 
     private func startMinuteTimer(sessionId: Int) {
@@ -921,15 +961,9 @@ class TrackingManager: ObservableObject {
             self.trackedMinutes     += 1
             self.heartbeatTickCount += 1
 
-            // End session when date changes (app running past midnight)
-            let currentDay = dayFormatter.string(from: Date())
-            let savedDay   = UserDefaults.standard.string(forKey: kTodayDate) ?? currentDay
-            if savedDay != currentDay {
-                TMLog("New day detected (\(savedDay) → \(currentDay)) — ending session at midnight")
-                self.todayMinutes = 0
-                self.saveTodayMinutes()
-                Task { await self.punchOut() }
-                return  // stopAllServices() will cancel this timer
+            // End session + show punch-in reminder when date changes at midnight
+            if self.checkDayChange() {
+                return  // punchOut() called inside — stopAllServices() cancels this timer
             }
             self.todayMinutes += 1
             MenuBarState.shared.todayMinutes = self.todayMinutes
