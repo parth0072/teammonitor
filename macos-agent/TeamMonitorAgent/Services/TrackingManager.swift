@@ -60,6 +60,7 @@ class TrackingManager: ObservableObject {
 
     // Break state
     @Published var isOnBreak:           Bool     = false
+    @Published var isIdleBreak:         Bool     = false  // break was triggered by idle, not user
 
     // Idle warning
     @Published var showIdleWarning:         Bool = false
@@ -251,8 +252,19 @@ class TrackingManager: ObservableObject {
     private func startActivityWatcher() {
         activityWatchTimer?.invalidate()
         let t = Timer(timeInterval: 120, repeats: true) { [weak self] _ in
-            guard let self, !self.isTracking, !self.isOnBreak else { return }
+            guard let self else { return }
             let idle = IdleDetectionService.shared.systemIdleSecondsPublic()
+
+            // Idle-triggered break: auto-resume when user activity detected
+            if self.isTracking && self.isOnBreak && self.isIdleBreak {
+                if idle < 60, let stopped = self.stoppedTrackingAt,
+                   Date().timeIntervalSince(stopped) > 60 {  // at least 1 min break
+                    self.handleActivityDetected(reason: "Activity after idle break")
+                }
+                return
+            }
+
+            guard !self.isTracking, !self.isOnBreak else { return }
             // User became active (idle < 60 s) after being away at least 5 min
             if idle < 60, let stopped = self.stoppedTrackingAt,
                Date().timeIntervalSince(stopped) > 5 * 60 {
@@ -264,7 +276,21 @@ class TrackingManager: ObservableObject {
     }
 
     private func handleActivityDetected(reason: String) {
-        guard !isTracking, !isOnBreak, api.token != nil else { return }
+        guard api.token != nil else { return }
+
+        // Auto-resume from idle-triggered break (no prompt — seamless)
+        if isTracking && isOnBreak && isIdleBreak {
+            TMLog("[AutoResume] \(reason)")
+            resumeFromBreak()
+            NotificationOverlayManager.shared.show(
+                title: "Tracking Resumed",
+                message: "Welcome back — timer resumed automatically.",
+                isWarning: false
+            )
+            return
+        }
+
+        guard !isTracking, !isOnBreak else { return }
         let resumeTask = currentTask ?? lastActiveTask
         let resumeJira = currentJiraIssue ?? lastActiveJiraIssue
         guard resumeTask != nil || resumeJira != nil else {
@@ -272,7 +298,6 @@ class TrackingManager: ObservableObject {
             return
         }
         TMLog("[AutoCheckIn] \(reason) — showing resume prompt")
-        // Show in-app resume prompt instead of silently punching in
         showResumePrompt = true
         NotificationCenter.default.post(name: .tmActivateWindow, object: nil)
     }
@@ -577,6 +602,7 @@ class TrackingManager: ObservableObject {
         let finalMinutes = trackedMinutes   // capture before clearing state
         statusMessage = "Stopping session…"
         isTracking    = false
+        isIdleBreak   = false
         showIdleAlert = false
         MenuBarState.shared.isTracking = false
         MenuBarState.shared.isOnBreak  = false
@@ -646,6 +672,7 @@ class TrackingManager: ObservableObject {
 
         cancelNotTrackingReminder()
         isOnBreak      = false
+        isIdleBreak    = false   // clear idle-break flag whether user or auto resumed
         lastResumeTime = Date()
         statusMessage  = "Tracking active"
         MenuBarState.shared.isOnBreak = false
@@ -856,22 +883,26 @@ class TrackingManager: ObservableObject {
         idleDetector.onIdleStart = { [weak self] idleStart in
             guard let self else { return }
             Task { @MainActor in
-                guard self.isTracking else { return }
+                guard self.isTracking, !self.isOnBreak else { return }
                 self.showIdleWarning        = false
                 self.idleWarningSecondsLeft = 0
-                self.pendingIdleStart       = nil  // no idle log — session is ending
+                self.pendingIdleStart       = idleStart  // kept for idle log on resume
 
-                // Punch out — gap until next punch-in is treated as a break, not idle deduction
-                await self.punchOut()
-                self.sendNotification("Session ended — you were idle too long. Start tracking when you're back.", isWarning: true)
+                // Pause (break) instead of ending the session — auto-resumes when user returns
+                self.isIdleBreak = true
+                await self.takeBreak()
+                self.sendNotification("Timer paused — idle detected. Will auto-resume when you're back.", isWarning: true)
+                // takeBreak stops the idle detector; restart activity watcher to detect return
+                self.startActivityWatcher()
             }
         }
 
         idleDetector.onIdleEnd = { [weak self] _, _ in
             guard let self else { return }
             Task { @MainActor in
-                // Session was punched out on idle start; auto check-in resumes if a task exists
                 NotificationOverlayManager.shared.dismissWarnings()
+                // idle detector was stopped by takeBreak — onIdleEnd is only reached
+                // if user returns before the stop threshold; handle as activity
                 self.handleActivityDetected(reason: "IdleEnd")
             }
         }
@@ -890,12 +921,15 @@ class TrackingManager: ObservableObject {
             self.trackedMinutes     += 1
             self.heartbeatTickCount += 1
 
-            // Reset daily counter if date has changed (app ran past midnight)
+            // End session when date changes (app running past midnight)
             let currentDay = dayFormatter.string(from: Date())
             let savedDay   = UserDefaults.standard.string(forKey: kTodayDate) ?? currentDay
             if savedDay != currentDay {
-                TMLog("New day detected (\(savedDay) → \(currentDay)) — resetting todayMinutes")
+                TMLog("New day detected (\(savedDay) → \(currentDay)) — ending session at midnight")
                 self.todayMinutes = 0
+                self.saveTodayMinutes()
+                Task { await self.punchOut() }
+                return  // stopAllServices() will cancel this timer
             }
             self.todayMinutes += 1
             MenuBarState.shared.todayMinutes = self.todayMinutes
