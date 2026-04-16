@@ -359,7 +359,7 @@ class TrackingManager: ObservableObject {
         let content              = UNMutableNotificationContent()
         content.title            = "⏱ TeamMonitor — Timer Not Running"
         content.body             = text
-        content.sound            = .default
+        content.sound            = UNNotificationSound(named: UNNotificationSoundName("alert_loud.aiff"))  // louder bundled sound, respects DND
         content.categoryIdentifier = "IDLE_REMINDER"
         // Replace any previous idle notification so they don't stack
         let req = UNNotificationRequest(identifier: "tm.idle.reminder", content: content, trigger: nil)

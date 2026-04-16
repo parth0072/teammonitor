@@ -44,6 +44,7 @@
 		AA000042 /* Views/NotificationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000042 /* Views/NotificationOverlay.swift */; };
 		AA000039 /* empty_tasks.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000039 /* empty_tasks.json */; };
 		AA000040 /* lf_tracking.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000040 /* lf_tracking.json */; };
+		AA000043 /* alert_loud.aiff in Resources */ = {isa = PBXBuildFile; fileRef = AB000043 /* alert_loud.aiff */; };
 		CF840E032F7E306800CBD462 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = CF840E022F7E306800CBD462 /* Lottie */; };
 /* End PBXBuildFile section */
 
@@ -85,6 +86,7 @@
 		AB000038 /* lf_loading.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = lf_loading.json; sourceTree = "<group>"; };
 		AB000039 /* empty_tasks.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = empty_tasks.json; sourceTree = "<group>"; };
 		AB000040 /* lf_tracking.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = lf_tracking.json; sourceTree = "<group>"; };
+		AB000043 /* alert_loud.aiff */ = {isa = PBXFileReference; lastKnownFileType = sound.aiff; path = alert_loud.aiff; sourceTree = "<group>"; };
 		AB000099 /* TeamMonitorAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TeamMonitorAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -151,6 +153,7 @@
 				AB000038 /* lf_loading.json */,
 				AB000039 /* empty_tasks.json */,
 				AB000040 /* lf_tracking.json */,
+				AB000043 /* alert_loud.aiff */,
 			);
 			path = TeamMonitorAgent;
 			sourceTree = "<group>";
@@ -249,6 +252,7 @@
 				AA000038 /* lf_loading.json in Resources */,
 				AA000039 /* empty_tasks.json in Resources */,
 				AA000040 /* lf_tracking.json in Resources */,
+				AA000043 /* alert_loud.aiff in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
