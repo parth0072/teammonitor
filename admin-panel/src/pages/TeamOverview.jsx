@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { format, subDays, parseISO } from "date-fns";
 
@@ -25,11 +26,22 @@ const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4","#f9
 
 // Build task-centric map from employee data
 function buildTaskMap(members) {
-  const map = {}; // taskName → { taskName, jiraKey, totalMinutes, employees: [{name, minutes, empIdx}] }
+  const map = {}; // taskName → { taskName, jiraKey, jiraSiteUrl, taskId, totalMinutes, employees: [...] }
   members.forEach((m, empIdx) => {
     m.tasks.forEach(t => {
       const key = t.task_name;
-      if (!map[key]) map[key] = { taskName: t.task_name, jiraKey: t.jira_issue_key, taskId: t.task_id, totalMinutes: 0, employees: [] };
+      if (!map[key]) {
+        map[key] = {
+          taskName:    t.task_name,
+          jiraKey:     t.jira_issue_key || null,
+          jiraSiteUrl: t.jira_site_url  || null,
+          taskId:      t.task_id        || null,
+          totalMinutes: 0,
+          employees:   [],
+        };
+      }
+      // Keep the first non-null site_url we see for this jira key
+      if (!map[key].jiraSiteUrl && t.jira_site_url) map[key].jiraSiteUrl = t.jira_site_url;
       map[key].totalMinutes += Number(t.minutes) || 0;
       map[key].employees.push({ name: m.name, minutes: Number(t.minutes) || 0, empIdx });
     });
@@ -93,16 +105,27 @@ function TaskDetailModal({ task, onClose }) {
                         color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
                         fontSize:18, flexShrink:0 }}>📋</div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:16, fontWeight:700, color:"#1e293b",
-                          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            <div style={{ fontSize:17, fontWeight:800, color:"#0f172a", lineHeight:1.3, wordBreak:"break-word" }}>
               {task.taskName}
             </div>
-            {task.jiraKey && (
-              <span style={{ fontSize:11, color:"#3b82f6", fontWeight:700, background:"#eff6ff",
-                             padding:"2px 7px", borderRadius:4, marginTop:4, display:"inline-block" }}>
-                {task.jiraKey}
-              </span>
-            )}
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:6, flexWrap:"wrap" }}>
+              {task.jiraKey && (
+                <span style={{ fontSize:12, color:"#2563eb", fontWeight:700, background:"#eff6ff",
+                               padding:"2px 8px", borderRadius:5, border:"1px solid #bfdbfe" }}>
+                  {task.jiraKey}
+                </span>
+              )}
+              {task.jiraKey && task.jiraSiteUrl && (
+                <a href={`${task.jiraSiteUrl}/browse/${task.jiraKey}`}
+                   target="_blank" rel="noopener noreferrer"
+                   onClick={e => e.stopPropagation()}
+                   style={{ fontSize:11, color:"#3b82f6", fontWeight:600, textDecoration:"none",
+                            background:"#eff6ff", padding:"2px 8px", borderRadius:5,
+                            border:"1px solid #bfdbfe" }}>
+                  ↗ Open in Jira
+                </a>
+              )}
+            </div>
             {task.taskDescription && (
               <div style={{ fontSize:12, color:"#64748b", marginTop:6, lineHeight:1.5 }}>
                 {task.taskDescription}
@@ -390,7 +413,8 @@ function EmployeeCard({ member, rank }) {
 
 // ── By Task view ──────────────────────────────────────────────────────────────
 
-function TaskView({ members, date, onSelectTask }) {
+function TaskView({ members, onSelectTask }) {
+  const navigate = useNavigate();
   const tasks = buildTaskMap(members);
   const maxMin = Math.max(...tasks.map(t => t.totalMinutes), 1);
 
@@ -407,88 +431,123 @@ function TaskView({ members, date, onSelectTask }) {
   const empNames = [...new Set(members.map(m => m.name))];
   const empColor = Object.fromEntries(empNames.map((n, i) => [n, COLORS[i % COLORS.length]]));
 
+  function handleCardClick(task) {
+    if (task.jiraKey && task.jiraSiteUrl) {
+      window.open(`${task.jiraSiteUrl}/browse/${task.jiraKey}`, "_blank", "noopener");
+    } else if (task.taskId) {
+      navigate("/projects");
+    } else {
+      // "No Task" or unknown — open detail modal
+      onSelectTask(task);
+    }
+  }
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      {tasks.filter(t => t.taskName !== "No Task" || tasks.length === 1).map((task, ti) => (
-        <div key={ti}
-          onClick={() => onSelectTask(task)}
-          style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden",
-                   cursor:"pointer", transition:"box-shadow 0.15s, border-color 0.15s" }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor="#3b82f6"; e.currentTarget.style.boxShadow="0 4px 16px rgba(59,130,246,0.12)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor="#e2e8f0"; e.currentTarget.style.boxShadow="none"; }}>
-          {/* Task header */}
-          <div style={{ padding:"14px 20px", borderBottom:"1px solid #f1f5f9", background:"#f8fafc",
-                        display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:32, height:32, borderRadius:8, background:"#1e293b",
-                          color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
-                          fontSize:14, fontWeight:700, flexShrink:0 }}>
-              {ti + 1}
-            </div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:14, fontWeight:700, color:"#1e293b",
-                            overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                {task.taskName}
+      {tasks.filter(t => t.taskName !== "No Task" || tasks.length === 1).map((task, ti) => {
+        const hasExternalLink = !!(task.jiraKey && task.jiraSiteUrl);
+        const hasInternalLink = !!(task.taskId && !task.jiraKey);
+        const linkLabel = hasExternalLink ? "↗ Open in Jira" : hasInternalLink ? "↗ View in Projects" : null;
+
+        return (
+          <div key={ti}
+            onClick={() => handleCardClick(task)}
+            style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden",
+                     cursor:"pointer", transition:"box-shadow 0.15s, border-color 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor="#3b82f6"; e.currentTarget.style.boxShadow="0 4px 16px rgba(59,130,246,0.12)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor="#e2e8f0"; e.currentTarget.style.boxShadow="none"; }}>
+
+            {/* Task header */}
+            <div style={{ padding:"16px 20px", borderBottom:"1px solid #f1f5f9", background:"#f8fafc",
+                          display:"flex", alignItems:"flex-start", gap:14 }}>
+              {/* Rank badge */}
+              <div style={{ width:36, height:36, borderRadius:10, background:"#1e293b",
+                            color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                            fontSize:15, fontWeight:700, flexShrink:0, marginTop:2 }}>
+                {ti + 1}
               </div>
-              {task.jiraKey && (
-                <span style={{ fontSize:11, color:"#3b82f6", fontWeight:700, background:"#eff6ff",
-                               padding:"1px 6px", borderRadius:4, marginTop:2, display:"inline-block" }}>
-                  {task.jiraKey}
-                </span>
-              )}
-            </div>
-            <div style={{ textAlign:"right", flexShrink:0 }}>
-              <div style={{ fontSize:18, fontWeight:800, color:"#1e293b" }}>{fmtMins(task.totalMinutes)}</div>
-              <div style={{ fontSize:11, color:"#64748b" }}>{task.employees.length} contributor{task.employees.length !== 1 ? "s" : ""}</div>
-              <div style={{ fontSize:10, color:"#3b82f6", marginTop:3 }}>↗ View details</div>
-            </div>
-          </div>
 
-          {/* Overall time bar */}
-          <div style={{ padding:"14px 20px 0" }}>
-            <div style={{ display:"flex", height:10, borderRadius:5, overflow:"hidden", marginBottom:14, gap:1 }}>
-              {task.employees.map((e, i) => (
-                <div key={i} title={`${e.name}: ${fmtMins(e.minutes)}`}
-                  style={{ flex:e.minutes, background:empColor[e.name], minWidth:3 }} />
-              ))}
-            </div>
-
-            {/* Per-employee breakdown */}
-            {task.employees.map((emp, i) => {
-              const pct = task.totalMinutes > 0 ? Math.round((emp.minutes / task.totalMinutes) * 100) : 0;
-              const barW = (emp.minutes / maxMin) * 100;
-              return (
-                <div key={i} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
-                  {/* Avatar */}
-                  <div style={{ width:26, height:26, borderRadius:"50%", background:empColor[emp.name],
-                                color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
-                                fontSize:10, fontWeight:700, flexShrink:0 }}>
-                    {emp.name.charAt(0).toUpperCase()}
-                  </div>
-                  {/* Name */}
-                  <div style={{ width:100, fontSize:13, fontWeight:600, color:"#374151",
-                                overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
-                    {emp.name}
-                  </div>
-                  {/* Bar */}
-                  <div style={{ flex:1, height:16, background:"#f1f5f9", borderRadius:4, overflow:"hidden" }}>
-                    <div style={{ height:"100%", width:`${barW}%`, background:empColor[emp.name],
-                                  borderRadius:4, opacity:0.85 }} />
-                  </div>
-                  {/* Time */}
-                  <div style={{ width:52, fontSize:13, fontWeight:700, color:"#1e293b", textAlign:"right", flexShrink:0 }}>
-                    {fmtMins(emp.minutes)}
-                  </div>
-                  {/* Pct */}
-                  <div style={{ width:36, fontSize:11, color:"#94a3b8", textAlign:"right", flexShrink:0 }}>
-                    {pct}%
-                  </div>
+              {/* Title + badge */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:16, fontWeight:800, color:"#0f172a", lineHeight:1.3,
+                              wordBreak:"break-word" }}>
+                  {task.taskName}
                 </div>
-              );
-            })}
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:6, flexWrap:"wrap" }}>
+                  {task.jiraKey && (
+                    <span style={{ fontSize:12, color:"#2563eb", fontWeight:700, background:"#eff6ff",
+                                   padding:"2px 8px", borderRadius:5, border:"1px solid #bfdbfe" }}>
+                      {task.jiraKey}
+                    </span>
+                  )}
+                  {linkLabel && (
+                    <span style={{ fontSize:11, color:"#3b82f6", fontWeight:600 }}>{linkLabel}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Stats + Details button */}
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6, flexShrink:0 }}>
+                <div style={{ fontSize:20, fontWeight:800, color:"#1e293b" }}>{fmtMins(task.totalMinutes)}</div>
+                <div style={{ fontSize:11, color:"#64748b" }}>{task.employees.length} contributor{task.employees.length !== 1 ? "s" : ""}</div>
+                {/* Details button always opens the modal */}
+                <button
+                  onClick={e => { e.stopPropagation(); onSelectTask(task); }}
+                  style={{ fontSize:11, fontWeight:600, color:"#475569", background:"#f1f5f9",
+                           border:"1px solid #e2e8f0", borderRadius:6, padding:"3px 10px",
+                           cursor:"pointer", marginTop:2 }}>
+                  📋 Details
+                </button>
+              </div>
+            </div>
+
+            {/* Overall time bar */}
+            <div style={{ padding:"14px 20px 0" }}>
+              <div style={{ display:"flex", height:10, borderRadius:5, overflow:"hidden", marginBottom:14, gap:1 }}>
+                {task.employees.map((e, i) => (
+                  <div key={i} title={`${e.name}: ${fmtMins(e.minutes)}`}
+                    style={{ flex:e.minutes, background:empColor[e.name], minWidth:3 }} />
+                ))}
+              </div>
+
+              {/* Per-employee breakdown */}
+              {task.employees.map((emp, i) => {
+                const pct = task.totalMinutes > 0 ? Math.round((emp.minutes / task.totalMinutes) * 100) : 0;
+                const barW = (emp.minutes / maxMin) * 100;
+                return (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
+                    {/* Avatar */}
+                    <div style={{ width:26, height:26, borderRadius:"50%", background:empColor[emp.name],
+                                  color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                                  fontSize:10, fontWeight:700, flexShrink:0 }}>
+                      {emp.name.charAt(0).toUpperCase()}
+                    </div>
+                    {/* Name */}
+                    <div style={{ width:100, fontSize:13, fontWeight:600, color:"#374151",
+                                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
+                      {emp.name}
+                    </div>
+                    {/* Bar */}
+                    <div style={{ flex:1, height:16, background:"#f1f5f9", borderRadius:4, overflow:"hidden" }}>
+                      <div style={{ height:"100%", width:`${barW}%`, background:empColor[emp.name],
+                                    borderRadius:4, opacity:0.85 }} />
+                    </div>
+                    {/* Time */}
+                    <div style={{ width:52, fontSize:13, fontWeight:700, color:"#1e293b", textAlign:"right", flexShrink:0 }}>
+                      {fmtMins(emp.minutes)}
+                    </div>
+                    {/* Pct */}
+                    <div style={{ width:36, fontSize:11, color:"#94a3b8", textAlign:"right", flexShrink:0 }}>
+                      {pct}%
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ height:8 }} />
           </div>
-          <div style={{ height:6 }} />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -571,7 +630,7 @@ export default function TeamOverview() {
               <div style={{ marginTop:12, fontSize:16, fontWeight:600, color:"#64748b" }}>No tracked time for this date</div>
             </div>
           ) : tab === "tasks" ? (
-            <TaskView members={active} date={date} onSelectTask={setSelectedTask} />
+            <TaskView members={active} onSelectTask={setSelectedTask} />
           ) : (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:16 }}>
               {[...members].sort((a, b) => b.total_minutes - a.total_minutes).map((m, i) => (

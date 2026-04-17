@@ -371,17 +371,19 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
        ORDER BY total_minutes DESC`, [date]
     );
 
-    // Tasks per employee for the date
+    // Tasks per employee for the date (include Jira site_url so frontend can build browse links)
     const [tasks] = await db.query(
       `SELECT s.employee_id,
               COALESCE(t.name, s.jira_issue_key, 'No Task') AS task_name,
               s.task_id,
               s.jira_issue_key,
+              jc.site_url                                    AS jira_site_url,
               SUM(COALESCE(s.total_minutes, 0))             AS minutes
        FROM sessions s
        LEFT JOIN tasks t ON t.id = s.task_id
+       LEFT JOIN jira_credentials jc ON jc.employee_id = s.employee_id
        WHERE s.date = ?
-       GROUP BY s.employee_id, s.task_id, s.jira_issue_key, t.name
+       GROUP BY s.employee_id, s.task_id, s.jira_issue_key, t.name, jc.site_url
        ORDER BY s.employee_id, minutes DESC`, [date]
     );
 
@@ -394,7 +396,13 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
     const taskMap = {};
     for (const t of tasks) {
       if (!taskMap[t.employee_id]) taskMap[t.employee_id] = [];
-      taskMap[t.employee_id].push({ task_name: t.task_name, task_id: t.task_id, jira_issue_key: t.jira_issue_key, minutes: t.minutes });
+      taskMap[t.employee_id].push({
+        task_name:     t.task_name,
+        task_id:       t.task_id,
+        jira_issue_key: t.jira_issue_key,
+        jira_site_url: t.jira_site_url || null,
+        minutes:       t.minutes,
+      });
     }
     const actMap = Object.fromEntries(activity.map(a => [a.employee_id, a.active_seconds]));
 
