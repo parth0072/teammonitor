@@ -16,6 +16,7 @@ import Timelines from "./pages/Timelines";
 import Leaves from "./pages/Leaves";
 import Productivity from "./pages/Productivity";
 import OrgSettings from "./pages/OrgSettings";
+import TeamOverview from "./pages/TeamOverview";
 
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -36,6 +37,7 @@ const ADMIN_NAV = [
   { path: "/activity",     label: "Live Activity", icon: "🟢" },
   { path: "/productivity", label: "Productivity",  icon: "📈" },
   { path: "/projects",     label: "Projects",      icon: "📁" },
+  { path: "/overview",      label: "Team Overview",  icon: "🏅" },
   { path: "/reports",      label: "Reports",       icon: "📊" },
   { path: "/leaves",       label: "Leaves",        icon: "🏖" },
   { path: "/employees",    label: "Employees",     icon: "👥" },
@@ -172,6 +174,7 @@ export default function App() {
           <Route path="/dashboard"    element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/employees"    element={<AdminRoute><Employees /></AdminRoute>} />
           <Route path="/employees/:id"element={<AdminRoute><EmployeeDetail /></AdminRoute>} />
+          <Route path="/overview"      element={<AdminRoute><TeamOverview /></AdminRoute>} />
           <Route path="/reports"      element={<AdminRoute><Reports /></AdminRoute>} />
           <Route path="/screenshots"  element={<ProtectedRoute><Screenshots /></ProtectedRoute>} />
           <Route path="/attendance"   element={<ProtectedRoute><Attendance /></ProtectedRoute>} />

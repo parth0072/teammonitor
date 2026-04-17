@@ -293,6 +293,78 @@ router.get('/task-hours', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/sessions/team-overview?date=YYYY-MM-DD
+// Returns every active employee with their hours + task breakdown for the date.
+router.get('/team-overview', auth, adminOnly, async (req, res) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+
+    // Hours + session count per employee
+    const [hours] = await db.query(
+      `SELECT s.employee_id, e.name,
+              SUM(LEAST(COALESCE(s.total_minutes,0), 1440)) AS total_minutes,
+              COUNT(*)                                       AS session_count
+       FROM sessions s
+       JOIN employees e ON e.id = s.employee_id
+       WHERE s.date = ? AND e.is_active = 1
+       GROUP BY s.employee_id, e.name
+       ORDER BY total_minutes DESC`, [date]
+    );
+
+    // Tasks per employee for the date
+    const [tasks] = await db.query(
+      `SELECT s.employee_id,
+              COALESCE(t.name, s.jira_issue_key, 'No Task') AS task_name,
+              s.task_id,
+              s.jira_issue_key,
+              SUM(COALESCE(s.total_minutes, 0))             AS minutes
+       FROM sessions s
+       LEFT JOIN tasks t ON t.id = s.task_id
+       WHERE s.date = ?
+       GROUP BY s.employee_id, s.task_id, s.jira_issue_key, t.name
+       ORDER BY s.employee_id, minutes DESC`, [date]
+    );
+
+    // Productivity (active seconds vs tracked minutes)
+    const [activity] = await db.query(
+      `SELECT employee_id, SUM(duration_seconds) AS active_seconds
+       FROM activity_logs WHERE date = ? GROUP BY employee_id`, [date]
+    );
+
+    const taskMap = {};
+    for (const t of tasks) {
+      if (!taskMap[t.employee_id]) taskMap[t.employee_id] = [];
+      taskMap[t.employee_id].push({ task_name: t.task_name, task_id: t.task_id, jira_issue_key: t.jira_issue_key, minutes: t.minutes });
+    }
+    const actMap = Object.fromEntries(activity.map(a => [a.employee_id, a.active_seconds]));
+
+    const members = hours.map(h => {
+      const activeSec = actMap[h.employee_id] || 0;
+      const productive_percent = h.total_minutes > 0
+        ? Math.min(100, Math.round(activeSec / (h.total_minutes * 60) * 100)) : 0;
+      return {
+        employee_id:        h.employee_id,
+        name:               h.name,
+        total_minutes:      Number(h.total_minutes) || 0,
+        session_count:      Number(h.session_count) || 0,
+        productive_percent,
+        tasks:              taskMap[h.employee_id] || [],
+      };
+    });
+
+    // Also include active employees with zero hours so they appear as "not started"
+    const [allEmp] = await db.query(`SELECT id, name FROM employees WHERE is_active = 1`);
+    const seenIds = new Set(members.map(m => m.employee_id));
+    for (const e of allEmp) {
+      if (!seenIds.has(e.id)) {
+        members.push({ employee_id: e.id, name: e.name, total_minutes: 0, session_count: 0, productive_percent: 0, tasks: [] });
+      }
+    }
+
+    res.json({ date, members });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/sessions/stats?days=7  – daily hours for chart
 router.get('/stats', auth, adminOnly, async (req, res) => {
   try {

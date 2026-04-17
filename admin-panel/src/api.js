@@ -50,7 +50,8 @@ export const api = {
   getMySessions:   (date)   => request('GET',  `/sessions/my?date=${date}`),
   getSessionStats:     (days) => request('GET', `/sessions/stats?days=${days}`),
   getMySessionStats:   (days) => request('GET', `/sessions/stats/mine?days=${days}`),
-  getTaskHours: (empId, date) => request('GET', `/sessions/task-hours?employeeId=${empId}&date=${date}`),
+  getTaskHours:     (empId, date) => request('GET', `/sessions/task-hours?employeeId=${empId}&date=${date}`),
+  getTeamOverview:  (date)        => request('GET', `/sessions/team-overview?date=${date}`),
 
   // Screenshots
   getScreenshots:         (date, empId) => request('GET',    `/screenshots?date=${date}${empId ? `&employeeId=${empId}` : ''}`),
