@@ -194,35 +194,6 @@ async function runMigrations() {
   console.log('[migration] Schema up to date (employees + jira + org_settings)');
 }
 
-// ── Daily report email scheduler ──────────────────────────────────────────────
-// Fires at DAILY_REPORT_TIME (HH:MM UTC, default "15:30" = 9:00 PM IST / UTC+5:30).
-// Override in .env: DAILY_REPORT_TIME=15:30
-// NOTE: time is always interpreted as UTC regardless of server timezone.
-function scheduleDailyReports() {
-  const { sendDailyReports } = require('./utils/dailyMail');
-  const [targetHour, targetMin] = (process.env.DAILY_REPORT_TIME || '15:30')
-    .split(':').map(Number);
-
-  function msUntilNext() {
-    const now  = new Date();
-    const next = new Date(now);
-    next.setUTCHours(targetHour, targetMin || 0, 0, 0);
-    if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
-    return next - now;
-  }
-
-  function scheduleNext() {
-    const delay = msUntilNext();
-    console.log(`[dailyMail] Next report scheduled in ${Math.round(delay / 60000)} min`);
-    setTimeout(async () => {
-      await sendDailyReports().catch(err => console.error('[dailyMail] Error:', err.message));
-      scheduleNext(); // reschedule for tomorrow
-    }, delay);
-  }
-
-  scheduleNext();
-}
-
 // ── Start ─────────────────────────────────────────────────────────────────────
 async function start() {
   await runMigrations();
@@ -234,8 +205,7 @@ async function start() {
     cleanupOldScreenshots();
     setInterval(cleanupOldScreenshots, 24 * 60 * 60 * 1000);
 
-    // Daily email reports — schedule for target hour each day
-    scheduleDailyReports();
+    // Daily reports triggered by cPanel cron (POST /api/cron/daily-report)
   });
 }
 start().catch(err => { console.error('[startup] Fatal:', err.message); process.exit(1); });
