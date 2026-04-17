@@ -70,15 +70,22 @@ extension TrackingDashboardView {
 
             ScrollView {
                 VStack(spacing: 0) {
-                    // ── Recently used tasks/issues ──────────────────────
-                    let recentTasks = myTasks.filter { manager.recentTaskIds.contains($0.id) }
-                        .sorted { (manager.recentTaskIds.firstIndex(of: $0.id) ?? 99)
-                                < (manager.recentTaskIds.firstIndex(of: $1.id) ?? 99) }
-                    let recentJira  = jiraIssues.filter { manager.recentJiraKeys.contains($0.key) }
+                    // Build recent lists (Jira first, then tasks), capped at 3 total
+                    let recentJiraFull = jiraIssues.filter { manager.recentJiraKeys.contains($0.key) }
                         .sorted { (manager.recentJiraKeys.firstIndex(of: $0.key) ?? 99)
                                 < (manager.recentJiraKeys.firstIndex(of: $1.key) ?? 99) }
+                    let recentTasksFull = myTasks.filter { manager.recentTaskIds.contains($0.id) }
+                        .sorted { (manager.recentTaskIds.firstIndex(of: $0.id) ?? 99)
+                                < (manager.recentTaskIds.firstIndex(of: $1.id) ?? 99) }
+                    // Merge: Jira first, then tasks, total cap = 3
+                    let recentJira  = Array(recentJiraFull.prefix(3))
+                    let taskSlots   = max(0, 3 - recentJira.count)
+                    let recentTasks = Array(recentTasksFull.prefix(taskSlots))
+                    let recentJiraKeySet  = Set(recentJira.map(\.key))
+                    let recentTaskIdSet   = Set(recentTasks.map(\.id))
 
-                    if !recentTasks.isEmpty || !recentJira.isEmpty {
+                    // ── 1. Recently Used (max 3, Jira first) ─────────────
+                    if !recentJira.isEmpty || !recentTasks.isEmpty {
                         HStack {
                             Image(systemName: "clock.arrow.circlepath")
                                 .font(.system(size: 10))
@@ -92,7 +99,17 @@ extension TrackingDashboardView {
                         .background(DS.bg)
                         .overlay(Rectangle().frame(height: 1).foregroundColor(DS.border), alignment: .bottom)
 
-                        ForEach(recentTasks.prefix(3)) { task in
+                        ForEach(recentJira) { issue in
+                            JiraIssueRow(issue: issue,
+                                         isActive: manager.currentJiraIssue?.key == issue.key && manager.isTracking,
+                                         onStart: {
+                                Task { @MainActor in
+                                    if manager.isTracking { await manager.punchOut() }
+                                    await manager.punchIn(jiraIssue: issue)
+                                }
+                            }, onStop: { Task { @MainActor in await manager.punchOut() } })
+                        }
+                        ForEach(recentTasks) { task in
                             TaskRow2(
                                 task: task,
                                 isActive: manager.currentTask?.id == task.id && manager.isTracking,
@@ -105,26 +122,52 @@ extension TrackingDashboardView {
                                 onStop: { Task { @MainActor in await manager.punchOut() } }
                             )
                         }
-                        ForEach(recentJira.prefix(2)) { issue in
-                            JiraIssueRow(issue: issue, isActive: manager.currentJiraIssue?.key == issue.key && manager.isTracking, onStart: {
-                                activeSheet = nil
-                                Task { @MainActor in
-                                    if manager.isTracking { await manager.punchOut() }
-                                    await manager.punchIn(jiraIssue: issue)
-                                }
-                            }, onStop: { Task { @MainActor in await manager.punchOut() } })
-                        }
 
-                        Rectangle()
-                            .fill(DS.border)
-                            .frame(height: 1)
-                            .padding(.vertical, 4)
+                        Rectangle().fill(DS.border).frame(height: 1).padding(.vertical, 4)
                     }
 
+                    // ── 2. Jira Issues (excluding recent) ────────────────
+                    if jiraConnected {
+                        jiraSectionHeader
+
+                        if jiraLoading {
+                            ProgressView().padding(.vertical, 16).frame(maxWidth: .infinity)
+                        } else {
+                            let filteredJira = jiraIssues.filter {
+                                !recentJiraKeySet.contains($0.key) && (
+                                searchText.isEmpty
+                                || $0.summary.localizedCaseInsensitiveContains(searchText)
+                                || $0.key.localizedCaseInsensitiveContains(searchText)
+                                || $0.projectName.localizedCaseInsensitiveContains(searchText))
+                            }
+                            if filteredJira.isEmpty {
+                                Text(searchText.isEmpty ? "No open Jira issues assigned to you" : "No issues match \"\(searchText)\"")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(DS.textMuted)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(DS.surface)
+                            } else {
+                                ForEach(filteredJira) { issue in
+                                    JiraIssueRow(issue: issue,
+                                                 isActive: manager.currentJiraIssue?.key == issue.key && manager.isTracking,
+                                                 onStart: {
+                                        Task { @MainActor in
+                                            if manager.isTracking { await manager.punchOut() }
+                                            await manager.punchIn(jiraIssue: issue)
+                                        }
+                                    }, onStop: { Task { @MainActor in await manager.punchOut() } })
+                                }
+                            }
+                        }
+                    }
+
+                    // ── 3. My Tasks (excluding recent, sorted by status) ─
                     let statusOrder: (String) -> Int = { s in
                         s == "in_progress" ? 0 : s == "todo" ? 1 : 2
                     }
                     let filtered = myTasks
+                        .filter { !recentTaskIdSet.contains($0.id) }
                         .sorted { statusOrder($0.status) < statusOrder($1.status) }
                         .filter {
                             searchText.isEmpty
@@ -165,15 +208,42 @@ extension TrackingDashboardView {
                             }.buttonStyle(.plain)
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, 48)
-                    } else if filtered.isEmpty && !jiraConnected {
+                    } else if !filtered.isEmpty {
+                        // Section header only when Jira is also present (disambiguate)
+                        if jiraConnected {
+                            HStack {
+                                Text("MY TASKS")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(DS.textMuted)
+                                    .tracking(0.8)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(DS.bg)
+                            .overlay(Rectangle().frame(height: 1).foregroundColor(DS.border), alignment: .bottom)
+                        }
+                        ForEach(Array(filtered.enumerated()), id: \.element.id) { _, task in
+                            TaskRow2(
+                                task: task,
+                                isActive: manager.currentTask?.id == task.id && manager.isTracking,
+                                onStart: {
+                                    Task { @MainActor in
+                                        if manager.isTracking { await manager.punchOut() }
+                                        await manager.punchIn(task: task)
+                                    }
+                                },
+                                onStop: { Task { @MainActor in await manager.punchOut() } }
+                            )
+                        }
+                    } else if !tasksLoading && filtered.isEmpty && recentTasks.isEmpty && !jiraConnected {
                         VStack(spacing: 10) {
                             LottieOrIcon(lottieName: "empty_tasks", icon: "checklist",
                                          iconColor: DS.indigo, size: 90)
-                            Text(myTasks.isEmpty ? "No tasks yet" : "No tasks match search")
+                            Text(myTasks.isEmpty ? "No tasks assigned to you" : "No tasks match search")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(DS.text)
                             if myTasks.isEmpty {
-                                Text("Ask your admin to assign tasks,\nor create one with + New Task")
+                                Text("Ask your admin to assign you tasks")
                                     .font(.system(size: 12))
                                     .foregroundColor(DS.textMuted)
                                     .multilineTextAlignment(.center)
@@ -191,67 +261,6 @@ extension TrackingDashboardView {
                             }.buttonStyle(.plain)
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, 40)
-                    } else {
-                        ForEach(Array(filtered.enumerated()), id: \.element.id) { idx, task in
-                            TaskRow2(
-                                task: task,
-                                isActive: manager.currentTask?.id == task.id && manager.isTracking,
-                                onStart: {
-                                    Task { @MainActor in
-                                        if manager.isTracking { await manager.punchOut() }
-                                        await manager.punchIn(task: task)
-                                    }
-                                },
-                                onStop: { Task { @MainActor in await manager.punchOut() } }
-                            )
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .top).combined(with: .opacity),
-                                removal: .opacity
-                            ))
-                        }
-                    }
-
-                    // Jira issues section
-                    if jiraConnected {
-                        jiraSectionHeader
-
-                        if jiraLoading {
-                            ProgressView().padding(.vertical, 16).frame(maxWidth: .infinity)
-                        } else if jiraIssues.isEmpty {
-                            Text("No open Jira issues assigned to you")
-                                .font(.system(size: 12))
-                                .foregroundColor(DS.textMuted)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(DS.surface)
-                        } else {
-                            let recentJiraKeys = Set(recentJira.prefix(2).map { $0.key })
-                            let filteredJira = jiraIssues.filter {
-                                !recentJiraKeys.contains($0.key) && (
-                                searchText.isEmpty
-                                || $0.summary.localizedCaseInsensitiveContains(searchText)
-                                || $0.key.localizedCaseInsensitiveContains(searchText)
-                                || $0.projectName.localizedCaseInsensitiveContains(searchText))
-                            }
-                            if filteredJira.isEmpty {
-                                Text(searchText.isEmpty ? "No open Jira issues assigned to you" : "No issues match \"\(searchText)\"")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(DS.textMuted)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(DS.surface)
-                            } else {
-                                ForEach(filteredJira) { issue in
-                                    JiraIssueRow(issue: issue, isActive: manager.currentJiraIssue?.key == issue.key && manager.isTracking, onStart: {
-                                        activeSheet = nil
-                                        Task { @MainActor in
-                                            if manager.isTracking { await manager.punchOut() }
-                                            await manager.punchIn(jiraIssue: issue)
-                                        }
-                                    }, onStop: { Task { @MainActor in await manager.punchOut() } })
-                                }
-                            }
-                        }
                     }
                 }
             }
