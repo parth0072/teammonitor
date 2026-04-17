@@ -260,7 +260,9 @@ struct MenuBarView: View {
             Button("Punch Out") { Task { await manager.punchOut() } }
         } else {
             Button("Punch In") {
-                // Open main window so user can pick a task before tracking starts
+                // Dismiss any "not tracking" modal that may be blocking the main window,
+                // then open the window and show the task picker.
+                manager.showNotTrackingAlert = false
                 NotificationCenter.default.post(name: .tmActivateWindow, object: nil)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                     manager.showTaskPicker = true

@@ -255,9 +255,9 @@ class TrackingManager: ObservableObject {
 
     // MARK: - Auto Check-In
 
-    private func startActivityWatcher() {
+    private func startActivityWatcher(interval: TimeInterval = 120) {
         activityWatchTimer?.invalidate()
-        let t = Timer(timeInterval: 120, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             guard let self else { return }
             let idle = IdleDetectionService.shared.systemIdleSecondsPublic()
 
@@ -678,7 +678,13 @@ class TrackingManager: ObservableObject {
         guard isTracking, isOnBreak, let sessionId = currentSessionId else { return }
 
         cancelNotTrackingReminder()
-        NotificationOverlayManager.shared.dismissWarnings()  // clear "Timer paused" banner immediately
+        NotificationOverlayManager.shared.dismissWarnings()  // clear "Timer paused" overlay banner
+        showNotTrackingAlert = false  // dismiss "Timer not running" modal sheet if visible
+        showResumePrompt     = false  // clear any stale resume prompt
+
+        // Stop the activity watcher — idle detector (restarted in startAllServices) takes over
+        activityWatchTimer?.invalidate(); activityWatchTimer = nil
+
         isOnBreak      = false
         isIdleBreak    = false   // clear idle-break flag whether user or auto resumed
         lastResumeTime = Date()
@@ -900,8 +906,9 @@ class TrackingManager: ObservableObject {
                 self.isIdleBreak = true
                 await self.takeBreak()
                 self.sendNotification("Timer paused — idle detected. Will auto-resume when you're back.", isWarning: true)
-                // takeBreak stops the idle detector; restart activity watcher to detect return
-                self.startActivityWatcher()
+                // Use a fast 10-second poll so auto-resume happens within seconds of the
+                // user returning, not up to 2 minutes later.
+                self.startActivityWatcher(interval: 10)
             }
         }
 
