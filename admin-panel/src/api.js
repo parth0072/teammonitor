@@ -53,8 +53,11 @@ export const api = {
   getTaskHours: (empId, date) => request('GET', `/sessions/task-hours?employeeId=${empId}&date=${date}`),
 
   // Screenshots
-  getScreenshots:    (date, empId) => request('GET', `/screenshots?date=${date}${empId ? `&employeeId=${empId}` : ''}`),
-  getMyScreenshots:  (date)        => request('GET', `/screenshots/mine?date=${date}`),
+  getScreenshots:         (date, empId) => request('GET',    `/screenshots?date=${date}${empId ? `&employeeId=${empId}` : ''}`),
+  getMyScreenshots:       (date)        => request('GET',    `/screenshots/mine?date=${date}`),
+  getScreenshotDiskUsage: ()            => request('GET',    '/screenshots/disk-usage'),
+  deleteScreenshot:       (id)          => request('DELETE', `/screenshots/${id}`),
+  deleteScreenshotsBulk:  (body)        => request('DELETE', '/screenshots', body),
 
   // Activity
   getActivity:        (date, empId) => request('GET', `/activity?date=${date}${empId ? `&employeeId=${empId}` : ''}`),
@@ -140,6 +143,7 @@ export const api = {
   setTrackingLock:    (employeeId, locked) => request('PUT', '/admin/tracking-lock', { employeeId, locked }),
   sendSlackDigest:    (date)               => request('POST',  '/admin/slack-report',          { date }),
   previewSlackDigest: (date)               => request('GET',   `/admin/slack-report/preview?date=${date}`),
+  sendTeamsDigest:    (date)               => request('POST',  '/admin/teams-report',           { date }),
 };
 
 export function saveToken(token) { localStorage.setItem('tm_token', token); }

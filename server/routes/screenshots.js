@@ -151,6 +151,98 @@ router.get('/view/:empId/:date/:filename', (req, res) => {
   }
 });
 
+// ── Disk-usage helper ─────────────────────────────────────────────────────────
+function getDiskUsage() {
+  const uploadsDir = path.join(__dirname, '..', 'uploads');
+  let totalBytes = 0;
+  const byEmpId = {};
+  if (!fs.existsSync(uploadsDir)) return { totalBytes: 0, byEmpId: {} };
+  for (const empDir of fs.readdirSync(uploadsDir)) {
+    const empPath = path.join(uploadsDir, empDir);
+    try { if (!fs.statSync(empPath).isDirectory()) continue; } catch (_) { continue; }
+    let empBytes = 0;
+    for (const dateDir of fs.readdirSync(empPath)) {
+      const datePath = path.join(empPath, dateDir);
+      try { if (!fs.statSync(datePath).isDirectory()) continue; } catch (_) { continue; }
+      for (const file of fs.readdirSync(datePath)) {
+        if (!file.endsWith('.enc') && !file.endsWith('.jpg') && !file.endsWith('.jpeg')) continue;
+        try { const s = fs.statSync(path.join(datePath, file)); empBytes += s.size; totalBytes += s.size; } catch (_) {}
+      }
+    }
+    byEmpId[empDir] = empBytes;
+  }
+  return { totalBytes, byEmpId };
+}
+
+// Helper: resolve disk path from file_path URL stored in DB
+function diskPathFromUrl(filePath) {
+  const newMatch = filePath && filePath.match(/\/view\/(\d+\/\d{4}-\d{2}-\d{2}\/[\w.-]+\.enc)/);
+  const oldMatch = filePath && filePath.match(/\/uploads\/(.+)$/);
+  const rel = newMatch ? newMatch[1] : (oldMatch ? oldMatch[1] : null);
+  return rel ? path.join(__dirname, '..', 'uploads', rel) : null;
+}
+
+// ── GET /api/screenshots/disk-usage  (admin) ──────────────────────────────────
+router.get('/disk-usage', auth, adminOnly, async (req, res) => {
+  try {
+    const { totalBytes, byEmpId } = getDiskUsage();
+    const [rows] = await db.query(
+      `SELECT e.id, e.name, COUNT(s.id) AS count
+       FROM employees e LEFT JOIN screenshots s ON s.employee_id = e.id
+       GROUP BY e.id, e.name`
+    );
+    const employees = rows.map(r => ({
+      id:    r.id,
+      name:  r.name,
+      count: r.count,
+      bytes: byEmpId[String(r.id)] || 0,
+    })).filter(r => r.count > 0 || r.bytes > 0);
+    res.json({ totalBytes, employees });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── DELETE /api/screenshots/:id  (admin — single) ────────────────────────────
+router.delete('/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const [[row]] = await db.query('SELECT file_path FROM screenshots WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    const dp = diskPathFromUrl(row.file_path);
+    if (dp) try { if (fs.existsSync(dp)) fs.unlinkSync(dp); } catch (_) {}
+    await db.query('DELETE FROM screenshots WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── DELETE /api/screenshots  (admin — bulk by ids or filter) ─────────────────
+router.delete('/', auth, adminOnly, async (req, res) => {
+  try {
+    const { ids, employeeId, date } = req.body;
+    let rows = [];
+    if (ids && ids.length) {
+      const [r] = await db.query(`SELECT id, file_path FROM screenshots WHERE id IN (${ids.map(()=>'?').join(',')})`, ids);
+      rows = r;
+    } else if (employeeId || date) {
+      let sql = 'SELECT id, file_path FROM screenshots WHERE 1=1';
+      const p = [];
+      if (employeeId) { sql += ' AND employee_id=?'; p.push(employeeId); }
+      if (date)       { sql += ' AND date=?';        p.push(date); }
+      const [r] = await db.query(sql, p);
+      rows = r;
+    } else {
+      return res.status(400).json({ error: 'Provide ids, employeeId, or date' });
+    }
+    for (const row of rows) {
+      const dp = diskPathFromUrl(row.file_path);
+      if (dp) try { if (fs.existsSync(dp)) fs.unlinkSync(dp); } catch (_) {}
+    }
+    const delIds = rows.map(r => r.id);
+    if (delIds.length) {
+      await db.query(`DELETE FROM screenshots WHERE id IN (${delIds.map(()=>'?').join(',')})`, delIds);
+    }
+    res.json({ ok: true, deleted: delIds.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── GET /api/screenshots/mine?date=  (employee – own screenshots only) ────────
 router.get('/mine', auth, async (req, res) => {
   try {

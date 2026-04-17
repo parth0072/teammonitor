@@ -145,4 +145,32 @@ router.post('/slack-report', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/admin/teams-report  — send MS Teams digest for a specific date (admin only)
+// body: { date: 'YYYY-MM-DD' }
+router.post('/teams-report', auth, adminOnly, async (req, res) => {
+  try {
+    const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
+    if (!webhookUrl) return res.status(400).json({ error: 'TEAMS_WEBHOOK_URL is not configured in .env' });
+
+    const date = req.body.date || new Date().toISOString().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+
+    const { buildReport }    = require('./reports');
+    const { sendTeamsReport } = require('../utils/teamsReport');
+
+    const [employees] = await db.query(`SELECT id, name, email FROM employees WHERE is_active = 1`);
+    const teamsReports = [];
+    for (const emp of employees) {
+      try {
+        const report = await buildReport(emp.id, date, { saveToMemory: false });
+        if (report.total_tracked_minutes) teamsReports.push({ employee: emp, report });
+      } catch (_) {}
+    }
+
+    const count = await sendTeamsReport(date, teamsReports);
+    res.json({ ok: true, date, employees: count });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

@@ -65,8 +65,10 @@ final class NotificationOverlayManager: ObservableObject {
     // MARK: Private
 
     private func scheduleDismiss(for id: UUID) {
+        // Timer runs on RunLoop.main — already the main thread, no Task hop needed.
+        // Wrapping in Task { @MainActor in } adds actor re-scheduling latency.
         let t = Timer(timeInterval: autoDismiss, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.dismiss(id) }
+            self?.dismiss(id)
         }
         RunLoop.main.add(t, forMode: .common); dismissTimers[id] = t
     }

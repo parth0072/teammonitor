@@ -311,6 +311,7 @@ class TrackingManager: ObservableObject {
     /// Called when user taps "Resume" in the resume prompt banner.
     func confirmResume() {
         showResumePrompt = false
+        NotificationOverlayManager.shared.dismissWarnings()  // clear any "not tracking" banner
 
         // If we have a restored session that hasn't started yet, resume it directly
         // without a new punch-in API call. Otherwise do a fresh punch-in.
@@ -677,6 +678,7 @@ class TrackingManager: ObservableObject {
         guard isTracking, isOnBreak, let sessionId = currentSessionId else { return }
 
         cancelNotTrackingReminder()
+        NotificationOverlayManager.shared.dismissWarnings()  // clear "Timer paused" banner immediately
         isOnBreak      = false
         isIdleBreak    = false   // clear idle-break flag whether user or auto resumed
         lastResumeTime = Date()

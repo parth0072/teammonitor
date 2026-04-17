@@ -97,6 +97,11 @@ export default function Reports() {
   const [slackPreview,    setSlackPreview]    = useState(null);  // { date, previews[] }
   const [previewLoading,  setPreviewLoading]  = useState(false);
 
+  // Teams digest
+  const [teamsDate,    setTeamsDate]    = useState(format(new Date(), "yyyy-MM-dd"));
+  const [teamsSending, setTeamsSending] = useState(false);
+  const [teamsResult,  setTeamsResult]  = useState(null);
+
   useEffect(() => { api.getEmployees().then(setEmployees); }, []);
   useEffect(() => { loadData(); }, [date, employeeId]);
   useEffect(() => {
@@ -860,6 +865,45 @@ export default function Reports() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Send Teams Digest ─────────────────────────────────────────────── */}
+      {user?.role === "admin" && (
+        <div style={{ ...S.card, marginBottom:24 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+            <span style={{ fontSize:20 }}>🟦</span>
+            <div style={S.cardTitle}>Send Microsoft Teams Digest</div>
+          </div>
+          <div style={{ fontSize:13, color:"#64748b", marginBottom:16 }}>
+            Send the daily team summary to your Microsoft Teams channel via incoming webhook.
+            Configure <code style={{ background:"#f1f5f9", padding:"1px 5px", borderRadius:3 }}>TEAMS_WEBHOOK_URL</code> in your server <code style={{ background:"#f1f5f9", padding:"1px 5px", borderRadius:3 }}>.env</code> to enable.
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <input
+              type="date"
+              value={teamsDate}
+              onChange={e => { setTeamsDate(e.target.value); setTeamsResult(null); }}
+              style={S.dateInput}
+            />
+            <button
+              disabled={teamsSending}
+              onClick={async () => {
+                setTeamsSending(true); setTeamsResult(null);
+                try { setTeamsResult(await api.sendTeamsDigest(teamsDate)); }
+                catch (err) { setTeamsResult({ error: err.message || "Failed to send" }); }
+                finally { setTeamsSending(false); }
+              }}
+              style={{ background: teamsSending ? "#94a3b8" : "#5558af", color:"#fff", border:"none", borderRadius:8, padding:"9px 20px", cursor: teamsSending ? "default" : "pointer", fontSize:13, fontWeight:600 }}
+            >
+              {teamsSending ? "Sending…" : "Send to Teams ✈"}
+            </button>
+            {teamsResult && (
+              teamsResult.error
+                ? <span style={{ fontSize:13, color:"#ef4444" }}>⚠ {teamsResult.error}</span>
+                : <span style={{ fontSize:13, color:"#16a34a" }}>✓ Sent — {teamsResult.employees} employee{teamsResult.employees !== 1 ? "s" : ""} included</span>
+            )}
+          </div>
         </div>
       )}
 
