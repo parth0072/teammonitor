@@ -2,8 +2,6 @@
 
 Employee monitoring and time-tracking system with a macOS agent, React admin panel, and Node.js/MySQL backend.
 
-**Production URL:** https://api.alphabyteinnovation.com/teammonitor/
-
 ---
 
 ## Features
