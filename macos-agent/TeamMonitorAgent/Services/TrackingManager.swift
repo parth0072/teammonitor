@@ -212,22 +212,34 @@ class TrackingManager: ObservableObject {
 
         // ── Sleep / wake / quit observers ─────────────────────────────────────
         // Punch OUT before sleep so the session closes cleanly in the DB.
-        // Auto check-in (didWakeNotification) will reopen it on wake.
+        // Auto check-in (didWakeNotification) will reopen it on same-day wake.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard let self, self.isTracking else { return }
             TMLog("[AutoCheckOut] Mac going to sleep — punching out")
+            // Synchronously clear break flags BEFORE the async punchOut so that
+            // if the Mac sleeps before the Task completes, the wake-up handler
+            // and the fast activity poll don't see a stale idle-break state and
+            // accidentally auto-resume yesterday's session.
+            self.isOnBreak   = false
+            self.isIdleBreak = false
+            MenuBarState.shared.isOnBreak = false
             Task { await self.punchOut() }
         }
 
         // On wake: check for day change first (Mac may have slept over midnight),
-        // then handle activity (auto check-in if user returns to desk).
+        // then handle activity — but only if the day did NOT change.
+        // If day changed the session was already punched out; calling handleActivityDetected
+        // while isTracking is still true (punchOut is async) would auto-resume the old session.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.checkDayChange()
-            self?.handleActivityDetected(reason: "Mac woke from sleep")
+            guard let self else { return }
+            let dayChanged = self.checkDayChange()
+            if !dayChanged {
+                self.handleActivityDetected(reason: "Mac woke from sleep")
+            }
         }
 
         // Punch OUT when the app is about to quit (logout, force-quit, update install)
@@ -273,6 +285,17 @@ class TrackingManager: ObservableObject {
 
             // Idle-triggered break: auto-resume when user activity detected
             if self.isTracking && self.isOnBreak && self.isIdleBreak {
+                // Guard: if the day changed since the break started (slept overnight),
+                // punch out the stale session instead of resuming it on the new day.
+                if let stopped = self.stoppedTrackingAt {
+                    let breakDay   = dayFormatter.string(from: stopped)
+                    let currentDay = dayFormatter.string(from: Date())
+                    if breakDay != currentDay {
+                        TMLog("[ActivityWatcher] Day changed during idle break — punching out stale session")
+                        Task { await self.punchOut() }
+                        return
+                    }
+                }
                 if idle < 60, let stopped = self.stoppedTrackingAt,
                    Date().timeIntervalSince(stopped) > 60 {  // at least 1 min break
                     self.handleActivityDetected(reason: "Activity after idle break")
