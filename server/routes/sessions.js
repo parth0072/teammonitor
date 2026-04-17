@@ -349,7 +349,7 @@ router.get('/task-sessions', auth, adminOnly, async (req, res) => {
       return { ...r, total_minutes: minutes };
     });
 
-    res.json({ date: targetDate, sessions });
+    res.json({ date: date || null, sessions });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

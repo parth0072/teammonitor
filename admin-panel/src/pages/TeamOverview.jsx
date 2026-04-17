@@ -29,7 +29,7 @@ function buildTaskMap(members) {
   members.forEach((m, empIdx) => {
     m.tasks.forEach(t => {
       const key = t.task_name;
-      if (!map[key]) map[key] = { taskName: t.task_name, jiraKey: t.jira_issue_key, totalMinutes: 0, employees: [] };
+      if (!map[key]) map[key] = { taskName: t.task_name, jiraKey: t.jira_issue_key, taskId: t.task_id, totalMinutes: 0, employees: [] };
       map[key].totalMinutes += Number(t.minutes) || 0;
       map[key].employees.push({ name: m.name, minutes: Number(t.minutes) || 0, empIdx });
     });
