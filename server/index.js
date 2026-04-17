@@ -197,6 +197,7 @@ async function runMigrations() {
 // ── Daily report email scheduler ──────────────────────────────────────────────
 // Fires at DAILY_REPORT_TIME (HH:MM UTC, default "15:30" = 9:00 PM IST / UTC+5:30).
 // Override in .env: DAILY_REPORT_TIME=15:30
+// NOTE: time is always interpreted as UTC regardless of server timezone.
 function scheduleDailyReports() {
   const { sendDailyReports } = require('./utils/dailyMail');
   const [targetHour, targetMin] = (process.env.DAILY_REPORT_TIME || '15:30')
@@ -205,8 +206,8 @@ function scheduleDailyReports() {
   function msUntilNext() {
     const now  = new Date();
     const next = new Date(now);
-    next.setHours(targetHour, targetMin || 0, 0, 0);
-    if (next <= now) next.setDate(next.getDate() + 1);
+    next.setUTCHours(targetHour, targetMin || 0, 0, 0);
+    if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
     return next - now;
   }
 
