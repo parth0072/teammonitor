@@ -6,6 +6,60 @@ Employee monitoring and time-tracking system with a macOS agent, React admin pan
 
 ---
 
+## Features
+
+### 🖥 macOS Agent
+- Menu bar app — always running, minimal footprint
+- **Punch in / out** with task or Jira issue selection
+- **Auto session restore** on launch — prompts to resume last session
+- **Break management** — manual break + auto-break on idle detection
+- **Idle detection** — pauses timer when idle, auto-resumes on activity
+- **Day-change detection** — punches out at midnight, reminds at dawn
+- **Screenshot capture** — configurable interval (default 5 min), runs in background at low priority
+- **App activity tracking** — logs active app + window title every 30s
+- **Heartbeat** — keeps session alive on server every 5 min
+- **Custom in-app notifications** — floating overlay panel, instant dismiss on resume
+- **Jira integration** — connect personal Jira, pick assigned issues as tasks
+- **Admin remote commands** — admin can start break, punch out, lock tracking from web
+- **Offline queue** — buffers activity logs when network is down
+- **Wake from sleep** — auto day-change check, activity detection on resume
+
+### 🌐 Admin Panel
+
+| Page | Access | Description |
+|------|--------|-------------|
+| Dashboard | All | KPI cards, 7-day trend chart, live session board |
+| Activity | All | Per-employee app usage timeline with window drill-down |
+| Productivity | All | Hour logs, productive % by app category, custom rules |
+| Screenshots | All | Gallery by employee/date, lightbox, disk usage, delete |
+| Attendance | All | Punch-in/out records, session durations, break log |
+| Timelines | Admin | Visual session timeline across employees and date ranges |
+| Reports | All | Daily AI report, team report, Slack & Teams digest sender |
+| Projects & Tasks | All | Kanban board, task assignment, Jira project sync |
+| Employees | Admin | Create/edit/deactivate, set tracking config per employee |
+| Employee Detail | All | Individual stats, session history, productivity over time |
+| Leaves | All | Request/approve/reject leaves, leave types, balances |
+| Org Settings | Admin | Company name, work status options, daily report time |
+
+### 🔗 Integrations
+- **Jira** — per-employee connection (site URL + API token), sync issues as tasks, key badges on cards
+- **Slack** — daily AI team digest via incoming webhook, manual trigger from admin panel
+- **Microsoft Teams** — daily AI team digest via Adaptive Cards webhook, manual trigger from admin panel
+
+### 🤖 AI Features
+- **Daily report** — AI-generated summary per employee (focus score, key apps, insights)
+- **Team digest** — AI-written per-employee summaries sent to Slack or Teams
+- **AI chatbot** — ask questions about team productivity in natural language
+
+### 🔐 Security
+- JWT auth, bcrypt passwords
+- Two roles: **admin** (full access) and **employee** (own data only)
+- AES-256-GCM encrypted screenshot storage on disk
+- Admin tracking lock — prevent employee from stopping tracker
+- Screenshot URLs are token-gated
+
+---
+
 ## Architecture
 
 ```
@@ -14,47 +68,6 @@ TeamMonitor/
 ├── server/               # Node.js + Express REST API (MySQL in prod, SQLite in dev)
 └── macos-agent/          # Swift/SwiftUI menu bar app for employee machines
 ```
-
----
-
-## Components
-
-### macOS Agent
-A native menu bar app that runs on employee machines. It:
-- Tracks active application usage (NSWorkspace)
-- Detects idle time (IOKit HIDIdleTime)
-- Captures periodic screenshots (encrypted AES-256-GCM before upload)
-- Syncs with Jira for issue-linked time tracking
-- Punches in/out sessions via the REST API
-
-Download the latest release from [GitHub Releases](https://github.com/parth0072/teammonitor/releases). The app is ad-hoc signed — right-click → Open on first launch if macOS blocks it.
-
-### Admin Panel
-A React web app for admins and employees.
-
-| Page | Access | Description |
-|------|--------|-------------|
-| Dashboard | All | KPI cards, 7-day chart, live session board |
-| Activity | All | Real-time session activity feed |
-| Productivity | All | Hour logs, productivity scores, custom policy |
-| Projects | All | Kanban board + Jira integration |
-| Reports | All | Analytics, app usage, hours by employee |
-| Screenshots | All | Filterable screenshot gallery (encrypted) |
-| Attendance | All | Punch-in/out records |
-| Employees | Admin | Employee list + add/edit/delete |
-| Timelines | Admin | Session timeline view |
-| Leaves | All | Leave requests and balances |
-
-### Backend (server/)
-Express REST API with JWT authentication and MySQL.
-
-- Auth: `POST /api/auth/login`, `POST /api/auth/register`, `GET /api/auth/me`
-- Sessions: punch-in/out, heartbeat, task hours, stats
-- Screenshots: AES-256-GCM encrypted upload and serve
-- Productivity: scores + custom app categorization rules
-- Projects/Tasks, Employees, Attendance, Leaves, Jira integration
-
-DB migrations run automatically on server startup — no manual SQL needed when pulling new code.
 
 ---
 
@@ -81,6 +94,11 @@ DB_NAME=teammonitor
 SCREENSHOT_ENCRYPTION_KEY=64_hex_chars_random_key
 BASE_URL=https://yourdomain.com
 PORT=3001
+
+# Optional integrations
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+TEAMS_WEBHOOK_URL=https://your-org.webhook.office.com/...
+OPENAI_API_KEY=sk-...
 ```
 
 Generate a screenshot encryption key:
@@ -93,7 +111,7 @@ Start the server:
 node index.js
 ```
 
-On first run, use the `/setup` page in the admin panel to create the initial admin account.
+On first run, use the `/setup` page in the admin panel to create the initial admin account. DB migrations run automatically on every startup — no manual SQL needed.
 
 ---
 
@@ -116,7 +134,6 @@ The React app is **pre-built and committed** to `server/public/`. cPanel serves 
 # After editing admin-panel/src/**:
 cd admin-panel
 npm run build
-rm -rf ../server/public/*
 cp -r dist/. ../server/public/
 cd ..
 git add admin-panel/src/ server/public/
@@ -143,6 +160,8 @@ git push origin v1.2.0
 
 The workflow builds `TeamMonitorAgent.app`, zips it, and publishes a GitHub Release at [github.com/parth0072/teammonitor/releases](https://github.com/parth0072/teammonitor/releases) in ~5–10 minutes.
 
+Download the latest release from [GitHub Releases](https://github.com/parth0072/teammonitor/releases). The app is ad-hoc signed — right-click → Open on first launch if macOS blocks it.
+
 ---
 
 ## macOS Permissions
@@ -153,16 +172,15 @@ The agent requires two permissions (macOS will prompt on first use):
 
 ---
 
-## Resetting the Database
-
-To wipe all data and start fresh, run `server/reset_database.sql` in phpMyAdmin → SQL tab.
-Then run `server/schema.sql` to recreate the tables, or just restart the Node app (migrations run automatically).
-
----
-
 ## Roles
 
 | Role | Access |
 |------|--------|
 | `admin` | Full access — manage employees, projects, view all data |
 | `employee` | Own data only — own sessions, screenshots, tasks, Jira |
+
+---
+
+## Resetting the Database
+
+To wipe all data and start fresh, run `server/reset_database.sql` in phpMyAdmin → SQL tab. Then restart the Node app — migrations recreate all tables automatically.
