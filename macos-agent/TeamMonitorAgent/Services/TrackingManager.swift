@@ -826,12 +826,16 @@ class TrackingManager: ObservableObject {
         lastActiveTask      = currentTask
         lastActiveJiraIssue = currentJiraIssue
 
-        MenuBarState.shared.isTracking   = false
-        MenuBarState.shared.isOnBreak    = false
-        MenuBarState.shared.todayMinutes = trackedMinutes
-
-        // Show resume prompt in the main window
-        showResumePrompt = true
+        // Defer @Published mutations to the next run-loop turn so they don't fire
+        // while SwiftUI is mid-render (avoids "Publishing changes from within view
+        // updates is not allowed" runtime warning).
+        let mins = trackedMinutes
+        DispatchQueue.main.async { [weak self] in
+            MenuBarState.shared.isTracking   = false
+            MenuBarState.shared.isOnBreak    = false
+            MenuBarState.shared.todayMinutes = mins
+            self?.showResumePrompt = true
+        }
 
         TMLog("[TrackingManager] Restored session \(state.sessionId) context (\(state.trackedMinutes) min) — showing resume prompt")
 
