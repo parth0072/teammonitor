@@ -259,6 +259,16 @@ class TrackingManager: ObservableObject {
         activityWatchTimer?.invalidate()
         let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             guard let self else { return }
+
+            // Safety self-stop: if we're actively tracking (not on any break) this watcher
+            // should not be running. Invalidate immediately — no IOKit call, zero overhead.
+            if self.isTracking && !self.isOnBreak {
+                self.activityWatchTimer?.invalidate()
+                self.activityWatchTimer = nil
+                return
+            }
+
+            // One IOKit registry read — takes ~microseconds, no allocation.
             let idle = IdleDetectionService.shared.systemIdleSecondsPublic()
 
             // Idle-triggered break: auto-resume when user activity detected
