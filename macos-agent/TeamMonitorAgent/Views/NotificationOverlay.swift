@@ -144,7 +144,6 @@ private struct NotificationCard: View {
     let onDismiss: () -> Void
 
     @State private var closeHovered = false
-    @State private var pulsing      = false
     @State private var progress:    Double = 1.0  // animates 1→0 via SwiftUI, no timer
 
     // Warning → amber; Resumed/info → emerald
@@ -164,7 +163,6 @@ private struct NotificationCard: View {
         .shadow(color: accent.opacity(note.isWarning ? 0.18 : 0.10), radius: 14, x: 0, y: 4)
         .padding(.horizontal, 4)
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) { pulsing = true }
             // Sweep progress bar 1→0 over autoDismiss seconds — pure SwiftUI, zero timer allocations
             if !note.persistent {
                 withAnimation(.linear(duration: NotificationOverlayManager.shared.autoDismiss)) { progress = 0 }
@@ -188,13 +186,6 @@ private struct NotificationCard: View {
 
     private var iconBadge: some View {
         ZStack {
-            // Outer glow ring (pulse for persistent)
-            if note.persistent {
-                Circle()
-                    .stroke(accent.opacity(pulsing ? 0.35 : 0.10), lineWidth: 2)
-                    .frame(width: 44, height: 44)
-                    .scaleEffect(pulsing ? 1.08 : 1.0)
-            }
             // Filled circle
             Circle()
                 .fill(
@@ -213,26 +204,9 @@ private struct NotificationCard: View {
 
     private var textBlock: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 7) {
-                Text(note.title)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
-
-                if note.persistent {
-                    HStack(spacing: 3) {
-                        Circle()
-                            .fill(accent)
-                            .frame(width: 4, height: 4)
-                            .opacity(pulsing ? 1 : 0.4)
-                        Text("LIVE")
-                            .font(.system(size: 9, weight: .heavy))
-                            .foregroundColor(accentSoft)
-                    }
-                    .padding(.horizontal, 6).padding(.vertical, 3)
-                    .background(accent.opacity(0.18))
-                    .clipShape(Capsule())
-                }
-            }
+            Text(note.title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.white)
 
             Text(note.message)
                 .font(.system(size: 12, weight: .regular))

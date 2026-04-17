@@ -296,8 +296,7 @@ class TrackingManager: ObservableObject {
                         return
                     }
                 }
-                if idle < 60, let stopped = self.stoppedTrackingAt,
-                   Date().timeIntervalSince(stopped) > 60 {  // at least 1 min break
+                if idle < 60, self.stoppedTrackingAt != nil {
                     self.handleActivityDetected(reason: "Activity after idle break")
                 }
                 return
