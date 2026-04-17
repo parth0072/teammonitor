@@ -293,6 +293,64 @@ router.get('/task-hours', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/sessions/task-sessions?date=YYYY-MM-DD&taskId=N|&jiraKey=X|&noTask=1
+// Returns every session for a specific task on a date, with punch-in/out times.
+router.get('/task-sessions', auth, adminOnly, async (req, res) => {
+  try {
+    const { date, taskId, jiraKey, noTask } = req.query;
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+
+    let where = 's.date = ?';
+    const params = [targetDate];
+
+    if (noTask === '1') {
+      where += ' AND s.task_id IS NULL AND (s.jira_issue_key IS NULL OR s.jira_issue_key = "")';
+    } else if (taskId) {
+      where += ' AND s.task_id = ?';
+      params.push(taskId);
+    } else if (jiraKey) {
+      where += ' AND s.jira_issue_key = ? AND s.task_id IS NULL';
+      params.push(jiraKey);
+    } else {
+      return res.status(400).json({ error: 'taskId, jiraKey, or noTask=1 required' });
+    }
+
+    const [rows] = await db.query(
+      `SELECT
+         s.id,
+         e.name        AS employee_name,
+         e.id          AS employee_id,
+         s.punch_in,
+         s.punch_out,
+         s.status,
+         LEAST(COALESCE(s.total_minutes, 0), 1440) AS total_minutes,
+         COALESCE(t.name, s.jira_issue_key, 'No Task') AS task_name,
+         s.task_id,
+         s.jira_issue_key,
+         t.description  AS task_description,
+         t.status       AS task_status
+       FROM sessions s
+       JOIN employees e ON e.id = s.employee_id
+       LEFT JOIN tasks t ON t.id = s.task_id
+       WHERE ${where}
+       ORDER BY s.punch_in ASC`,
+      params
+    );
+
+    // Compute live elapsed for active sessions
+    const now = new Date();
+    const sessions = rows.map(r => {
+      let minutes = Number(r.total_minutes) || 0;
+      if (r.status === 'active' && r.punch_in) {
+        minutes = Math.round((now - new Date(r.punch_in)) / 60000);
+      }
+      return { ...r, total_minutes: minutes };
+    });
+
+    res.json({ date: targetDate, sessions });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/sessions/team-overview?date=YYYY-MM-DD
 // Returns every active employee with their hours + task breakdown for the date.
 router.get('/team-overview', auth, adminOnly, async (req, res) => {

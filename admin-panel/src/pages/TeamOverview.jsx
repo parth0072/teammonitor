@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../api";
-import { format, subDays } from "date-fns";
+import { format, subDays, parseISO } from "date-fns";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,6 +35,191 @@ function buildTaskMap(members) {
     });
   });
   return Object.values(map).sort((a, b) => b.totalMinutes - a.totalMinutes);
+}
+
+// ── Task Detail Modal ─────────────────────────────────────────────────────────
+
+function fmt(dt) {
+  if (!dt) return "—";
+  try { return format(typeof dt === "string" ? parseISO(dt) : new Date(dt), "h:mm a"); }
+  catch { return "—"; }
+}
+
+function TaskDetailModal({ task, date, onClose }) {
+  const [sessions, setSessions] = useState(null);
+  const [loading,  setLoading]  = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = task.taskId
+      ? { taskId: task.taskId }
+      : task.jiraKey
+        ? { jiraKey: task.jiraKey }
+        : { noTask: "1" };
+    api.getTaskSessions(date, params)
+      .then(d => { setSessions(d.sessions); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [task, date]);
+
+  // Close on Escape
+  useEffect(() => {
+    const h = e => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const empNames = sessions ? [...new Set(sessions.map(s => s.employee_name))] : [];
+  const empColor = Object.fromEntries(empNames.map((n, i) => [n, COLORS[i % COLORS.length]]));
+
+  // Timeline: earliest start → latest end
+  const earliest = sessions?.length ? new Date(Math.min(...sessions.map(s => new Date(s.punch_in)))) : null;
+  const latest   = sessions?.length ? new Date(Math.max(...sessions.map(s => s.punch_out ? new Date(s.punch_out) : new Date()))) : null;
+  const spanMs   = earliest && latest ? latest - earliest : 0;
+
+  return (
+    <div onClick={onClose}
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:1000,
+               display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:680,
+                 maxHeight:"85vh", display:"flex", flexDirection:"column",
+                 boxShadow:"0 24px 60px rgba(0,0,0,0.25)" }}>
+
+        {/* Header */}
+        <div style={{ padding:"20px 24px", borderBottom:"1px solid #e2e8f0",
+                      display:"flex", alignItems:"flex-start", gap:14 }}>
+          <div style={{ width:40, height:40, borderRadius:10, background:"#1e293b",
+                        color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize:18, flexShrink:0 }}>📋</div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:16, fontWeight:700, color:"#1e293b",
+                          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {task.taskName}
+            </div>
+            {task.jiraKey && (
+              <span style={{ fontSize:11, color:"#3b82f6", fontWeight:700, background:"#eff6ff",
+                             padding:"2px 7px", borderRadius:4, marginTop:4, display:"inline-block" }}>
+                {task.jiraKey}
+              </span>
+            )}
+            {task.taskDescription && (
+              <div style={{ fontSize:12, color:"#64748b", marginTop:6, lineHeight:1.5 }}>
+                {task.taskDescription}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose}
+            style={{ background:"#f1f5f9", border:"none", borderRadius:8, width:32, height:32,
+                     cursor:"pointer", fontSize:16, color:"#64748b", flexShrink:0,
+                     display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
+          {loading && <div style={{ textAlign:"center", color:"#94a3b8", padding:40 }}>Loading…</div>}
+
+          {!loading && sessions && (
+            <>
+              {/* Summary KPIs */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
+                {[
+                  { label:"Total Time",    value: fmtMins(sessions.reduce((s,r) => s + r.total_minutes, 0)), icon:"⏱" },
+                  { label:"Contributors", value: empNames.length,                                            icon:"👥" },
+                  { label:"Sessions",     value: sessions.length,                                            icon:"📋" },
+                ].map(k => (
+                  <div key={k.label} style={{ background:"#f8fafc", borderRadius:10, padding:"12px 14px",
+                                              border:"1px solid #e2e8f0", textAlign:"center" }}>
+                    <div style={{ fontSize:20 }}>{k.icon}</div>
+                    <div style={{ fontSize:18, fontWeight:800, color:"#1e293b", marginTop:4 }}>{k.value}</div>
+                    <div style={{ fontSize:11, color:"#64748b" }}>{k.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Visual timeline bar */}
+              {spanMs > 0 && (
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase",
+                                letterSpacing:"0.06em", marginBottom:10 }}>Timeline</div>
+                  <div style={{ position:"relative" }}>
+                    {/* Track */}
+                    <div style={{ height:8, background:"#f1f5f9", borderRadius:4, marginBottom:6, position:"relative" }}>
+                      {sessions.map((s, i) => {
+                        const start = ((new Date(s.punch_in) - earliest) / spanMs) * 100;
+                        const end   = (((s.punch_out ? new Date(s.punch_out) : new Date()) - earliest) / spanMs) * 100;
+                        return (
+                          <div key={i} title={`${s.employee_name}: ${fmt(s.punch_in)} – ${fmt(s.punch_out)}`}
+                            style={{ position:"absolute", top:0, bottom:0,
+                                     left:`${start}%`, width:`${Math.max(end - start, 1)}%`,
+                                     background:empColor[s.employee_name], borderRadius:4, opacity:0.85 }} />
+                        );
+                      })}
+                    </div>
+                    {/* Time labels */}
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#94a3b8" }}>
+                      <span>{fmt(earliest)}</span>
+                      <span>{fmt(latest)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Session rows */}
+              <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase",
+                            letterSpacing:"0.06em", marginBottom:10 }}>Session Detail</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {sessions.map((s, i) => (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:12,
+                                        background:"#f8fafc", borderRadius:10, padding:"12px 14px",
+                                        border:"1px solid #e2e8f0" }}>
+                    {/* Avatar */}
+                    <div style={{ width:34, height:34, borderRadius:"50%", background:empColor[s.employee_name],
+                                  color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                                  fontSize:13, fontWeight:700, flexShrink:0 }}>
+                      {s.employee_name.charAt(0).toUpperCase()}
+                    </div>
+                    {/* Name */}
+                    <div style={{ width:110, fontSize:13, fontWeight:600, color:"#1e293b",
+                                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
+                      {s.employee_name}
+                    </div>
+                    {/* Start → End */}
+                    <div style={{ flex:1, fontSize:13, color:"#374151" }}>
+                      <span style={{ fontWeight:600 }}>{fmt(s.punch_in)}</span>
+                      <span style={{ color:"#94a3b8", margin:"0 6px" }}>→</span>
+                      {s.punch_out
+                        ? <span style={{ fontWeight:600 }}>{fmt(s.punch_out)}</span>
+                        : <span style={{ color:"#10b981", fontWeight:700 }}>Active now</span>}
+                    </div>
+                    {/* Duration */}
+                    <div style={{ fontSize:14, fontWeight:800, color:"#1e293b", flexShrink:0 }}>
+                      {fmtMins(s.total_minutes)}
+                    </div>
+                    {/* Status pill */}
+                    <div style={{ fontSize:10, fontWeight:700, flexShrink:0, padding:"2px 8px", borderRadius:20,
+                                  background: s.status === "active" ? "#d1fae5" : "#f1f5f9",
+                                  color:      s.status === "active" ? "#059669" : "#64748b" }}>
+                      {s.status === "active" ? "● Active" : "Done"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {sessions.length === 0 && (
+                <div style={{ textAlign:"center", color:"#94a3b8", padding:40 }}>No sessions found for this task</div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div style={{ padding:"14px 24px", borderTop:"1px solid #e2e8f0", textAlign:"right" }}>
+          <button onClick={onClose}
+            style={{ background:"#f1f5f9", border:"none", borderRadius:8, padding:"8px 20px",
+                     cursor:"pointer", fontSize:13, fontWeight:600, color:"#475569" }}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Summary strip ─────────────────────────────────────────────────────────────
@@ -178,7 +363,7 @@ function EmployeeCard({ member, rank }) {
 
 // ── By Task view ──────────────────────────────────────────────────────────────
 
-function TaskView({ members }) {
+function TaskView({ members, date, onSelectTask }) {
   const tasks = buildTaskMap(members);
   const maxMin = Math.max(...tasks.map(t => t.totalMinutes), 1);
 
@@ -198,7 +383,12 @@ function TaskView({ members }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       {tasks.filter(t => t.taskName !== "No Task" || tasks.length === 1).map((task, ti) => (
-        <div key={ti} style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden" }}>
+        <div key={ti}
+          onClick={() => onSelectTask(task)}
+          style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden",
+                   cursor:"pointer", transition:"box-shadow 0.15s, border-color 0.15s" }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor="#3b82f6"; e.currentTarget.style.boxShadow="0 4px 16px rgba(59,130,246,0.12)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor="#e2e8f0"; e.currentTarget.style.boxShadow="none"; }}>
           {/* Task header */}
           <div style={{ padding:"14px 20px", borderBottom:"1px solid #f1f5f9", background:"#f8fafc",
                         display:"flex", alignItems:"center", gap:12 }}>
@@ -222,6 +412,7 @@ function TaskView({ members }) {
             <div style={{ textAlign:"right", flexShrink:0 }}>
               <div style={{ fontSize:18, fontWeight:800, color:"#1e293b" }}>{fmtMins(task.totalMinutes)}</div>
               <div style={{ fontSize:11, color:"#64748b" }}>{task.employees.length} contributor{task.employees.length !== 1 ? "s" : ""}</div>
+              <div style={{ fontSize:10, color:"#3b82f6", marginTop:3 }}>↗ View details</div>
             </div>
           </div>
 
@@ -278,10 +469,11 @@ function TaskView({ members }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function TeamOverview() {
-  const [date,    setDate]    = useState(DATE_OPTIONS[0].value);
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [tab,     setTab]     = useState("tasks"); // "tasks" | "employees"
+  const [date,         setDate]         = useState(DATE_OPTIONS[0].value);
+  const [data,         setData]         = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [tab,          setTab]          = useState("tasks"); // "tasks" | "employees"
+  const [selectedTask, setSelectedTask] = useState(null);
   const autoRef = useRef(null);
 
   const load = useCallback(async (d) => {
@@ -352,7 +544,7 @@ export default function TeamOverview() {
               <div style={{ marginTop:12, fontSize:16, fontWeight:600, color:"#64748b" }}>No tracked time for this date</div>
             </div>
           ) : tab === "tasks" ? (
-            <TaskView members={active} />
+            <TaskView members={active} date={date} onSelectTask={setSelectedTask} />
           ) : (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:16 }}>
               {[...members].sort((a, b) => b.total_minutes - a.total_minutes).map((m, i) => (
@@ -361,6 +553,14 @@ export default function TeamOverview() {
             </div>
           )}
         </>
+      )}
+
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          date={date}
+          onClose={() => setSelectedTask(null)}
+        />
       )}
     </div>
   );
