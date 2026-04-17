@@ -45,7 +45,7 @@ function fmt(dt) {
   catch { return "—"; }
 }
 
-function TaskDetailModal({ task, date, onClose }) {
+function TaskDetailModal({ task, onClose }) {
   const [sessions, setSessions] = useState(null);
   const [loading,  setLoading]  = useState(true);
 
@@ -56,10 +56,11 @@ function TaskDetailModal({ task, date, onClose }) {
       : task.jiraKey
         ? { jiraKey: task.jiraKey }
         : { noTask: "1" };
-    api.getTaskSessions(date, params)
+    // No date — fetch full history for this task
+    api.getTaskSessions(params)
       .then(d => { setSessions(d.sessions); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [task, date]);
+  }, [task]);
 
   // Close on Escape
   useEffect(() => {
@@ -164,50 +165,76 @@ function TaskDetailModal({ task, date, onClose }) {
                 </div>
               )}
 
-              {/* Session rows */}
+              {/* Session rows grouped by date */}
               <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase",
-                            letterSpacing:"0.06em", marginBottom:10 }}>Session Detail</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                {sessions.map((s, i) => (
-                  <div key={i} style={{ display:"flex", alignItems:"center", gap:12,
-                                        background:"#f8fafc", borderRadius:10, padding:"12px 14px",
-                                        border:"1px solid #e2e8f0" }}>
-                    {/* Avatar */}
-                    <div style={{ width:34, height:34, borderRadius:"50%", background:empColor[s.employee_name],
-                                  color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
-                                  fontSize:13, fontWeight:700, flexShrink:0 }}>
-                      {s.employee_name.charAt(0).toUpperCase()}
-                    </div>
-                    {/* Name */}
-                    <div style={{ width:110, fontSize:13, fontWeight:600, color:"#1e293b",
-                                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
-                      {s.employee_name}
-                    </div>
-                    {/* Start → End */}
-                    <div style={{ flex:1, fontSize:13, color:"#374151" }}>
-                      <span style={{ fontWeight:600 }}>{fmt(s.punch_in)}</span>
-                      <span style={{ color:"#94a3b8", margin:"0 6px" }}>→</span>
-                      {s.punch_out
-                        ? <span style={{ fontWeight:600 }}>{fmt(s.punch_out)}</span>
-                        : <span style={{ color:"#10b981", fontWeight:700 }}>Active now</span>}
-                    </div>
-                    {/* Duration */}
-                    <div style={{ fontSize:14, fontWeight:800, color:"#1e293b", flexShrink:0 }}>
-                      {fmtMins(s.total_minutes)}
-                    </div>
-                    {/* Status pill */}
-                    <div style={{ fontSize:10, fontWeight:700, flexShrink:0, padding:"2px 8px", borderRadius:20,
-                                  background: s.status === "active" ? "#d1fae5" : "#f1f5f9",
-                                  color:      s.status === "active" ? "#059669" : "#64748b" }}>
-                      {s.status === "active" ? "● Active" : "Done"}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                            letterSpacing:"0.06em", marginBottom:10 }}>All Sessions</div>
 
               {sessions.length === 0 && (
                 <div style={{ textAlign:"center", color:"#94a3b8", padding:40 }}>No sessions found for this task</div>
               )}
+
+              {(() => {
+                // Group by date
+                const byDate = {};
+                for (const s of sessions) {
+                  const d = s.date || s.punch_in?.slice(0, 10) || "Unknown";
+                  if (!byDate[d]) byDate[d] = [];
+                  byDate[d].push(s);
+                }
+                return Object.entries(byDate).map(([d, rows]) => {
+                  const dayTotal = rows.reduce((acc, r) => acc + r.total_minutes, 0);
+                  let dayLabel;
+                  try {
+                    const today = format(new Date(), "yyyy-MM-dd");
+                    const yest  = format(subDays(new Date(), 1), "yyyy-MM-dd");
+                    dayLabel = d === today ? "Today" : d === yest ? "Yesterday"
+                      : format(parseISO(d), "EEE, MMM d yyyy");
+                  } catch { dayLabel = d; }
+
+                  return (
+                    <div key={d} style={{ marginBottom:16 }}>
+                      {/* Date header */}
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                                    marginBottom:8 }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:"#475569" }}>{dayLabel}</div>
+                        <div style={{ fontSize:12, fontWeight:700, color:"#1e293b" }}>{fmtMins(dayTotal)} total</div>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                        {rows.map((s, i) => (
+                          <div key={i} style={{ display:"flex", alignItems:"center", gap:12,
+                                                background:"#f8fafc", borderRadius:10, padding:"11px 14px",
+                                                border:"1px solid #e2e8f0" }}>
+                            <div style={{ width:32, height:32, borderRadius:"50%", background:empColor[s.employee_name],
+                                          color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                                          fontSize:12, fontWeight:700, flexShrink:0 }}>
+                              {s.employee_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div style={{ width:100, fontSize:13, fontWeight:600, color:"#1e293b",
+                                          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
+                              {s.employee_name}
+                            </div>
+                            <div style={{ flex:1, fontSize:13, color:"#374151" }}>
+                              <span style={{ fontWeight:600 }}>{fmt(s.punch_in)}</span>
+                              <span style={{ color:"#94a3b8", margin:"0 6px" }}>→</span>
+                              {s.punch_out
+                                ? <span style={{ fontWeight:600 }}>{fmt(s.punch_out)}</span>
+                                : <span style={{ color:"#10b981", fontWeight:700 }}>Active now</span>}
+                            </div>
+                            <div style={{ fontSize:14, fontWeight:800, color:"#1e293b", flexShrink:0 }}>
+                              {fmtMins(s.total_minutes)}
+                            </div>
+                            <div style={{ fontSize:10, fontWeight:700, flexShrink:0, padding:"2px 8px", borderRadius:20,
+                                          background: s.status === "active" ? "#d1fae5" : "#f1f5f9",
+                                          color:      s.status === "active" ? "#059669" : "#64748b" }}>
+                              {s.status === "active" ? "● Active" : "Done"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </>
           )}
         </div>
@@ -558,7 +585,6 @@ export default function TeamOverview() {
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
-          date={date}
           onClose={() => setSelectedTask(null)}
         />
       )}
