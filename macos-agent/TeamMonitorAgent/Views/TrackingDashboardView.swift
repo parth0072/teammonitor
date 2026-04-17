@@ -93,13 +93,18 @@ struct TrackingDashboardView: View {
             case .newTask:
                 NewTaskView(projects: projects, onCreated: { loadTasks() })
             case .taskPicker:
-                TaskPickerView(tasks: myTasks, jiraIssues: jiraIssues, onPick: { task in
-                    activeSheet = nil
-                    Task { @MainActor in await manager.punchIn(task: task) }
-                }, onPickJira: { issue in
-                    activeSheet = nil
-                    Task { @MainActor in await manager.punchIn(jiraIssue: issue) }
-                })
+                TaskPickerView(
+                    tasks: myTasks,
+                    jiraIssues: jiraIssues,
+                    recentTaskIds: manager.recentTaskIds,
+                    recentJiraKeys: manager.recentJiraKeys,
+                    onPick: { task in
+                        activeSheet = nil
+                        Task { @MainActor in await manager.punchIn(task: task) }
+                    }, onPickJira: { issue in
+                        activeSheet = nil
+                        Task { @MainActor in await manager.punchIn(jiraIssue: issue) }
+                    })
             case .settings:
                 SettingsView()
             case .bugReport:

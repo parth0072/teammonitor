@@ -85,11 +85,11 @@ router.get('/tasks/mine', auth, async (req, res) => {
        FROM tasks t
        JOIN projects p ON t.project_id = p.id
        LEFT JOIN employees e ON t.assigned_to = e.id
-       WHERE (t.assigned_to = ? OR t.created_by = ? OR t.assigned_to IS NULL)
+       WHERE t.assigned_to = ?
          AND t.status != 'done'
          AND p.status = 'active'
-       ORDER BY t.status ASC, t.created_at DESC`,
-      [req.user.id, req.user.id]
+       ORDER BY t.created_at DESC`,
+      [req.user.id]
     );
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
