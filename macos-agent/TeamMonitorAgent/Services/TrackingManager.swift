@@ -1035,10 +1035,12 @@ class TrackingManager: ObservableObject {
                 let delivered = self.pendingDeliveredCommandIds
                 self.hasScreenPermission        = perm
                 self.pendingDeliveredCommandIds = []
+                let idle = self.isIdle || self.isOnBreak
                 Task {
                     if let resp = try? await self.api.heartbeat(
                         sessionId: sessionId, totalMinutes: mins,
-                        screenPermission: perm, deliveredCommandIds: delivered) {
+                        screenPermission: perm, isIdle: idle,
+                        deliveredCommandIds: delivered) {
                         await self.handleHeartbeatResponse(resp)
                     }
                 }

@@ -430,12 +430,13 @@ class APIService: ObservableObject {
     }
 
     func heartbeat(sessionId: Int, totalMinutes: Int, screenPermission: Bool = true,
-                   deliveredCommandIds: [Int] = []) async throws -> HeartbeatResponse {
+                   isIdle: Bool = false, deliveredCommandIds: [Int] = []) async throws -> HeartbeatResponse {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let body: [String: Any] = [
             "totalMinutes":        totalMinutes,
             "screenPermission":    screenPermission,
             "agentVersion":        version,
+            "isIdle":              isIdle,
             "deliveredCommandIds": deliveredCommandIds,
         ]
         return try await put("/sessions/\(sessionId)/heartbeat", body: body)

@@ -90,13 +90,20 @@ router.put('/:id/punch-out', auth, async (req, res) => {
 // PUT /api/sessions/:id/heartbeat  – update running minutes; return pending admin commands
 router.put('/:id/heartbeat', auth, async (req, res) => {
   try {
-    const { totalMinutes, screenPermission, agentVersion, deliveredCommandIds = [] } = req.body;
+    const { totalMinutes, screenPermission, agentVersion, isIdle, deliveredCommandIds = [] } = req.body;
     await db.query('UPDATE sessions SET total_minutes=?, last_heartbeat_at=NOW() WHERE id=? AND employee_id=?',
       [totalMinutes, req.params.id, req.user.id]);
     const empUpdates = [];
     const empValues  = [];
     if (screenPermission !== undefined) { empUpdates.push('screen_permission=?'); empValues.push(screenPermission ? 1 : 0); }
     if (agentVersion)                   { empUpdates.push('agent_version=?');     empValues.push(agentVersion); }
+    if (isIdle !== undefined) {
+      empUpdates.push('is_idle=?');
+      empValues.push(isIdle ? 1 : 0);
+      // Set idle_since when transitioning to idle; clear it when resuming
+      empUpdates.push('idle_since=?');
+      empValues.push(isIdle ? new Date() : null);
+    }
     if (empUpdates.length) {
       empValues.push(req.user.id);
       await db.query(`UPDATE employees SET ${empUpdates.join(', ')} WHERE id=?`, empValues);
@@ -363,15 +370,17 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
 
-    // Hours + session count per employee
+    // Hours + session count per employee (+ real-time idle state from last heartbeat)
     const [hours] = await db.query(
       `SELECT s.employee_id, e.name,
               SUM(LEAST(COALESCE(s.total_minutes,0), 1440)) AS total_minutes,
-              COUNT(*)                                       AS session_count
+              COUNT(*)                                       AS session_count,
+              e.is_idle, e.idle_since,
+              MAX(s.last_heartbeat_at)                       AS last_heartbeat_at
        FROM sessions s
        JOIN employees e ON e.id = s.employee_id
        WHERE s.date = ? AND e.is_active = 1
-       GROUP BY s.employee_id, e.name
+       GROUP BY s.employee_id, e.name, e.is_idle, e.idle_since
        ORDER BY total_minutes DESC`, [date]
     );
 
@@ -410,16 +419,23 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
     }
     const actMap = Object.fromEntries(activity.map(a => [a.employee_id, a.active_seconds]));
 
+    const now = new Date();
     const members = hours.map(h => {
       const activeSec = actMap[h.employee_id] || 0;
       const productive_percent = h.total_minutes > 0
         ? Math.min(100, Math.round(activeSec / (h.total_minutes * 60) * 100)) : 0;
+      // Treat as idle if agent reported idle, but only if heartbeat was recent (< 10 min ago)
+      const heartbeatAge = h.last_heartbeat_at
+        ? (now - new Date(h.last_heartbeat_at)) / 60000 : 999;
+      const is_idle = !!h.is_idle && heartbeatAge < 10;
       return {
         employee_id:        h.employee_id,
         name:               h.name,
         total_minutes:      Number(h.total_minutes) || 0,
         session_count:      Number(h.session_count) || 0,
         productive_percent,
+        is_idle,
+        idle_since:         is_idle ? h.idle_since : null,
         tasks:              taskMap[h.employee_id] || [],
       };
     });
@@ -429,7 +445,7 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
     const seenIds = new Set(members.map(m => m.employee_id));
     for (const e of allEmp) {
       if (!seenIds.has(e.id)) {
-        members.push({ employee_id: e.id, name: e.name, total_minutes: 0, session_count: 0, productive_percent: 0, tasks: [] });
+        members.push({ employee_id: e.id, name: e.name, total_minutes: 0, session_count: 0, productive_percent: 0, is_idle: false, idle_since: null, tasks: [] });
       }
     }
 

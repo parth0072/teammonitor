@@ -355,17 +355,28 @@ function EmployeeCard({ member, rank }) {
   const pc = productivityColor(member.productive_percent);
   const hasData = member.total_minutes > 0;
   return (
-    <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden", opacity: hasData ? 1 : 0.55 }}>
-      <div style={{ padding:"14px 16px", borderBottom:"1px solid #f1f5f9", background:"#f8fafc",
+    <div style={{ background:"#fff", border:`1px solid ${member.is_idle ? "#fcd34d" : "#e2e8f0"}`, borderRadius:12, overflow:"hidden", opacity: hasData ? 1 : 0.55 }}>
+      <div style={{ padding:"14px 16px", borderBottom:"1px solid #f1f5f9", background: member.is_idle ? "#fffbeb" : "#f8fafc",
                     display:"flex", alignItems:"center", gap:12 }}>
-        <div style={{ width:36, height:36, borderRadius:"50%", background:COLORS[(rank-1)%COLORS.length],
-                      color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
-                      fontSize:14, fontWeight:700, flexShrink:0 }}>
-          {member.name.charAt(0).toUpperCase()}
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <div style={{ width:36, height:36, borderRadius:"50%", background:COLORS[(rank-1)%COLORS.length],
+                        color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize:14, fontWeight:700 }}>
+            {member.name.charAt(0).toUpperCase()}
+          </div>
+          {/* Online/idle dot */}
+          {hasData && (
+            <div style={{ position:"absolute", bottom:0, right:0, width:10, height:10, borderRadius:"50%",
+                          background: member.is_idle ? "#f59e0b" : "#10b981",
+                          border:"2px solid #fff" }} />
+          )}
         </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{member.name}</div>
-          <div style={{ fontSize:12, color:"#64748b", marginTop:1 }}>{member.session_count} session{member.session_count !== 1 ? "s" : ""}</div>
+          <div style={{ fontSize:12, color:"#64748b", marginTop:1 }}>
+            {member.session_count} session{member.session_count !== 1 ? "s" : ""}
+            {member.is_idle && <span style={{ marginLeft:8, color:"#d97706", fontWeight:600 }}>· Idle</span>}
+          </div>
         </div>
         <div style={{ textAlign:"right", flexShrink:0 }}>
           <div style={{ fontSize:18, fontWeight:800, color: hasData ? "#1e293b" : "#94a3b8" }}>{fmtMins(member.total_minutes)}</div>

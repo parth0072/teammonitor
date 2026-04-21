@@ -13,6 +13,7 @@ class AppTrackingService: ObservableObject {
     private var pollTimer: Timer?
     private var lastApp: ActiveAppInfo?
     private var lastAppStart: Date = Date()
+    private var lastLoggedAt: Date = Date()   // tracks when the current segment was last flushed
 
     // Called when an app session ends: (appName, windowTitle, startTime, endTime)
     var onAppChange: ((String, String, Date, Date) -> Void)?
@@ -33,9 +34,9 @@ class AppTrackingService: ObservableObject {
         let ownBundleId = Bundle.main.bundleIdentifier ?? ""
         if let last = lastApp {
             let now = Date()
-            let duration = Int(now.timeIntervalSince(lastAppStart))
+            let duration = Int(now.timeIntervalSince(lastLoggedAt))
             if duration > 2 && last.bundleId != ownBundleId {
-                onAppChange?(last.appName, last.windowTitle, lastAppStart, now)
+                onAppChange?(last.appName, last.windowTitle, lastLoggedAt, now)
             }
         }
         pollTimer?.invalidate()
@@ -46,33 +47,50 @@ class AppTrackingService: ObservableObject {
     // MARK: - Polling
 
     private func poll() {
+        let now = Date()
         guard let frontApp = NSWorkspace.shared.frontmostApplication else { return }
-        let appName = frontApp.localizedName ?? frontApp.bundleIdentifier ?? "Unknown"
+        let appName    = frontApp.localizedName ?? frontApp.bundleIdentifier ?? "Unknown"
         let windowTitle = getWindowTitle(for: frontApp)
 
         DispatchQueue.main.async {
-            self.currentApp = appName
+            self.currentApp    = appName
             self.currentWindow = windowTitle
         }
 
         let newInfo = ActiveAppInfo(
-            appName: appName,
-            bundleId: frontApp.bundleIdentifier ?? "",
+            appName:     appName,
+            bundleId:    frontApp.bundleIdentifier ?? "",
             windowTitle: windowTitle,
-            timestamp: Date()
+            timestamp:   now
         )
 
-        // App changed — log the previous one (skip our own app)
         let ownBundleId = Bundle.main.bundleIdentifier ?? ""
-        if let last = lastApp, last.appName != newInfo.appName || last.windowTitle != newInfo.windowTitle {
-            let now = Date()
-            let duration = Int(now.timeIntervalSince(lastAppStart))
-            if duration > 5 && last.bundleId != ownBundleId {
-                onAppChange?(last.appName, last.windowTitle, lastAppStart, now)
+
+        guard let last = lastApp else {
+            // First poll — just record start
+            lastApp       = newInfo
+            lastAppStart  = now
+            lastLoggedAt  = now
+            return
+        }
+
+        let appChanged = last.appName != newInfo.appName || last.windowTitle != newInfo.windowTitle
+
+        if appChanged {
+            // App switched — flush previous segment from lastLoggedAt → now
+            let duration = Int(now.timeIntervalSince(lastLoggedAt))
+            if duration > 2 && last.bundleId != ownBundleId {
+                onAppChange?(last.appName, last.windowTitle, lastLoggedAt, now)
             }
             lastAppStart = now
-        } else if lastApp == nil {
-            lastAppStart = Date()
+            lastLoggedAt = now
+        } else {
+            // Same app — flush the elapsed chunk so it counts even if app never changes
+            let duration = Int(now.timeIntervalSince(lastLoggedAt))
+            if duration > 5 && newInfo.bundleId != ownBundleId {
+                onAppChange?(newInfo.appName, newInfo.windowTitle, lastLoggedAt, now)
+                lastLoggedAt = now   // advance the log pointer; keep lastAppStart for continuity
+            }
         }
 
         lastApp = newInfo

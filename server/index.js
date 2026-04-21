@@ -163,6 +163,10 @@ async function runMigrations() {
        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
      )`,
 
+    // Real-time idle state — updated by heartbeat, shown in admin Team Overview
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_idle    TINYINT(1) DEFAULT 0`,
+    `ALTER TABLE employees ADD COLUMN IF NOT EXISTS idle_since DATETIME   DEFAULT NULL`,
+
     // Organisation-wide key/value settings (admins only)
     `CREATE TABLE IF NOT EXISTS org_settings (
        \`key\`       VARCHAR(100) NOT NULL PRIMARY KEY,
