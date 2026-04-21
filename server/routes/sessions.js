@@ -191,9 +191,9 @@ router.get('/', auth, adminOnly, async (req, res) => {
     const [rows] = await db.query(
       `SELECT s.*,
               CASE WHEN s.status='active'
-                -- Only add heartbeat lag up to 15 min; beyond that treat as offline (stale session)
+                -- Only add heartbeat lag up to 5 min; beyond that treat as offline (stale session)
                 THEN COALESCE(s.total_minutes, 0)
-                   + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()), 0), 15)
+                   + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()), 0), 5)
                 ELSE COALESCE(s.total_minutes, 0)
               END AS total_minutes,
               e.name AS employee_name, e.department, t.name AS task_name
@@ -340,13 +340,13 @@ router.get('/task-sessions', auth, adminOnly, async (req, res) => {
       params
     );
 
-    // For active sessions use stored total_minutes (kept current by heartbeats) + max 15 min lag
+    // For active sessions use stored total_minutes (kept current by heartbeats) + max 5 min lag
     const now = new Date();
     const sessions = rows.map(r => {
       let minutes = Number(r.total_minutes) || 0;
       if (r.status === 'active' && r.punch_in) {
         const lagMins = r.last_heartbeat_at
-          ? Math.min(15, Math.round((now - new Date(r.last_heartbeat_at)) / 60000))
+          ? Math.min(5, Math.round((now - new Date(r.last_heartbeat_at)) / 60000))
           : 0;
         minutes = (Number(r.total_minutes) || 0) + lagMins;
       }
@@ -447,7 +447,7 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
     const [rows] = await db.query(
       `SELECT date,
         SUM(CASE WHEN status = 'active'
-              THEN COALESCE(total_minutes, 0) + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()), 0), 15)
+              THEN COALESCE(total_minutes, 0) + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()), 0), 5)
               ELSE total_minutes END) AS total_minutes,
         COUNT(*) AS session_count
        FROM sessions
