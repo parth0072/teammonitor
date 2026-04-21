@@ -252,7 +252,16 @@ async function saveMemory(employeeId, date, { totalTrackedMinutes, productivePer
 
 async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   const [sessions] = await db.query(
-    `SELECT s.id, s.date, s.punch_in, s.punch_out, s.total_minutes, s.status,
+    `SELECT s.id, s.date, s.punch_in, s.punch_out, s.status,
+            -- Cap per-session at 1440 min (24h); active sessions get max 15 min heartbeat lag
+            LEAST(
+              CASE WHEN s.status = 'active'
+                THEN COALESCE(s.total_minutes, 0)
+                   + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()), 0), 15)
+                ELSE COALESCE(s.total_minutes, 0)
+              END,
+              1440
+            ) AS total_minutes,
             COALESCE(t.name, tj.name) AS task_name,
             s.jira_issue_key, s.jira_issue_summary
      FROM sessions s
