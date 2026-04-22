@@ -364,10 +364,10 @@ function EmployeeCard({ member, rank }) {
                         fontSize:14, fontWeight:700 }}>
             {member.name.charAt(0).toUpperCase()}
           </div>
-          {/* Online/idle dot */}
+          {/* Status dot: green = online+active, amber = online+idle, gray = offline/asleep */}
           {hasData && (
             <div style={{ position:"absolute", bottom:0, right:0, width:10, height:10, borderRadius:"50%",
-                          background: member.is_idle ? "#f59e0b" : "#10b981",
+                          background: !member.is_online ? "#94a3b8" : member.is_idle ? "#f59e0b" : "#10b981",
                           border:"2px solid #fff" }} />
           )}
         </div>
@@ -375,7 +375,8 @@ function EmployeeCard({ member, rank }) {
           <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{member.name}</div>
           <div style={{ fontSize:12, color:"#64748b", marginTop:1 }}>
             {member.session_count} session{member.session_count !== 1 ? "s" : ""}
-            {member.is_idle && <span style={{ marginLeft:8, color:"#d97706", fontWeight:600 }}>· Idle</span>}
+            {!member.is_online && hasData && <span style={{ marginLeft:8, color:"#94a3b8", fontWeight:600 }}>· Offline</span>}
+            {member.is_online && member.is_idle && <span style={{ marginLeft:8, color:"#d97706", fontWeight:600 }}>· Idle</span>}
           </div>
         </div>
         <div style={{ textAlign:"right", flexShrink:0 }}>

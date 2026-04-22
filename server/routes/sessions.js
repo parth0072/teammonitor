@@ -198,9 +198,12 @@ router.get('/', auth, adminOnly, async (req, res) => {
     const [rows] = await db.query(
       `SELECT s.*,
               CASE WHEN s.status='active'
-                -- Only add heartbeat lag up to 5 min; beyond that treat as offline (stale session)
+                -- Only add heartbeat lag if agent is still live (last heartbeat < 5 min ago)
+                -- If no heartbeat for 5+ min the laptop is asleep/offline — freeze at stored value
                 THEN COALESCE(s.total_minutes, 0)
-                   + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()), 0), 5)
+                   + CASE WHEN TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()) < 5
+                           THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()), 0), 5)
+                           ELSE 0 END
                 ELSE COALESCE(s.total_minutes, 0)
               END AS total_minutes,
               e.name AS employee_name, e.department, t.name AS task_name
@@ -427,7 +430,8 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
       // Treat as idle if agent reported idle, but only if heartbeat was recent (< 10 min ago)
       const heartbeatAge = h.last_heartbeat_at
         ? (now - new Date(h.last_heartbeat_at)) / 60000 : 999;
-      const is_idle = !!h.is_idle && heartbeatAge < 10;
+      const is_idle   = !!h.is_idle && heartbeatAge < 5;
+      const is_online = heartbeatAge < 5;   // no heartbeat for 5+ min → offline/asleep
       return {
         employee_id:        h.employee_id,
         name:               h.name,
@@ -435,6 +439,7 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
         session_count:      Number(h.session_count) || 0,
         productive_percent,
         is_idle,
+        is_online,
         idle_since:         is_idle ? h.idle_since : null,
         tasks:              taskMap[h.employee_id] || [],
       };
@@ -445,7 +450,7 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
     const seenIds = new Set(members.map(m => m.employee_id));
     for (const e of allEmp) {
       if (!seenIds.has(e.id)) {
-        members.push({ employee_id: e.id, name: e.name, total_minutes: 0, session_count: 0, productive_percent: 0, is_idle: false, idle_since: null, tasks: [] });
+        members.push({ employee_id: e.id, name: e.name, total_minutes: 0, session_count: 0, productive_percent: 0, is_idle: false, is_online: false, idle_since: null, tasks: [] });
       }
     }
 
@@ -463,7 +468,10 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
     const [rows] = await db.query(
       `SELECT date,
         SUM(CASE WHEN status = 'active'
-              THEN COALESCE(total_minutes, 0) + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()), 0), 5)
+              THEN COALESCE(total_minutes, 0)
+                 + CASE WHEN TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()) < 5
+                         THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()), 0), 5)
+                         ELSE 0 END
               ELSE total_minutes END) AS total_minutes,
         COUNT(*) AS session_count
        FROM sessions
