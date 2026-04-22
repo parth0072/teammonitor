@@ -62,8 +62,20 @@ function computeBreaks(sessions) {
 
 // ── rule-based fallback ───────────────────────────────────────────────────────
 
-function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets, productivePercent }) {
-  const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
+function calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks = [] }) {
+  // Base: productive % scaled to 1–10
+  const base = Math.round(productivePercent / 10);
+  // Bonus: longer avg sessions = more sustained focus
+  const avgSessionMins = sessions.length > 0 ? Math.round(totalTrackedMinutes / sessions.length) : 0;
+  const sessionBonus = avgSessionMins >= 90 ? 1 : avgSessionMins >= 45 ? 0 : -1;
+  // Penalty: too many breaks = fragmented day (>6 breaks penalised, >9 penalised more)
+  const breakCount = breaks.length;
+  const breakPenalty = breakCount > 9 ? 2 : breakCount > 6 ? 1 : 0;
+  return Math.min(10, Math.max(1, base + sessionBonus - breakPenalty));
+}
+
+function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets, productivePercent, breaks = [] }) {
+  const focusScore = calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks });
   const topApp     = topApps[0];
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
@@ -91,7 +103,7 @@ function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets,
 
 async function buildAiSummary(data) {
   const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent, breaks = [], historyRows = [], idleLogs = [] } = data;
-  const focusScore = Math.min(10, Math.round((productivePercent + Math.min(sessions.length * 5, 20)) / 12));
+  const focusScore = calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks });
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
   if (!process.env.GROQ_API_KEY) return buildRuleSummary(data);
@@ -185,7 +197,7 @@ ${idleLines}
 
 Overall stats:
 - Total tracked: ${fmtDuration(totalTrackedMinutes)}, active app time: ${fmtDuration(Math.round(totalActiveSeconds / 60))}
-- Productive ratio: ${productivePercent}%, focus score: ${focusScore}/10
+- Productive ratio: ${productivePercent}%
 - Top apps: ${topApps.map(a => `${a.app_name} (${fmtDuration(Math.round(a.total_seconds / 60))})`).join(', ') || 'none'}
 
 Historical consistency:
@@ -532,7 +544,9 @@ router.get('/team', auth, adminOnly, async (req, res) => {
       const il = idleMap[emp.id] || { idle_count: 0, idle_seconds: 0 };
       const productive_percent = s.total_minutes > 0
         ? Math.min(100, Math.round(a.active_seconds / (s.total_minutes * 60) * 100)) : 0;
-      const focus_score = Math.min(10, Math.round((productive_percent + Math.min(s.session_count * 5, 20)) / 12));
+      const avgSessionMins = s.session_count > 0 ? Math.round(s.total_minutes / s.session_count) : 0;
+      const sessionBonus   = avgSessionMins >= 90 ? 1 : avgSessionMins >= 45 ? 0 : -1;
+      const focus_score    = Math.min(10, Math.max(1, Math.round(productive_percent / 10) + sessionBonus));
       return {
         employee_id:         emp.id,
         name:                emp.name,
