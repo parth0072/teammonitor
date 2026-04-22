@@ -230,15 +230,18 @@ class TrackingManager: ObservableObject {
 
         // On wake: check for day change first (Mac may have slept over midnight),
         // then handle activity — but only if the day did NOT change.
-        // If day changed the session was already punched out; calling handleActivityDetected
-        // while isTracking is still true (punchOut is async) would auto-resume the old session.
+        // We delay 3 s to let any in-flight punchOut Task finish: the Task was
+        // dispatched before sleep but may have been suspended mid-flight by the OS.
+        // Without the delay, handleActivityDetected fires while isTracking is still
+        // true and immediately bails out via the guard, so no resume prompt shows.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard let self else { return }
             let dayChanged = self.checkDayChange()
-            if !dayChanged {
-                self.handleActivityDetected(reason: "Mac woke from sleep")
+            guard !dayChanged else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                self?.handleActivityDetected(reason: "Mac woke from sleep")
             }
         }
 
