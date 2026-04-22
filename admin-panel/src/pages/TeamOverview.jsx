@@ -584,7 +584,8 @@ export default function TeamOverview() {
 
   useEffect(() => {
     clearInterval(autoRef.current);
-    if (date === DATE_OPTIONS[0].value) autoRef.current = setInterval(() => load(date), 60_000);
+    // Refresh every 30s when viewing today so offline/idle state stays current
+    if (date === DATE_OPTIONS[0].value) autoRef.current = setInterval(() => load(date), 30_000);
     return () => clearInterval(autoRef.current);
   }, [date, load]);
 
