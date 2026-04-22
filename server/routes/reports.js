@@ -533,20 +533,27 @@ router.get('/team', auth, adminOnly, async (req, res) => {
       `SELECT employee_id, COUNT(*) AS idle_count, SUM(duration_seconds) AS idle_seconds
        FROM idle_logs WHERE date = ? GROUP BY employee_id`, [date]
     );
+    // AI-generated focus scores saved by individual daily reports
+    const [allMemory] = await db.query(
+      `SELECT employee_id, focus_score FROM employee_daily_memory WHERE date = ?`, [date]
+    );
 
-    const sessMap = Object.fromEntries(allSessions.map(r => [r.employee_id, r]));
-    const actMap  = Object.fromEntries(allActivity.map(r => [r.employee_id, r]));
-    const idleMap = Object.fromEntries(allIdle.map(r => [r.employee_id, r]));
+    const sessMap   = Object.fromEntries(allSessions.map(r => [r.employee_id, r]));
+    const actMap    = Object.fromEntries(allActivity.map(r => [r.employee_id, r]));
+    const idleMap   = Object.fromEntries(allIdle.map(r => [r.employee_id, r]));
+    const memoryMap = Object.fromEntries(allMemory.map(r => [r.employee_id, r]));
 
     const members = employees.map(emp => {
-      const s = sessMap[emp.id] || { total_minutes: 0, session_count: 0 };
-      const a = actMap[emp.id]  || { active_seconds: 0 };
-      const il = idleMap[emp.id] || { idle_count: 0, idle_seconds: 0 };
+      const s  = sessMap[emp.id]   || { total_minutes: 0, session_count: 0 };
+      const a  = actMap[emp.id]    || { active_seconds: 0 };
+      const il = idleMap[emp.id]   || { idle_count: 0, idle_seconds: 0 };
+      const m  = memoryMap[emp.id];
       const productive_percent = s.total_minutes > 0
         ? Math.min(100, Math.round(a.active_seconds / (s.total_minutes * 60) * 100)) : 0;
-      const avgSessionMins = s.session_count > 0 ? Math.round(s.total_minutes / s.session_count) : 0;
-      const sessionBonus   = avgSessionMins >= 90 ? 1 : avgSessionMins >= 45 ? 0 : -1;
-      const focus_score    = Math.min(10, Math.max(1, Math.round(productive_percent / 10) + sessionBonus));
+      // Use AI-generated score from memory if available; fall back to formula
+      const focus_score = m?.focus_score != null
+        ? m.focus_score
+        : calcFocusScore({ productivePercent: productive_percent, totalTrackedMinutes: s.total_minutes, sessions: Array(s.session_count).fill({ total_minutes: s.total_minutes / (s.session_count || 1) }) });
       return {
         employee_id:         emp.id,
         name:                emp.name,
