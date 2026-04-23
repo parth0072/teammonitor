@@ -57,9 +57,9 @@ struct ContentView: View {
         case .unauthorized:
             api.logout()   // token is genuinely invalid — clear it
         case .networkError:
-            // No internet or server unreachable — keep token, show login
-            // so user can retry; token is preserved for next launch
-            break
+            // No internet or server unreachable — token exists, let user into
+            // the dashboard. TrackingManager handles offline gracefully.
+            auth.isLoggedIn = true
         }
     }
 }
