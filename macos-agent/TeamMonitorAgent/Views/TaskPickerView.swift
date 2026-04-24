@@ -126,6 +126,7 @@ struct TaskPickerView: View {
             .background(Color(hex: "f9fafb"))
         }
         .frame(width: 440, height: 480)
+        .environment(\.colorScheme, .light)   // force light mode: sheet has white bg, dark mode makes text invisible
     }
 
     // MARK: - No-search layout: Recent → Jira → Tasks

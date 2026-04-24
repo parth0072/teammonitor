@@ -94,6 +94,7 @@ struct NewTaskView: View {
         }
         .frame(width: 380)
         .background(Color.white)
+        .environment(\.colorScheme, .light)   // force light mode: sheet has white bg, dark mode makes text invisible
         .onAppear { if !projects.isEmpty { selectedProj = projects.first } }
     }
 }

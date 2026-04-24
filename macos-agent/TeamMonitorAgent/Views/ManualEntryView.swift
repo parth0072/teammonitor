@@ -137,6 +137,7 @@ struct ManualEntryView: View {
             .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "e5e7eb")), alignment: .top)
         }
         .frame(width: 400)
+        .environment(\.colorScheme, .light)   // force light mode: sheet has white bg, dark mode makes text invisible
     }
 
     // MARK: - Submit

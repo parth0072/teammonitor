@@ -51,6 +51,7 @@ struct BugReportView: View {
         }
         .frame(width: 460)
         .background(Color(hex: "f9fafb"))
+        .environment(\.colorScheme, .light)   // force light mode: sheet has light bg, dark mode makes text invisible
     }
 
     // MARK: – Form
