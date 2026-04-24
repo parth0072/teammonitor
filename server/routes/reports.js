@@ -282,6 +282,9 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
      WHERE s.employee_id = ? AND s.date = ? ORDER BY s.punch_in ASC`,
     [employeeId, date]
   );
+  // TIMESTAMPDIFF() returns BIGINT → mysql2 gives back JavaScript strings for BIGINT columns.
+  // Force-coerce to Number so downstream reduce/Math operations don't do string concatenation.
+  sessions.forEach(s => { s.total_minutes = Number(s.total_minutes) || 0; });
 
   const [actLogs] = await db.query(
     `SELECT id, app_name, window_title, start_time, end_time, duration_seconds

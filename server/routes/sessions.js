@@ -227,6 +227,8 @@ router.get('/', auth, adminOnly, async (req, res) => {
       }
       rows.forEach(r => { r.breaks = breakMap[r.id] || []; });
     }
+    // TIMESTAMPDIFF → BIGINT → mysql2 returns string; coerce to Number
+    rows.forEach(r => { r.total_minutes = Number(r.total_minutes) || 0; });
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -479,6 +481,8 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
        GROUP BY date ORDER BY date ASC`,
       [cutoffStr]
     );
+    // TIMESTAMPDIFF → BIGINT → mysql2 returns string; coerce to Number
+    rows.forEach(r => { r.total_minutes = Number(r.total_minutes) || 0; });
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
