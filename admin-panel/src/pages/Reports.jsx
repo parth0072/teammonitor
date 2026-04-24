@@ -305,16 +305,35 @@ export default function Reports() {
                   <div style={S.card}>
                     <div style={S.cardTitle}>🕐 Punch Log</div>
                     {dailyReport.punch_log.map((s, i) => {
-                      const dur = s.duration_minutes
-                        ? `${Math.floor(s.duration_minutes/60)}h ${s.duration_minutes%60}m` : "—";
+                      // total_minutes = net tracked time (idle auto-paused periods excluded)
+                      // wall-clock = punch_out - punch_in (may be longer due to idle gaps)
+                      const netMins = s.total_minutes || 0;
+                      const netDur  = netMins > 0
+                        ? (netMins < 60 ? `${netMins}m` : `${Math.floor(netMins/60)}h ${netMins%60}m`)
+                        : null;
+                      const wallMins = s.punch_in && s.punch_out
+                        ? Math.round((new Date(s.punch_out) - new Date(s.punch_in)) / 60000) : null;
+                      const idleMins = (wallMins != null && netMins > 0)
+                        ? wallMins - netMins : null;
                       return (
                         <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 0", borderBottom:"1px solid #f1f5f9" }}>
                           <div style={{ width:8, height:8, borderRadius:"50%", background: s.punch_out ? "#10b981" : "#f59e0b", flexShrink:0, marginTop:4 }} />
                           <div style={{ flex:1 }}>
-                            <div style={{ fontSize:13, fontWeight:600, color:"#1e293b" }}>
-                              {s.punch_in ? new Date(s.punch_in).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "?"} →{" "}
-                              {s.punch_out ? new Date(s.punch_out).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : <span style={{ color:"#f59e0b" }}>Active</span>}
-                              <span style={{ fontWeight:400, color:"#64748b", marginLeft:8 }}>{dur}</span>
+                            <div style={{ fontSize:13, fontWeight:600, color:"#1e293b", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                              <span>
+                                {s.punch_in ? new Date(s.punch_in).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "?"} →{" "}
+                                {s.punch_out ? new Date(s.punch_out).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : <span style={{ color:"#f59e0b" }}>Active</span>}
+                              </span>
+                              {netDur && (
+                                <span style={{ fontWeight:700, color:"#0f172a", fontSize:12, background:"#f1f5f9", borderRadius:4, padding:"1px 6px" }}>
+                                  {netDur}
+                                </span>
+                              )}
+                              {idleMins != null && idleMins > 2 && (
+                                <span style={{ fontWeight:400, color:"#94a3b8", fontSize:11 }}>
+                                  ({idleMins}m idle paused)
+                                </span>
+                              )}
                             </div>
                             <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap" }}>
                               {s.task_name     && <span style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.task_name}</span>}
