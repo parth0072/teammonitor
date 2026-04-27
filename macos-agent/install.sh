@@ -76,12 +76,15 @@ unzip -q "$TMP_DIR/${APP_NAME}.zip" -d "$TMP_DIR/" \
 APP_SRC=$(find "$TMP_DIR" -name "${APP_NAME}.app" -maxdepth 3 | head -1)
 [ -z "$APP_SRC" ] && error "${APP_NAME}.app not found in zip."
 
-# ── 5. Remove quarantine & re-sign locally ───────────────────────────────────
+# ── 5. Remove quarantine & sign ONCE on the temp copy ────────────────────────
 info "Removing quarantine flag..."
 xattr -cr "$APP_SRC" 2>/dev/null || true
 
-# Re-sign all nested frameworks/binaries with a local ad-hoc signature so
-# macOS Gatekeeper/dyld accepts them on this machine (no Apple ID needed).
+# Sign all nested frameworks/binaries with a local ad-hoc signature so macOS
+# Gatekeeper/dyld accepts them. We sign HERE (on the temp copy) so that the
+# files going into /Applications are already carrying a consistent signature —
+# we do NOT re-sign after installation, which would create a second, different
+# ad-hoc signature and can confuse macOS TCC (privacy permissions).
 info "Signing app for this machine..."
 find "$APP_SRC/Contents/Frameworks" -name "*.framework" -o -name "*.dylib" 2>/dev/null \
   | while read -r f; do codesign --force --deep --sign - "$f" 2>/dev/null || true; done
@@ -91,19 +94,30 @@ codesign --force --deep --sign - "$APP_SRC" 2>/dev/null || true
 info "Installing to $INSTALL_DIR..."
 echo "  Administrator password required to install into /Applications"
 
-if [ -d "$DEST" ]; then
+# Stop the running app before touching its bundle
+if pgrep -xq "$APP_NAME" 2>/dev/null; then
   warn "Stopping running instance..."
   pkill -x "$APP_NAME" 2>/dev/null || true
   sleep 1
-  sudo rm -rf "$DEST"
 fi
 
-sudo cp -R "$APP_SRC" "$INSTALL_DIR/"
-# Clear all extended attributes on installed bundle and re-sign for this machine
+if [ -d "$DEST" ]; then
+  # ── UPDATE PATH: sync contents IN-PLACE with rsync --delete ─────────────
+  # IMPORTANT: we never remove $DEST itself. Deleting the bundle and copying a
+  # fresh one creates a new directory inode — macOS TCC sees a brand-new app at
+  # that path and revokes all privacy grants (Screen Recording, etc.). rsync
+  # updates every file inside the bundle while keeping the $DEST directory
+  # entry (and its inode) intact, so TCC retains the existing permissions.
+  info "Updating existing installation in-place (preserving permissions)..."
+  sudo rsync -a --delete "$APP_SRC/" "$DEST/"
+else
+  # ── FRESH INSTALL: destination doesn't exist yet ─────────────────────────
+  info "Installing fresh copy..."
+  sudo cp -R "$APP_SRC" "$INSTALL_DIR/"
+fi
+
+# Remove any quarantine flag that sudo operations may have carried over
 sudo xattr -cr "$DEST" 2>/dev/null || true
-find "$DEST/Contents/Frameworks" -name "*.framework" -o -name "*.dylib" 2>/dev/null \
-  | while read -r f; do sudo codesign --force --deep --sign - "$f" 2>/dev/null || true; done
-sudo codesign --force --deep --sign - "$DEST" 2>/dev/null || true
 echo "  Installed ${LATEST_TAG} to $DEST ✓"
 
 # ── 7. LaunchAgent – auto-start on login ─────────────────────────────────────
