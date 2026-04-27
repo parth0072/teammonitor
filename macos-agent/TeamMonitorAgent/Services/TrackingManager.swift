@@ -499,9 +499,12 @@ class TrackingManager: ObservableObject {
 
                 // Send persistent notification with action buttons (forces Alert style)
                 let msg = self.isOnBreak
-                    ? "⏸ Still on break — tap Resume to continue tracking"
-                    : "⏱ Timer is not running — you've been idle for \(self.minutesNotTracking) min"
+                    ? "You've been on break for \(self.minutesNotTracking) min. Tap 'Start Timer' to resume."
+                    : "You haven't been tracking for \(self.minutesNotTracking) min. Don't forget to log your time!"
                 self.sendIdleNotification(msg)
+
+                // Show the in-app "Timer is not running" reminder banner
+                self.showStartReminder = true
 
                 self.scheduleNotTrackingReminder()
             }
@@ -518,6 +521,10 @@ class TrackingManager: ObservableObject {
         countdownTimer = nil
         reminderDeadline = nil
         secondsUntilNextReminder = Int(reminderIntervals[0])
+        // Note: showStartReminder is intentionally NOT cleared here because
+        // cancelNotTrackingReminder() is called during rescheduling too — we want
+        // the banner to stay visible between reminder intervals. It is cleared in
+        // punchIn() and resumeFromBreak() when the user actually starts tracking.
     }
 
     func disableIdleReminder() {
@@ -715,6 +722,7 @@ class TrackingManager: ObservableObject {
         cancelNotTrackingReminder()
         NotificationOverlayManager.shared.dismissWarnings()  // clear "Timer paused" overlay banner
         showNotTrackingAlert = false  // dismiss "Timer not running" modal sheet if visible
+        showStartReminder    = false  // hide the in-app "Timer not running" banner
         showResumePrompt     = false  // clear any stale resume prompt
 
         // Stop the activity watcher — idle detector (restarted in startAllServices) takes over

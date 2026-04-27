@@ -81,41 +81,54 @@ extension TrackingDashboardView {
 
     @ViewBuilder
     var startTimerReminderBanner: some View {
-        if manager.showStartReminder && !manager.isTracking {
+        // Show when not tracking (punched out) OR on break
+        if manager.showStartReminder && (!manager.isTracking || manager.isOnBreak) {
+            let onBreak = manager.isOnBreak
             HStack(spacing: 10) {
-                Image(systemName: "timer")
+                Image(systemName: onBreak ? "pause.circle.fill" : "timer")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Color(hex: "7c3aed"))
+                    .foregroundColor(onBreak ? DS.amber : Color(hex: "7c3aed"))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Timer is not running")
+                    Text(onBreak ? "Still on break" : "Timer is not running")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Color(hex: "4c1d95"))
-                    Text("You haven't started tracking yet. Tap Start to begin.")
+                        .foregroundColor(onBreak ? Color(hex: "92400e") : Color(hex: "4c1d95"))
+                    Text(onBreak
+                         ? "You've been on break for \(manager.minutesNotTracking) min. Ready to resume?"
+                         : "You haven't tracked for \(manager.minutesNotTracking) min. Don't forget to log your time!")
                         .font(.system(size: 11))
-                        .foregroundColor(Color(hex: "6d28d9"))
+                        .foregroundColor(onBreak ? Color(hex: "b45309") : Color(hex: "6d28d9"))
                 }
                 Spacer()
-                Button("Start Now") {
-                    manager.showStartReminder = false
-                    if myTasks.isEmpty {
-                        Task { await manager.punchIn() }
-                    } else {
+                if onBreak {
+                    Button("Resume") {
+                        manager.showStartReminder = false
+                        manager.resumeFromBreak()
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(DS.amber).cornerRadius(6).buttonStyle(.plain)
+                } else {
+                    Button("Start Now") {
+                        manager.showStartReminder = false
                         activeSheet = .taskPicker
                     }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .background(Color(hex: "7c3aed")).cornerRadius(6).buttonStyle(.plain)
                 }
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 12).padding(.vertical, 5)
-                .background(Color(hex: "7c3aed")).cornerRadius(6).buttonStyle(.plain)
 
                 Button("✕") { manager.showStartReminder = false }
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(Color(hex: "7c3aed").opacity(0.5))
+                    .foregroundColor(onBreak ? DS.amber.opacity(0.6) : Color(hex: "7c3aed").opacity(0.5))
                     .frame(width: 24, height: 24).buttonStyle(.plain)
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(Color(hex: "ede9fe"))
-            .overlay(Rectangle().frame(height: 1).foregroundColor(Color(hex: "ddd6fe")), alignment: .bottom)
+            .background(onBreak ? Color(hex: "fef3c7") : Color(hex: "ede9fe"))
+            .overlay(Rectangle().frame(height: 1)
+                .foregroundColor(onBreak ? Color(hex: "fde68a") : Color(hex: "ddd6fe")),
+                     alignment: .bottom)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
