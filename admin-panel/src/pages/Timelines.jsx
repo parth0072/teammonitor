@@ -470,8 +470,9 @@ export default function Timelines() {
         const empSessions = sessions.filter(s  => String(s.employee_id)  === String(emp.id));
         const empIdle     = idleLogs.filter(il => String(il.employee_id) === String(emp.id));
         const totalMins   = empSessions.reduce((a, s) => a + (Number(s.total_minutes) || 0), 0);
+        const sessionDate = s => String(s.date||"").slice(0,10) || String(s.punch_in||"").slice(0,10);
         const daysWorked  = dateRange.filter(date =>
-          empSessions.some(s => (s.date || (s.punch_in||"").slice(0,10)) === date)
+          empSessions.some(s => sessionDate(s) === date)
         ).length;
 
         return (
@@ -520,10 +521,10 @@ export default function Timelines() {
             <div style={{ padding:"0 24px" }}>
               {dateRange.map(date => {
                 const daySessions = empSessions.filter(s =>
-                  (s.date || (s.punch_in||"").slice(0,10)) === date
+                  String(s.date||"").slice(0,10) === date || String(s.punch_in||"").slice(0,10) === date
                 );
                 const dayIdle = empIdle.filter(il =>
-                  (il.date || (il.idle_start||"").slice(0,10)) === date
+                  String(il.date||"").slice(0,10) === date || String(il.idle_start||"").slice(0,10) === date
                 );
                 return (
                   <DayRow key={date} date={date}
