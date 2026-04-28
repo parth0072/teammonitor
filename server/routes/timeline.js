@@ -10,15 +10,22 @@ router.get('/', auth, adminOnly, async (req, res) => {
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
   try {
-    const empFilter  = employeeId && employeeId !== 'all';
+    const empFilter = employeeId && employeeId !== 'all';
+    const ep = empFilter ? [employeeId] : [];
 
-    // Sessions
+    // Sessions + task/jira info
     let sessSql = `
       SELECT s.id, s.employee_id, s.punch_in, s.punch_out, s.total_minutes, s.status, s.date,
-             e.name AS employee_name
-      FROM sessions s
-      JOIN employees e ON s.employee_id = e.id
-      WHERE s.date BETWEEN ? AND ?
+             e.name  AS employee_name,
+             e.department,
+             COALESCE(t.name, tj.name) AS task_name,
+             s.jira_issue_key,
+             s.jira_issue_summary
+      FROM   sessions  s
+      JOIN   employees e  ON e.id = s.employee_id
+      LEFT JOIN tasks  t  ON t.id = s.task_id
+      LEFT JOIN tasks  tj ON tj.jira_issue_key = s.jira_issue_key AND s.task_id IS NULL
+      WHERE  s.date BETWEEN ? AND ?
     `;
     const sessParams = [startDate, endDate];
     if (empFilter) { sessSql += ' AND s.employee_id = ?'; sessParams.push(employeeId); }
@@ -27,19 +34,65 @@ router.get('/', auth, adminOnly, async (req, res) => {
     // Idle logs
     let idleSql = `
       SELECT id, employee_id, session_id, idle_start, idle_end, duration_seconds, date
-      FROM idle_logs
-      WHERE date BETWEEN ? AND ?
+      FROM   idle_logs
+      WHERE  date BETWEEN ? AND ?
     `;
     const idleParams = [startDate, endDate];
     if (empFilter) { idleSql += ' AND employee_id = ?'; idleParams.push(employeeId); }
     idleSql += ' ORDER BY employee_id, date, idle_start';
 
-    const [[sessions], [idleLogs]] = await Promise.all([
+    // In-session breaks
+    let brkSql = `
+      SELECT sb.id, sb.session_id, sb.start_time, sb.end_time,
+             ROUND(TIMESTAMPDIFF(SECOND, sb.start_time, COALESCE(sb.end_time, NOW())) / 60) AS duration_minutes,
+             s.employee_id, s.date
+      FROM   session_breaks sb
+      JOIN   sessions s ON s.id = sb.session_id
+      WHERE  s.date BETWEEN ? AND ?
+    `;
+    const brkParams = [startDate, endDate];
+    if (empFilter) { brkSql += ' AND s.employee_id = ?'; brkParams.push(employeeId); }
+    brkSql += ' ORDER BY sb.session_id, sb.start_time';
+
+    // Top apps per employee per day
+    let appSql = `
+      SELECT employee_id, date,
+             app_name,
+             SUM(duration_seconds) AS total_seconds
+      FROM   activity_logs
+      WHERE  date BETWEEN ? AND ?
+    `;
+    const appParams = [startDate, endDate];
+    if (empFilter) { appSql += ' AND employee_id = ?'; appParams.push(employeeId); }
+    appSql += ' GROUP BY employee_id, date, app_name ORDER BY employee_id, date, total_seconds DESC';
+
+    // Screenshot count per employee per day
+    let ssSql = `
+      SELECT employee_id, date, COUNT(*) AS count
+      FROM   screenshots
+      WHERE  date BETWEEN ? AND ?
+    `;
+    const ssParams = [startDate, endDate];
+    if (empFilter) { ssSql += ' AND employee_id = ?'; ssParams.push(employeeId); }
+    ssSql += ' GROUP BY employee_id, date';
+
+    const [[sessions], [idleLogs], [sessionBreaks], [appLogs], [screenshotCounts]] = await Promise.all([
       db.query(sessSql, sessParams),
       db.query(idleSql, idleParams),
+      db.query(brkSql,  brkParams),
+      db.query(appSql,  appParams),
+      db.query(ssSql,   ssParams),
     ]);
 
-    res.json({ sessions, idleLogs });
+    // Group top 4 apps per employee+date
+    const topApps = {};
+    for (const row of appLogs) {
+      const key = `${row.employee_id}__${String(row.date).slice(0,10)}`;
+      if (!topApps[key]) topApps[key] = [];
+      if (topApps[key].length < 4) topApps[key].push({ app: row.app_name, secs: Number(row.total_seconds) });
+    }
+
+    res.json({ sessions, idleLogs, sessionBreaks, topApps, screenshotCounts });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
