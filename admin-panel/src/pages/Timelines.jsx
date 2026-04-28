@@ -381,7 +381,8 @@ export default function Timelines() {
   useEffect(() => { load(); }, [load]);
 
   const dateRange = eachDayOfInterval({ start: parseISO(startDate), end: parseISO(endDate) })
-    .map(d => format(d, "yyyy-MM-dd"));
+    .map(d => format(d, "yyyy-MM-dd"))
+    .reverse(); // latest day first
 
   const timelineEmployees = isAdmin
     ? (effectiveEmpId === "all"
