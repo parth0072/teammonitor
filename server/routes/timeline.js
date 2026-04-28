@@ -43,8 +43,8 @@ router.get('/', auth, adminOnly, async (req, res) => {
 
     // In-session breaks
     let brkSql = `
-      SELECT sb.id, sb.session_id, sb.start_time, sb.end_time,
-             ROUND(TIMESTAMPDIFF(SECOND, sb.start_time, COALESCE(sb.end_time, NOW())) / 60) AS duration_minutes,
+      SELECT sb.id, sb.session_id, sb.break_start AS start_time, sb.break_end AS end_time,
+             ROUND(TIMESTAMPDIFF(SECOND, sb.break_start, COALESCE(sb.break_end, NOW())) / 60) AS duration_minutes,
              s.employee_id, s.date
       FROM   session_breaks sb
       JOIN   sessions s ON s.id = sb.session_id
