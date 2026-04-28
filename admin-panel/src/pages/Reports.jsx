@@ -62,6 +62,150 @@ const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, perc
   );
 };
 
+// ── Day Timeline ──────────────────────────────────────────────────────────────
+function DayTimeline({ sessions = [], breaks = [], workPattern }) {
+  const sessionItems = sessions.map(s => ({
+    type: "session",
+    sort: s.punch_in ? new Date(s.punch_in).getTime() : 0,
+    data: s,
+  }));
+  const breakItems = breaks.map(b => ({
+    type: "break",
+    sort: b.start ? new Date(b.start).getTime() : 0,
+    data: b,
+  }));
+  const items = [...sessionItems, ...breakItems].sort((a, b) => a.sort - b.sort);
+
+  const totalNetMins  = sessions.reduce((s, r) => s + (Number(r.total_minutes) || 0), 0);
+  const totalBrkMins  = breaks.reduce((s, b) => s + (Number(b.minutes) || 0), 0);
+  const firstIn       = workPattern?.first_punch_in;
+  const lastOut       = workPattern?.last_punch_out;
+  const grossMins     = firstIn && lastOut
+    ? Math.round((new Date(lastOut) - new Date(firstIn)) / 60000) : null;
+
+  if (items.length === 0) {
+    return (
+      <div style={{ ...S.card, marginBottom:24 }}>
+        <div style={S.cardTitle}>🕐 Day Timeline</div>
+        <div style={S.empty}>No sessions for this day.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...S.card, marginBottom:24 }}>
+      <div style={S.cardTitle}>🕐 Day Timeline</div>
+      <div style={{ position:"relative", paddingLeft:28 }}>
+        {/* Vertical spine */}
+        <div style={{ position:"absolute", left:9, top:6, bottom:6, width:2, background:"#e2e8f0", borderRadius:2 }} />
+
+        {items.map((item, i) => {
+          if (item.type === "session") {
+            const s = item.data;
+            const netMins  = Number(s.total_minutes) || 0;
+            const wallMins = s.punch_in && s.punch_out
+              ? Math.round((new Date(s.punch_out) - new Date(s.punch_in)) / 60000) : null;
+            const idleMins = (wallMins != null && netMins > 0) ? wallMins - netMins : null;
+            const isActive = !s.punch_out;
+            const brkList  = Array.isArray(s.breaks) ? s.breaks : [];
+            const brkCount = brkList.length;
+            const brkTotalMins = brkList.reduce((acc, b) => {
+              if (!b.start || !b.end) return acc;
+              return acc + Math.round((new Date(b.end) - new Date(b.start)) / 60000);
+            }, 0);
+            return (
+              <div key={i} style={{ display:"flex", gap:14, paddingBottom:18, position:"relative" }}>
+                {/* Dot */}
+                <div style={{
+                  position:"absolute", left:-19, top:2,
+                  width:12, height:12, borderRadius:"50%",
+                  background: isActive ? "#f59e0b" : "#10b981",
+                  border:"2px solid #fff",
+                  boxShadow:"0 0 0 2px " + (isActive ? "#fde68a" : "#a7f3d0"),
+                  zIndex:1, flexShrink:0,
+                }} />
+                <div style={{ flex:1, minWidth:0 }}>
+                  {/* Time row */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    <span style={{ fontFamily:"monospace", fontSize:13, fontWeight:700, color:"#1e293b" }}>
+                      {s.punch_in  ? format(new Date(s.punch_in),  "h:mm a") : "?"}{" → "}
+                      {s.punch_out ? format(new Date(s.punch_out), "h:mm a") : "now"}
+                    </span>
+                    {netMins > 0 && (
+                      <span style={{ background:"#d1fae5", color:"#065f46", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
+                        {fmtHM(netMins)} tracked
+                      </span>
+                    )}
+                    {isActive && (
+                      <span style={{ background:"#fef3c7", color:"#92400e", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:600 }}>● Active</span>
+                    )}
+                  </div>
+                  {/* Wall / idle annotation */}
+                  <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>
+                    {wallMins != null && <>Wall clock: {fmtHM(wallMins)}</>}
+                    {idleMins != null && idleMins > 2 && <span style={{ color:"#fbbf24" }}> · {idleMins}m idle paused</span>}
+                    {brkCount > 0 && <span style={{ color:"#f97316" }}> · {brkCount} in-session break{brkCount > 1 ? "s" : ""}{brkTotalMins > 0 ? ` (${brkTotalMins}m)` : ""}</span>}
+                  </div>
+                  {/* Task / Jira tags */}
+                  {(s.task_name || s.jira_issue_key) && (
+                    <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap" }}>
+                      {s.task_name      && <span style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.task_name}</span>}
+                      {s.jira_issue_key && <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.jira_issue_key}</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          } else {
+            // Inter-session break
+            const b = item.data;
+            return (
+              <div key={i} style={{ display:"flex", gap:14, paddingBottom:18, position:"relative" }}>
+                {/* Dashed dot */}
+                <div style={{
+                  position:"absolute", left:-19, top:2,
+                  width:12, height:12, borderRadius:"50%",
+                  border:"2px dashed #94a3b8", background:"#f8fafc",
+                  zIndex:1, flexShrink:0,
+                }} />
+                <div style={{ flex:1 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:13 }}>☕</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"#64748b" }}>
+                      Break · {Number(b.minutes) || 0}m
+                    </span>
+                    {b.start && b.end && (
+                      <span style={{ fontFamily:"monospace", fontSize:11, color:"#94a3b8" }}>
+                        {format(new Date(b.start), "h:mm a")} → {format(new Date(b.end), "h:mm a")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+        })}
+      </div>
+
+      {/* Summary strip */}
+      <div style={{ borderTop:"1px solid #f1f5f9", paddingTop:14, marginTop:4, display:"flex", flexWrap:"wrap", gap:20 }}>
+        {[
+          { label:"Net Tracked",    value: fmtHM(totalNetMins),                              color:"#10b981" },
+          { label:"Breaks",         value: `${breaks.length} · ${fmtHM(totalBrkMins)}`,      color:"#f59e0b" },
+          grossMins != null ? { label:"Gross (wall)", value: fmtHM(grossMins),               color:"#64748b" } : null,
+          firstIn  ? { label:"First In",  value: format(new Date(firstIn),  "h:mm a"),       color:"#3b82f6" } : null,
+          lastOut  ? { label:"Last Out",  value: format(new Date(lastOut),  "h:mm a"),       color:"#6366f1" } : null,
+        ].filter(Boolean).map(stat => (
+          <div key={stat.label} style={{ textAlign:"center", minWidth:80 }}>
+            <div style={{ fontSize:11, color:"#94a3b8", marginBottom:3, textTransform:"uppercase", letterSpacing:.4 }}>{stat.label}</div>
+            <div style={{ fontSize:15, fontWeight:700, color:stat.color }}>{stat.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Reports() {
   const [date,       setDate]       = useState(format(new Date(), "yyyy-MM-dd"));
   const [employeeId, setEmployeeId] = useState("all");
@@ -298,65 +442,26 @@ export default function Reports() {
                 </div>
               )}
 
-              {/* Punch Log + Work Pattern */}
-              <div style={{ ...S.row2, marginBottom:24 }}>
-                {/* Punch Log */}
-                {dailyReport.punch_log?.length > 0 && (
-                  <div style={S.card}>
-                    <div style={S.cardTitle}>🕐 Punch Log</div>
-                    {dailyReport.punch_log.map((s, i) => {
-                      // total_minutes = net tracked time (idle auto-paused periods excluded)
-                      // wall-clock = punch_out - punch_in (may be longer due to idle gaps)
-                      const netMins = s.total_minutes || 0;
-                      const netDur  = netMins > 0
-                        ? (netMins < 60 ? `${netMins}m` : `${Math.floor(netMins/60)}h ${netMins%60}m`)
-                        : null;
-                      const wallMins = s.punch_in && s.punch_out
-                        ? Math.round((new Date(s.punch_out) - new Date(s.punch_in)) / 60000) : null;
-                      const idleMins = (wallMins != null && netMins > 0)
-                        ? wallMins - netMins : null;
-                      return (
-                        <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"10px 0", borderBottom:"1px solid #f1f5f9" }}>
-                          <div style={{ width:8, height:8, borderRadius:"50%", background: s.punch_out ? "#10b981" : "#f59e0b", flexShrink:0, marginTop:4 }} />
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:13, fontWeight:600, color:"#1e293b", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                              <span>
-                                {s.punch_in ? new Date(s.punch_in).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : "?"} →{" "}
-                                {s.punch_out ? new Date(s.punch_out).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }) : <span style={{ color:"#f59e0b" }}>Active</span>}
-                              </span>
-                              {netDur && (
-                                <span style={{ fontWeight:700, color:"#0f172a", fontSize:12, background:"#f1f5f9", borderRadius:4, padding:"1px 6px" }}>
-                                  {netDur}
-                                </span>
-                              )}
-                              {idleMins != null && idleMins > 2 && (
-                                <span style={{ fontWeight:400, color:"#94a3b8", fontSize:11 }}>
-                                  ({idleMins}m idle paused)
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap" }}>
-                              {s.task_name     && <span style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.task_name}</span>}
-                              {s.jira_issue_key && <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.jira_issue_key}</span>}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+              {/* Day Timeline — full-width vertical punch log */}
+              <DayTimeline
+                sessions={dailyReport.punch_log || []}
+                breaks={dailyReport.breaks || []}
+                workPattern={dailyReport.work_pattern}
+              />
 
+              {/* Work Pattern + Productive Hours — side by side */}
+              <div style={{ ...S.row2, marginBottom:24 }}>
                 {/* Work Pattern */}
                 {dailyReport.work_pattern && (
                   <div style={S.card}>
                     <div style={S.cardTitle}>📈 Work Pattern</div>
                     <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                       {[
-                        { label:"First Punch",      value: dailyReport.work_pattern.first_punch_in  ? new Date(dailyReport.work_pattern.first_punch_in).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})  : "—" },
-                        { label:"Last Punch",       value: dailyReport.work_pattern.last_punch_out ? new Date(dailyReport.work_pattern.last_punch_out).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—" },
-                        { label:"Avg Session",      value: dailyReport.work_pattern.avg_session_minutes ? `${dailyReport.work_pattern.avg_session_minutes}m` : "—" },
-                        { label:"Longest Session",  value: dailyReport.work_pattern.longest_session_minutes ? `${Math.floor(dailyReport.work_pattern.longest_session_minutes/60)}h ${dailyReport.work_pattern.longest_session_minutes%60}m` : "—" },
-                        { label:"Total Sessions",   value: dailyReport.work_pattern.total_sessions ?? "—" },
+                        { label:"First Punch",     value: dailyReport.work_pattern.first_punch_in             ? format(new Date(dailyReport.work_pattern.first_punch_in),  "h:mm a") : "—" },
+                        { label:"Last Punch",      value: dailyReport.work_pattern.last_punch_out             ? format(new Date(dailyReport.work_pattern.last_punch_out), "h:mm a") : "—" },
+                        { label:"Avg Session",     value: dailyReport.work_pattern.avg_session_minutes        ? `${dailyReport.work_pattern.avg_session_minutes}m`           : "—" },
+                        { label:"Longest Session", value: dailyReport.work_pattern.longest_session_minutes    ? `${Math.floor(dailyReport.work_pattern.longest_session_minutes/60)}h ${dailyReport.work_pattern.longest_session_minutes%60}m` : "—" },
+                        { label:"Total Sessions",  value: dailyReport.work_pattern.total_sessions ?? "—" },
                       ].map(stat => (
                         <div key={stat.label} style={{ background:"#f8fafc", borderRadius:8, padding:"10px 14px" }}>
                           <div style={{ fontSize:11, color:"#64748b", marginBottom:3 }}>{stat.label}</div>
@@ -364,8 +469,6 @@ export default function Reports() {
                         </div>
                       ))}
                     </div>
-
-                    {/* Peak Hours */}
                     {dailyReport.peak_hours?.length > 0 && (
                       <div style={{ marginTop:16 }}>
                         <div style={{ fontSize:13, fontWeight:600, color:"#374151", marginBottom:8 }}>Peak Hours</div>
@@ -380,30 +483,30 @@ export default function Reports() {
                     )}
                   </div>
                 )}
-              </div>
 
-              {/* Productive Hours bar */}
-              {dailyReport.productive_hours && (
-                <div style={{ ...S.card, marginBottom:24 }}>
-                  <div style={S.cardTitle}>📊 Productive Hours — 24h</div>
-                  <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:72, overflow:"hidden" }}>
-                    {dailyReport.productive_hours.map((h, i) => {
-                      const mins = Math.min(h.active_minutes ?? 0, 60);
-                      return (
-                        <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
-                          <div style={{
-                            width:"100%",
-                            background: mins > 30 ? "#3b82f6" : mins > 0 ? "#bfdbfe" : "#f1f5f9",
-                            height: Math.max(3, (mins / 60) * 68),
-                            borderRadius:"3px 3px 0 0"
-                          }} />
-                          {i % 6 === 0 && <div style={{ fontSize:9, color:"#94a3b8", marginTop:2 }}>{String(i).padStart(2,"0")}</div>}
-                        </div>
-                      );
-                    })}
+                {/* Productive Hours bar */}
+                {dailyReport.productive_hours && (
+                  <div style={S.card}>
+                    <div style={S.cardTitle}>📊 Productive Hours — 24h</div>
+                    <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:110, overflow:"hidden" }}>
+                      {dailyReport.productive_hours.map((h, i) => {
+                        const mins = Math.min(h.active_minutes ?? 0, 60);
+                        return (
+                          <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center" }}>
+                            <div style={{
+                              width:"100%",
+                              background: mins > 30 ? "#3b82f6" : mins > 0 ? "#bfdbfe" : "#f1f5f9",
+                              height: Math.max(2, (mins / 60) * 96),
+                              borderRadius:"3px 3px 0 0",
+                            }} />
+                            {i % 6 === 0 && <div style={{ fontSize:9, color:"#94a3b8", marginTop:2 }}>{String(i).padStart(2,"0")}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Patterns */}
               {(dailyReport.breaks || dailyReport.productive_hours) && (() => {
@@ -687,29 +790,51 @@ export default function Reports() {
         <div style={S.card}>
           <div style={S.cardTitle}>Sessions</div>
           {sessions.length === 0 && <div style={{ color:"#94a3b8", fontSize:14 }}>No sessions for this day.</div>}
-          <table style={S.table}>
-            <thead>
-              <tr>{["Employee","In","Out","Duration","Status"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {sessions.map(s => {
-                const emp = employees.find(e => String(e.id) === String(s.employee_id));
-                return (
-                  <tr key={s.id}>
-                    <td style={S.td}>{s.employee_name || emp?.name || "—"}</td>
-                    <td style={{ ...S.td, fontFamily:"monospace", fontSize:12 }}>{fmtTime(s.punch_in)}</td>
-                    <td style={{ ...S.td, fontFamily:"monospace", fontSize:12 }}>{fmtTime(s.punch_out)}</td>
-                    <td style={S.td}>{fmtHM(s.total_minutes)}</td>
-                    <td style={S.td}>
-                      <span style={S.tag(s.status === "active" ? "#16a34a" : "#64748b")}>
-                        {s.status === "active" ? "● Active" : "✓ Done"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ ...S.table, minWidth:640 }}>
+              <thead>
+                <tr>{["Employee","In","Out","Net Time","Wall Time","Breaks","Task","Status"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {sessions.map(s => {
+                  const emp = employees.find(e => String(e.id) === String(s.employee_id));
+                  const netMins  = Number(s.total_minutes) || 0;
+                  const wallMins = s.punch_in && s.punch_out
+                    ? Math.round((new Date(s.punch_out) - new Date(s.punch_in)) / 60000) : null;
+                  const brkList  = Array.isArray(s.breaks) ? s.breaks : [];
+                  const brkCount = brkList.length;
+                  const brkMins  = brkList.reduce((acc, b) => {
+                    if (!b.start || !b.end) return acc;
+                    return acc + Math.round((new Date(b.end) - new Date(b.start)) / 60000);
+                  }, 0);
+                  return (
+                    <tr key={s.id}>
+                      <td style={S.td}>{s.employee_name || emp?.name || "—"}</td>
+                      <td style={{ ...S.td, fontFamily:"monospace", fontSize:12 }}>{fmtTime(s.punch_in)}</td>
+                      <td style={{ ...S.td, fontFamily:"monospace", fontSize:12 }}>{s.punch_out ? fmtTime(s.punch_out) : <span style={{ color:"#f59e0b" }}>Active</span>}</td>
+                      <td style={{ ...S.td, fontWeight:600, color:"#10b981" }}>{fmtHM(netMins)}</td>
+                      <td style={{ ...S.td, color:"#64748b" }}>{wallMins != null ? fmtHM(wallMins) : "—"}</td>
+                      <td style={S.td}>
+                        {brkCount > 0
+                          ? <span style={{ color:"#f97316", fontWeight:500 }}>{brkCount}× {brkMins > 0 ? `(${brkMins}m)` : ""}</span>
+                          : <span style={{ color:"#cbd5e1" }}>—</span>}
+                      </td>
+                      <td style={{ ...S.td, maxWidth:160, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {s.task_name && <span style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:4, padding:"2px 7px", fontSize:11, fontWeight:600 }}>{s.task_name}</span>}
+                        {s.jira_issue_key && <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:4, padding:"2px 7px", fontSize:11, fontWeight:600, marginLeft:4 }}>{s.jira_issue_key}</span>}
+                        {!s.task_name && !s.jira_issue_key && <span style={{ color:"#cbd5e1" }}>—</span>}
+                      </td>
+                      <td style={S.td}>
+                        <span style={S.tag(s.status === "active" ? "#16a34a" : "#64748b")}>
+                          {s.status === "active" ? "● Active" : "✓ Done"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
