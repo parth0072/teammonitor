@@ -64,91 +64,170 @@ const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, perc
 
 // ── Day Timeline ──────────────────────────────────────────────────────────────
 function DayTimeline({ sessions = [], breaks = [], workPattern }) {
-  const sessionItems = sessions.map(s => ({
-    type: "session",
-    sort: s.punch_in ? new Date(s.punch_in).getTime() : 0,
-    data: s,
-  }));
-  const breakItems = breaks.map(b => ({
-    type: "break",
-    sort: b.start ? new Date(b.start).getTime() : 0,
-    data: b,
-  }));
-  const items = [...sessionItems, ...breakItems].sort((a, b) => a.sort - b.sort);
-
-  const totalNetMins  = sessions.reduce((s, r) => s + (Number(r.total_minutes) || 0), 0);
-  const totalBrkMins  = breaks.reduce((s, b) => s + (Number(b.minutes) || 0), 0);
-  const firstIn       = workPattern?.first_punch_in;
-  const lastOut       = workPattern?.last_punch_out;
-  const grossMins     = firstIn && lastOut
+  const totalNetMins = sessions.reduce((s, r) => s + (Number(r.total_minutes) || 0), 0);
+  const totalBrkMins = breaks.reduce((s, b) => s + (Number(b.minutes) || 0), 0);
+  const firstIn  = workPattern?.first_punch_in;
+  const lastOut  = workPattern?.last_punch_out;
+  const grossMins = firstIn && lastOut
     ? Math.round((new Date(lastOut) - new Date(firstIn)) / 60000) : null;
+
+  // Build sorted interleaved list
+  const items = [
+    ...sessions.map(s => ({ type:"session", sort: s.punch_in ? new Date(s.punch_in).getTime() : 0, data:s })),
+    ...breaks.map(b  => ({ type:"break",   sort: b.start    ? new Date(b.start).getTime()    : 0, data:b })),
+  ].sort((a, b) => a.sort - b.sort);
 
   if (items.length === 0) {
     return (
-      <div style={{ ...S.card, marginBottom:24 }}>
-        <div style={S.cardTitle}>🕐 Day Timeline</div>
-        <div style={S.empty}>No sessions for this day.</div>
+      <div style={{ ...S.card, marginBottom:24, overflow:"hidden" }}>
+        <div style={{ padding:"20px 24px", borderBottom:"1px solid #f1f5f9" }}>
+          <div style={S.cardTitle}>Day Timeline</div>
+        </div>
+        <div style={S.empty}>No sessions recorded for this day.</div>
       </div>
     );
   }
 
-  return (
-    <div style={{ ...S.card, marginBottom:24 }}>
-      <div style={S.cardTitle}>🕐 Day Timeline</div>
-      <div style={{ position:"relative", paddingLeft:28 }}>
-        {/* Vertical spine */}
-        <div style={{ position:"absolute", left:9, top:6, bottom:6, width:2, background:"#e2e8f0", borderRadius:2 }} />
+  // Gantt bar helpers
+  const spanStart = firstIn  ? new Date(firstIn).getTime()  : null;
+  const spanEnd   = lastOut  ? new Date(lastOut).getTime()
+    : sessions.find(s => !s.punch_out) ? Date.now() : null;
+  const spanMs = spanStart && spanEnd ? spanEnd - spanStart : null;
+  const toPct  = ts  => spanMs ? ((new Date(ts).getTime() - spanStart) / spanMs * 100) : 0;
+  const durPct = (a, b) => spanMs ? ((new Date(b).getTime() - new Date(a).getTime()) / spanMs * 100) : 0;
 
+  return (
+    <div style={{ ...S.card, marginBottom:24, padding:0, overflow:"hidden" }}>
+
+      {/* ── Header + summary metrics ── */}
+      <div style={{ padding:"20px 24px 18px", borderBottom:"1px solid #f1f5f9" }}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+          <div style={{ fontSize:15, fontWeight:700, color:"#1e293b" }}>Day Timeline</div>
+          <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
+            {[
+              { label:"Net Tracked", value: fmtHM(totalNetMins), color:"#10b981" },
+              breaks.length > 0 ? { label:`${breaks.length} Break${breaks.length>1?"s":""}`, value: fmtHM(totalBrkMins), color:"#f59e0b" } : null,
+              grossMins != null ? { label:"Wall Clock", value: fmtHM(grossMins), color:"#6366f1" } : null,
+              firstIn  ? { label:"First In",  value: format(new Date(firstIn),  "h:mm a"), color:"#3b82f6" } : null,
+              lastOut  ? { label:"Last Out",  value: format(new Date(lastOut),  "h:mm a"), color:"#64748b" } : null,
+            ].filter(Boolean).map(m => (
+              <div key={m.label} style={{ textAlign:"right" }}>
+                <div style={{ fontSize:10, color:"#94a3b8", textTransform:"uppercase", letterSpacing:.5, marginBottom:2 }}>{m.label}</div>
+                <div style={{ fontSize:15, fontWeight:700, color:m.color }}>{m.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Proportional Gantt bar ── */}
+      {spanMs && (
+        <div style={{ padding:"14px 24px 10px", background:"#f8fafc", borderBottom:"1px solid #f1f5f9" }}>
+          <div style={{ position:"relative", height:22, background:"#e2e8f0", borderRadius:6, overflow:"hidden" }}>
+            {/* Break gaps (render first so sessions sit on top) */}
+            {breaks.map((b, i) => b.start && b.end && (
+              <div key={"bg"+i} style={{
+                position:"absolute", top:0, height:"100%",
+                left:`${toPct(b.start)}%`,
+                width:`${Math.max(durPct(b.start, b.end), 0.3)}%`,
+                background:"rgba(245,158,11,0.15)",
+              }} />
+            ))}
+            {/* Session blocks */}
+            {sessions.map((s, i) => {
+              if (!s.punch_in) return null;
+              const left  = toPct(s.punch_in);
+              const right = s.punch_out ? toPct(s.punch_out) : 100;
+              const w     = Math.max(right - left, 0.4);
+              const isActive = !s.punch_out;
+              return (
+                <div key={i} style={{
+                  position:"absolute", top:0, height:"100%",
+                  left:`${left}%`, width:`${w}%`,
+                  background: isActive
+                    ? "linear-gradient(90deg,#f59e0b,#fbbf24)"
+                    : "linear-gradient(90deg,#10b981,#34d399)",
+                  borderRadius:4,
+                  cursor:"default",
+                }}
+                  title={`${s.punch_in ? format(new Date(s.punch_in),"h:mm a") : "?"} → ${s.punch_out ? format(new Date(s.punch_out),"h:mm a") : "now"} · ${fmtHM(Number(s.total_minutes)||0)}`}
+                />
+              );
+            })}
+          </div>
+          {/* Axis labels */}
+          <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
+            {firstIn && <span style={{ fontSize:10, color:"#94a3b8", fontFamily:"monospace" }}>{format(new Date(firstIn),"h:mm a")}</span>}
+            {spanEnd  && <span style={{ fontSize:10, color:"#94a3b8", fontFamily:"monospace" }}>{format(new Date(spanEnd), "h:mm a")}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Session / break list ── */}
+      <div>
         {items.map((item, i) => {
           if (item.type === "session") {
-            const s = item.data;
+            const s        = item.data;
             const netMins  = Number(s.total_minutes) || 0;
             const wallMins = s.punch_in && s.punch_out
               ? Math.round((new Date(s.punch_out) - new Date(s.punch_in)) / 60000) : null;
-            const idleMins = (wallMins != null && netMins > 0) ? wallMins - netMins : null;
+            const idleMins = wallMins != null && netMins > 0 ? wallMins - netMins : null;
             const isActive = !s.punch_out;
             const brkList  = Array.isArray(s.breaks) ? s.breaks : [];
-            const brkCount = brkList.length;
-            const brkTotalMins = brkList.reduce((acc, b) => {
+            const brkMins  = brkList.reduce((acc, b) => {
               if (!b.start || !b.end) return acc;
               return acc + Math.round((new Date(b.end) - new Date(b.start)) / 60000);
             }, 0);
+
             return (
-              <div key={i} style={{ display:"flex", gap:14, paddingBottom:18, position:"relative" }}>
-                {/* Dot */}
-                <div style={{
-                  position:"absolute", left:-19, top:2,
-                  width:12, height:12, borderRadius:"50%",
-                  background: isActive ? "#f59e0b" : "#10b981",
-                  border:"2px solid #fff",
-                  boxShadow:"0 0 0 2px " + (isActive ? "#fde68a" : "#a7f3d0"),
-                  zIndex:1, flexShrink:0,
-                }} />
-                <div style={{ flex:1, minWidth:0 }}>
-                  {/* Time row */}
-                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                    <span style={{ fontFamily:"monospace", fontSize:13, fontWeight:700, color:"#1e293b" }}>
-                      {s.punch_in  ? format(new Date(s.punch_in),  "h:mm a") : "?"}{" → "}
-                      {s.punch_out ? format(new Date(s.punch_out), "h:mm a") : "now"}
+              <div key={i} style={{
+                display:"flex", gap:0,
+                borderBottom:"1px solid #f8fafc",
+                borderLeft:`3px solid ${isActive ? "#f59e0b" : "#10b981"}`,
+              }}>
+                {/* Time column */}
+                <div style={{ width:120, flexShrink:0, padding:"14px 12px 14px 16px", borderRight:"1px solid #f1f5f9" }}>
+                  <div style={{ fontFamily:"monospace", fontSize:12, fontWeight:700, color:"#1e293b" }}>
+                    {s.punch_in ? format(new Date(s.punch_in), "h:mm a") : "?"}
+                  </div>
+                  <div style={{ fontSize:10, color:"#94a3b8", margin:"2px 0 0" }}>↓</div>
+                  <div style={{ fontFamily:"monospace", fontSize:12, color: isActive ? "#f59e0b" : "#64748b", fontWeight: isActive ? 600 : 400 }}>
+                    {isActive ? "● now" : s.punch_out ? format(new Date(s.punch_out), "h:mm a") : "—"}
+                  </div>
+                </div>
+
+                {/* Main content */}
+                <div style={{ flex:1, padding:"14px 20px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:4 }}>
+                    <span style={{ fontSize:14, fontWeight:700, color: isActive ? "#f59e0b" : "#10b981" }}>
+                      {fmtHM(netMins)}
                     </span>
-                    {netMins > 0 && (
-                      <span style={{ background:"#d1fae5", color:"#065f46", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
-                        {fmtHM(netMins)} tracked
+                    <span style={{ fontSize:12, color:"#94a3b8" }}>tracked</span>
+                    {wallMins != null && wallMins !== netMins && (
+                      <span style={{ fontSize:11, color:"#cbd5e1" }}>·</span>
+                    )}
+                    {wallMins != null && wallMins !== netMins && (
+                      <span style={{ fontSize:11, color:"#94a3b8" }}>{fmtHM(wallMins)} wall</span>
+                    )}
+                    {idleMins != null && idleMins > 2 && (
+                      <span style={{ fontSize:11, background:"#fef3c7", color:"#92400e", borderRadius:20, padding:"1px 8px", fontWeight:600 }}>
+                        {idleMins}m idle
+                      </span>
+                    )}
+                    {brkList.length > 0 && (
+                      <span style={{ fontSize:11, background:"#fff7ed", color:"#c2410c", borderRadius:20, padding:"1px 8px", fontWeight:600 }}>
+                        {brkList.length} break{brkList.length > 1 ? "s" : ""}{brkMins > 0 ? ` · ${brkMins}m` : ""}
                       </span>
                     )}
                     {isActive && (
-                      <span style={{ background:"#fef3c7", color:"#92400e", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:600 }}>● Active</span>
+                      <span style={{ fontSize:11, background:"#fef9c3", color:"#854d0e", borderRadius:20, padding:"1px 8px", fontWeight:700 }}>
+                        ● Active
+                      </span>
                     )}
                   </div>
-                  {/* Wall / idle annotation */}
-                  <div style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>
-                    {wallMins != null && <>Wall clock: {fmtHM(wallMins)}</>}
-                    {idleMins != null && idleMins > 2 && <span style={{ color:"#fbbf24" }}> · {idleMins}m idle paused</span>}
-                    {brkCount > 0 && <span style={{ color:"#f97316" }}> · {brkCount} in-session break{brkCount > 1 ? "s" : ""}{brkTotalMins > 0 ? ` (${brkTotalMins}m)` : ""}</span>}
-                  </div>
-                  {/* Task / Jira tags */}
+
                   {(s.task_name || s.jira_issue_key) && (
-                    <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap" }}>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                       {s.task_name      && <span style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.task_name}</span>}
                       {s.jira_issue_key && <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.jira_issue_key}</span>}
                     </div>
@@ -156,51 +235,37 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
                 </div>
               </div>
             );
-          } else {
-            // Inter-session break
-            const b = item.data;
-            return (
-              <div key={i} style={{ display:"flex", gap:14, paddingBottom:18, position:"relative" }}>
-                {/* Dashed dot */}
-                <div style={{
-                  position:"absolute", left:-19, top:2,
-                  width:12, height:12, borderRadius:"50%",
-                  border:"2px dashed #94a3b8", background:"#f8fafc",
-                  zIndex:1, flexShrink:0,
-                }} />
-                <div style={{ flex:1 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                    <span style={{ fontSize:13 }}>☕</span>
-                    <span style={{ fontSize:12, fontWeight:600, color:"#64748b" }}>
-                      Break · {Number(b.minutes) || 0}m
-                    </span>
-                    {b.start && b.end && (
-                      <span style={{ fontFamily:"monospace", fontSize:11, color:"#94a3b8" }}>
-                        {format(new Date(b.start), "h:mm a")} → {format(new Date(b.end), "h:mm a")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
           }
-        })}
-      </div>
 
-      {/* Summary strip */}
-      <div style={{ borderTop:"1px solid #f1f5f9", paddingTop:14, marginTop:4, display:"flex", flexWrap:"wrap", gap:20 }}>
-        {[
-          { label:"Net Tracked",    value: fmtHM(totalNetMins),                              color:"#10b981" },
-          { label:"Breaks",         value: `${breaks.length} · ${fmtHM(totalBrkMins)}`,      color:"#f59e0b" },
-          grossMins != null ? { label:"Gross (wall)", value: fmtHM(grossMins),               color:"#64748b" } : null,
-          firstIn  ? { label:"First In",  value: format(new Date(firstIn),  "h:mm a"),       color:"#3b82f6" } : null,
-          lastOut  ? { label:"Last Out",  value: format(new Date(lastOut),  "h:mm a"),       color:"#6366f1" } : null,
-        ].filter(Boolean).map(stat => (
-          <div key={stat.label} style={{ textAlign:"center", minWidth:80 }}>
-            <div style={{ fontSize:11, color:"#94a3b8", marginBottom:3, textTransform:"uppercase", letterSpacing:.4 }}>{stat.label}</div>
-            <div style={{ fontSize:15, fontWeight:700, color:stat.color }}>{stat.value}</div>
-          </div>
-        ))}
+          // Inter-session break row
+          const b = item.data;
+          return (
+            <div key={i} style={{
+              display:"flex", gap:0,
+              background:"#fffbeb",
+              borderBottom:"1px solid #fef3c7",
+              borderLeft:"3px solid #fde68a",
+            }}>
+              <div style={{ width:120, flexShrink:0, padding:"8px 12px 8px 16px", borderRight:"1px solid #fef3c7" }}>
+                {b.start && (
+                  <div style={{ fontFamily:"monospace", fontSize:11, color:"#b45309" }}>
+                    {format(new Date(b.start), "h:mm a")}
+                  </div>
+                )}
+                {b.end && (
+                  <div style={{ fontFamily:"monospace", fontSize:11, color:"#b45309" }}>
+                    {format(new Date(b.end), "h:mm a")}
+                  </div>
+                )}
+              </div>
+              <div style={{ flex:1, padding:"8px 20px", display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:14 }}>☕</span>
+                <span style={{ fontSize:12, fontWeight:600, color:"#92400e" }}>Break</span>
+                <span style={{ fontSize:12, color:"#b45309" }}>{Number(b.minutes) || 0} min</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
