@@ -11,27 +11,25 @@ router.get('/', auth, adminOnly, async (req, res) => {
 
   try {
     const empFilter = employeeId && employeeId !== 'all';
-    const ep = empFilter ? [employeeId] : [];
 
-    // Sessions + task/jira info
+    // ── Sessions + task/jira info ─────────────────────────────────────────────
     let sessSql = `
       SELECT s.id, s.employee_id, s.punch_in, s.punch_out, s.total_minutes, s.status, s.date,
-             e.name  AS employee_name,
+             e.name       AS employee_name,
              e.department,
-             COALESCE(t.name, tj.name) AS task_name,
              s.jira_issue_key,
-             s.jira_issue_summary
+             s.jira_issue_summary,
+             COALESCE(t.name, s.jira_issue_summary, s.jira_issue_key) AS task_name
       FROM   sessions  s
-      JOIN   employees e  ON e.id = s.employee_id
-      LEFT JOIN tasks  t  ON t.id = s.task_id
-      LEFT JOIN tasks  tj ON tj.jira_issue_key = s.jira_issue_key AND s.task_id IS NULL
+      JOIN   employees e ON e.id = s.employee_id
+      LEFT JOIN tasks  t ON t.id = s.task_id
       WHERE  s.date BETWEEN ? AND ?
     `;
     const sessParams = [startDate, endDate];
     if (empFilter) { sessSql += ' AND s.employee_id = ?'; sessParams.push(employeeId); }
     sessSql += ' ORDER BY s.employee_id, s.date, s.punch_in';
 
-    // Idle logs
+    // ── Idle logs ─────────────────────────────────────────────────────────────
     let idleSql = `
       SELECT id, employee_id, session_id, idle_start, idle_end, duration_seconds, date
       FROM   idle_logs
@@ -41,20 +39,21 @@ router.get('/', auth, adminOnly, async (req, res) => {
     if (empFilter) { idleSql += ' AND employee_id = ?'; idleParams.push(employeeId); }
     idleSql += ' ORDER BY employee_id, date, idle_start';
 
-    // In-session breaks
+    // ── In-session breaks ─────────────────────────────────────────────────────
     let brkSql = `
-      SELECT sb.id, sb.session_id, sb.break_start AS start_time, sb.break_end AS end_time,
-             ROUND(TIMESTAMPDIFF(SECOND, sb.break_start, COALESCE(sb.break_end, NOW())) / 60) AS duration_minutes,
-             s.employee_id, s.date
+      SELECT sb.id, sb.session_id,
+             sb.break_start AS start_time,
+             sb.break_end   AS end_time,
+             ROUND(TIMESTAMPDIFF(MINUTE, sb.break_start, COALESCE(sb.break_end, NOW()))) AS duration_minutes,
+             sb.employee_id, sb.date
       FROM   session_breaks sb
-      JOIN   sessions s ON s.id = sb.session_id
-      WHERE  s.date BETWEEN ? AND ?
+      WHERE  sb.date BETWEEN ? AND ?
     `;
     const brkParams = [startDate, endDate];
-    if (empFilter) { brkSql += ' AND s.employee_id = ?'; brkParams.push(employeeId); }
-    brkSql += ' ORDER BY sb.session_id, sb.start_time';
+    if (empFilter) { brkSql += ' AND sb.employee_id = ?'; brkParams.push(employeeId); }
+    brkSql += ' ORDER BY sb.session_id, sb.break_start';
 
-    // Top apps per employee per day
+    // ── Top apps per employee per day ─────────────────────────────────────────
     let appSql = `
       SELECT employee_id, date,
              app_name,
@@ -66,7 +65,7 @@ router.get('/', auth, adminOnly, async (req, res) => {
     if (empFilter) { appSql += ' AND employee_id = ?'; appParams.push(employeeId); }
     appSql += ' GROUP BY employee_id, date, app_name ORDER BY employee_id, date, total_seconds DESC';
 
-    // Screenshot count per employee per day
+    // ── Screenshot count per employee per day ─────────────────────────────────
     let ssSql = `
       SELECT employee_id, date, COUNT(*) AS count
       FROM   screenshots
@@ -76,13 +75,27 @@ router.get('/', auth, adminOnly, async (req, res) => {
     if (empFilter) { ssSql += ' AND employee_id = ?'; ssParams.push(employeeId); }
     ssSql += ' GROUP BY employee_id, date';
 
-    const [[sessions], [idleLogs], [sessionBreaks], [appLogs], [screenshotCounts]] = await Promise.all([
-      db.query(sessSql, sessParams),
-      db.query(idleSql, idleParams),
-      db.query(brkSql,  brkParams),
-      db.query(appSql,  appParams),
-      db.query(ssSql,   ssParams),
+    // Run all queries independently — a failure in breaks/apps won't kill sessions
+    const results = await Promise.allSettled([
+      db.query(sessSql,  sessParams),
+      db.query(idleSql,  idleParams),
+      db.query(brkSql,   brkParams),
+      db.query(appSql,   appParams),
+      db.query(ssSql,    ssParams),
     ]);
+
+    const pick = (r) => r.status === 'fulfilled' ? (r.value[0] || []) : [];
+
+    const sessions        = pick(results[0]);
+    const idleLogs        = pick(results[1]);
+    const sessionBreaks   = pick(results[2]);
+    const appLogs         = pick(results[3]);
+    const screenshotCounts= pick(results[4]);
+
+    // Log any query errors for server-side debugging
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') console.error(`[timeline] query[${i}] failed:`, r.reason?.message);
+    });
 
     // Group top 4 apps per employee+date
     const topApps = {};
