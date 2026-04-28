@@ -211,37 +211,30 @@ class TrackingManager: ObservableObject {
         // reminder will start only after the user dismisses the prompt or punches out.
 
         // ── Sleep / wake / quit observers ─────────────────────────────────────
-        // Punch OUT before sleep so the session closes cleanly in the DB.
-        // Auto check-in (didWakeNotification) will reopen it on same-day wake.
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            guard let self, self.isTracking else { return }
-            TMLog("[AutoCheckOut] Mac going to sleep — punching out")
-            // Synchronously clear break flags BEFORE the async punchOut so that
-            // if the Mac sleeps before the Task completes, the wake-up handler
-            // and the fast activity poll don't see a stale idle-break state and
-            // accidentally auto-resume yesterday's session.
-            self.isOnBreak   = false
-            self.isIdleBreak = false
-            MenuBarState.shared.isOnBreak = false
-            Task { await self.punchOut() }
-        }
-
-        // On wake: check for day change first (Mac may have slept over midnight),
-        // then handle activity — but only if the day did NOT change.
-        // We delay 3 s to let any in-flight punchOut Task finish: the Task was
-        // dispatched before sleep but may have been suspended mid-flight by the OS.
-        // Without the delay, handleActivityDetected fires while isTracking is still
-        // true and immediately bails out via the guard, so no resume prompt shows.
+        // We do NOT punch out on sleep. The minute timer is RunLoop-based and
+        // naturally pauses while the Mac is asleep, so no time accrues during
+        // sleep. The session stays open on the server and resumes seamlessly on
+        // wake — no employee action needed, no time lost.
+        //
+        // On wake: only handle the case where the Mac slept past midnight (day
+        // change → punch out stale session) or where activity was detected after
+        // a prior idle break. If still actively tracking, nothing needs to happen.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard let self else { return }
+            // Punch out and remind if the day rolled over during sleep.
             let dayChanged = self.checkDayChange()
             guard !dayChanged else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-                self?.handleActivityDetected(reason: "Mac woke from sleep")
+            // Three cases:
+            //  1. Actively tracking (no break)     → session continues silently, nothing to do.
+            //  2. On an idle-triggered break        → auto-resume as soon as user is detected active.
+            //  3. Not tracking at all               → show resume prompt.
+            // (Manual break = isOnBreak && !isIdleBreak → don't auto-resume; employee chose to pause.)
+            if !self.isTracking || (self.isOnBreak && self.isIdleBreak) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                    self?.handleActivityDetected(reason: "Mac woke from sleep")
+                }
             }
         }
 

@@ -395,8 +395,8 @@ class APIService: ObservableObject {
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw APIError.noResponse }
         if http.statusCode == 401 {
-            logout()
-            NotificationCenter.default.post(name: .sessionExpired, object: nil)
+            // Same policy as send(): don't auto-logout on a single 401.
+            print("[TeamMonitor][API] 401 on punch-in — ignoring (no auto-logout)")
             throw APIError.unauthorized
         }
 
@@ -668,8 +668,11 @@ class APIService: ObservableObject {
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else { throw APIError.noResponse }
         if http.statusCode == 401 {
-            logout()
-            NotificationCenter.default.post(name: .sessionExpired, object: nil)
+            // Do NOT logout here — a single 401 on heartbeat/punchOut/etc. can be
+            // a transient server blip or a wake-from-sleep race. Logging out on every
+            // 401 causes random login-screen flashes mid-shift.
+            // Token validity is checked explicitly by refreshEmployee() on launch.
+            print("[TeamMonitor][API] 401 on \(req.url?.path ?? "?") — ignoring (no auto-logout)")
             throw APIError.unauthorized
         }
         guard (200...299).contains(http.statusCode) else {
