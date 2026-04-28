@@ -94,11 +94,15 @@ codesign --force --deep --sign - "$APP_SRC" 2>/dev/null || true
 info "Installing to $INSTALL_DIR..."
 echo "  Administrator password required to install into /Applications"
 
-# Stop the running app before touching its bundle
+# Stop the running app before touching its bundle.
+# If the app is actively tracking, it needs up to 3 seconds to complete
+# the punchOut API call (willTerminateNotification semaphore). We wait 5 s
+# so the session is saved cleanly and no tracked time is lost.
 if pgrep -xq "$APP_NAME" 2>/dev/null; then
   warn "Stopping running instance..."
+  warn "If you are currently tracking time, your session will be saved automatically."
   pkill -x "$APP_NAME" 2>/dev/null || true
-  sleep 1
+  sleep 7   # allow Swift termination handler (5-s semaphore) to finish punchOut + 2 s cleanup
 fi
 
 if [ -d "$DEST" ]; then

@@ -251,13 +251,15 @@ class TrackingManager: ObservableObject {
         ) { [weak self] _ in
             guard let self, self.isTracking else { return }
             TMLog("[AutoCheckOut] App terminating — punching out")
-            // Synchronous-style: run punch-out on a detached task and give it 3 s
+            // Synchronous-style: run punch-out on a detached task and give it 5 s.
+            // The install script waits 7 s after pkill, so this has enough runway
+            // even on a slow connection.
             let sem = DispatchSemaphore(value: 0)
             Task {
                 await self.punchOut()
                 sem.signal()
             }
-            _ = sem.wait(timeout: .now() + 3)
+            _ = sem.wait(timeout: .now() + 5)
         }
 
         // Poll every 2 min while not tracking — if system idle time just
