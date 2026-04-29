@@ -31,6 +31,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 700, minHeight: 580)
         .onReceive(NotificationCenter.default.publisher(for: .sessionExpired)) { _ in
+            APIService.shared.logout()   // clear stale token from Keychain
             auth.isLoggedIn = false
         }
         .task { await restoreSession() }

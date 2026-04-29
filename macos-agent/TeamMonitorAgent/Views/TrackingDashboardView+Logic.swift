@@ -7,6 +7,7 @@ extension TrackingDashboardView {
     // MARK: – Data
 
     func loadTasks() {
+        guard !tasksLoading else { return }   // prevent concurrent calls (onAppear fires multiple times)
         tasksLoading = true
         tasksError   = nil
         Task { @MainActor in
@@ -15,6 +16,11 @@ extension TrackingDashboardView {
                 async let p = APIService.shared.getProjects()
                 myTasks  = try await t
                 projects = try await p
+            } catch APIError.unauthorized {
+                // Token is invalid mid-session — force re-login so user isn't stuck on an empty dashboard
+                TMLog("[loadTasks] unauthorized — posting sessionExpired")
+                APIService.shared.logout()
+                NotificationCenter.default.post(name: .sessionExpired, object: nil)
             } catch {
                 tasksError = error.localizedDescription
                 TMLog("[loadTasks] error: \(error)")

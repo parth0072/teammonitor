@@ -232,6 +232,9 @@ struct BugReportView: View {
                 )
                 TMLog("[BugReport] Report submitted — category: \(selectedCategory), logs attached: \(attachLogs)")
                 submitted = true
+            } catch APIError.unauthorized {
+                submitError = "Session expired — please sign out and sign back in."
+                TMLog("[BugReport] Submit failed: unauthorized")
             } catch {
                 submitError = "Failed to send: \(error.localizedDescription)"
                 TMLog("[BugReport] Submit failed: \(error)")
