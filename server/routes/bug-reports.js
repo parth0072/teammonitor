@@ -20,7 +20,7 @@ router.post('/', auth, async (req, res) => {
       diagnostics ? JSON.stringify(diagnostics) : null,
     ]
   );
-  res.status(201).json({ ok: true, id: r.insertId });
+  res.status(201).json({ ok: true });
 });
 
 // GET /api/bug-reports  (admin only)
