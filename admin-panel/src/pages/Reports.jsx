@@ -10,7 +10,7 @@ import {
 const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899","#06b6d4","#84cc16"];
 const fmtDur = s => { s = Math.round(Number(s)||0); const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; };
 const fmtHM  = m => { m = Math.round(Number(m)||0); const h=Math.floor(m/60),mn=m%60; return `${h}h ${String(mn).padStart(2,"0")}m`; };
-const fmtTime = dt => dt ? format(new Date(dt), "h:mm a") : "—";
+import { fmtTime } from "../tz";
 
 const PRESETS = [
   { label:"Today",      days:0 },

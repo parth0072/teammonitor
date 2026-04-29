@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { api } from "../api";
+import { setTimezone, TIMEZONES, getTimezone } from "../tz";
 
 const C = {
   text:   "#101828",
@@ -15,9 +16,12 @@ const C = {
 export default function OrgSettings() {
   const [statusOptions, setStatusOptions] = useState([]);
   const [newOption,     setNewOption]     = useState("");
+  const [timezone,      setTz]            = useState(getTimezone());
   const [loading,       setLoading]       = useState(true);
   const [saving,        setSaving]        = useState(false);
+  const [tzSaving,      setTzSaving]      = useState(false);
   const [msg,           setMsg]           = useState("");
+  const [tzMsg,         setTzMsg]         = useState("");
 
   useEffect(() => { load(); }, []);
 
@@ -27,6 +31,7 @@ export default function OrgSettings() {
       const data = await api.getSettings();
       const opts = data.work_status_options;
       setStatusOptions(Array.isArray(opts) ? opts : ["WFO", "WFH", "Remote"]);
+      if (data.timezone) { setTz(data.timezone); setTimezone(data.timezone); }
     } catch { setStatusOptions(["WFO", "WFH", "Remote"]); }
     setLoading(false);
   }
@@ -39,6 +44,17 @@ export default function OrgSettings() {
       setTimeout(() => setMsg(""), 2500);
     } catch (err) { setMsg("✗ " + err.message); }
     setSaving(false);
+  }
+
+  async function saveTz(tz) {
+    setTzSaving(true); setTzMsg("");
+    try {
+      await api.updateSettings({ timezone: tz });
+      setTimezone(tz);   // update localStorage immediately
+      setTzMsg("✓ Timezone saved — refresh any open page to apply");
+      setTimeout(() => setTzMsg(""), 4000);
+    } catch (err) { setTzMsg("✗ " + err.message); }
+    setTzSaving(false);
   }
 
   function addOption() {
@@ -77,11 +93,71 @@ export default function OrgSettings() {
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: C.text, margin: 0 }}>Organisation Settings</h1>
         <div style={{ color: C.muted, fontSize: 14, marginTop: 4 }}>
-          Configure global options that appear in the macOS agent.
+          Configure global options for the admin panel and macOS agent.
         </div>
       </div>
 
-      {/* Work Status Options */}
+      {/* ── Timezone ─────────────────────────────────────────────────────────── */}
+      <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", marginBottom: 24 }}>
+        <div style={{ padding: "18px 24px", borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>🌏 Timezone</div>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+            All session times in the admin panel will display in this timezone.
+          </div>
+        </div>
+        <div style={{ padding: 24 }}>
+          {loading ? (
+            <div style={{ color: C.muted, fontSize: 13 }}>Loading…</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <select
+                  value={timezone}
+                  onChange={e => setTz(e.target.value)}
+                  style={{
+                    flex: 1, padding: "9px 12px",
+                    border: `1.5px solid ${C.border}`, borderRadius: 8,
+                    fontSize: 13, color: C.text, background: "#fff", outline: "none",
+                  }}
+                >
+                  {TIMEZONES.map(tz => (
+                    <option key={tz.value} value={tz.value}>{tz.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => saveTz(timezone)}
+                  disabled={tzSaving}
+                  style={{
+                    background: C.indigo, color: "#fff", border: "none",
+                    borderRadius: 8, padding: "9px 18px", fontSize: 13,
+                    fontWeight: 600, cursor: tzSaving ? "wait" : "pointer",
+                    opacity: tzSaving ? 0.7 : 1, whiteSpace: "nowrap",
+                  }}
+                >
+                  {tzSaving ? "Saving…" : "Save Timezone"}
+                </button>
+              </div>
+              {tzMsg && (
+                <div style={{ marginTop: 12, fontSize: 13, fontWeight: 600, color: tzMsg.startsWith("✓") ? C.green : C.red }}>
+                  {tzMsg}
+                </div>
+              )}
+              <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>
+                Current time in selected zone:{" "}
+                <strong style={{ color: C.text }}>
+                  {new Intl.DateTimeFormat("en-US", {
+                    timeZone: timezone,
+                    weekday: "short", month: "short", day: "numeric",
+                    hour: "numeric", minute: "2-digit", hour12: true,
+                  }).format(new Date())}
+                </strong>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Work Status Options ───────────────────────────────────────────────── */}
       <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
         <div style={{ padding: "18px 24px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Work Status Options</div>
@@ -94,7 +170,6 @@ export default function OrgSettings() {
           <div style={{ padding: 32, textAlign: "center", color: C.muted }}>Loading…</div>
         ) : (
           <div style={{ padding: 24 }}>
-            {/* Option list */}
             {statusOptions.length === 0 && (
               <div style={{ color: C.muted, fontSize: 13, marginBottom: 16 }}>No options yet. Add one below.</div>
             )}
@@ -117,7 +192,6 @@ export default function OrgSettings() {
               </div>
             ))}
 
-            {/* Add new */}
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
               <input
                 value={newOption}
@@ -146,10 +220,9 @@ export default function OrgSettings() {
             </div>
 
             {msg && (
-              <div style={{
-                marginTop: 14, fontSize: 13, fontWeight: 600,
-                color: msg.startsWith("✓") ? C.green : C.red,
-              }}>{msg}</div>
+              <div style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: msg.startsWith("✓") ? C.green : C.red }}>
+                {msg}
+              </div>
             )}
           </div>
         )}

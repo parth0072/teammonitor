@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { format, subDays, parseISO } from "date-fns";
+import { fmtTime } from "../tz";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,9 +53,7 @@ function buildTaskMap(members) {
 // ── Task Detail Modal ─────────────────────────────────────────────────────────
 
 function fmt(dt) {
-  if (!dt) return "—";
-  try { return format(typeof dt === "string" ? parseISO(dt) : new Date(dt), "h:mm a"); }
-  catch { return "—"; }
+  return fmtTime(dt);
 }
 
 function TaskDetailModal({ task, onClose }) {

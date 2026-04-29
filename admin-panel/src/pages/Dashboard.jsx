@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../api";
 import { format } from "date-fns";
+import { fmtTime } from "../tz";
 import { useAuth } from "../App";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -221,7 +222,7 @@ function EmployeeTimeline({ employee, sessions }) {
           const w = widthPct(gapStart, gapEnd);
           return (
             <div key={`gap-${i}`}
-              title={`Inactive · ${format(new Date(gapStart), "h:mm a")} → ${format(new Date(gapEnd), "h:mm a")} (${gapMins}m)`}
+              title={`Inactive · ${fmtTime(gapStart)} → ${fmtTime(gapEnd)} (${gapMins}m)`}
               style={{
                 position: "absolute", top: 4, height: 12, borderRadius: 4,
                 left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
@@ -245,7 +246,7 @@ function EmployeeTimeline({ employee, sessions }) {
             const w = widthPct(b.start, bEnd);
             return (
               <div key={`break-${si}-${bi}`}
-                title={`Break · ${format(new Date(b.start), "h:mm a")} → ${b.end ? format(bEnd, "h:mm a") : "ongoing"} (${breakMins}m)`}
+                title={`Break · ${fmtTime(b.start)} → ${b.end ? fmtTime(bEnd) : "ongoing"} (${breakMins}m)`}
                 style={{
                   position: "absolute", top: 4, height: 12, borderRadius: 4,
                   left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
@@ -267,7 +268,7 @@ function EmployeeTimeline({ employee, sessions }) {
           const w = widthPct(segStart, segEnd);
           const isActive = s.status === "active";
           return (
-            <div key={i} title={`${s.task_name || s.jira_issue_key || "No task"} · ${format(new Date(segStart), "h:mm a")} → ${s.punch_out ? format(new Date(segEnd), "h:mm a") : "now"} (${s.total_minutes || 0}m)`}
+            <div key={i} title={`${s.task_name || s.jira_issue_key || "No task"} · ${fmtTime(segStart)} → ${s.punch_out ? fmtTime(segEnd) : "now"} (${s.total_minutes || 0}m)`}
               style={{
                 position: "absolute", top: 4, height: 12, borderRadius: 4,
                 left: `${x}%`, width: `${w}%`,
@@ -436,7 +437,7 @@ function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot })
   const done    = session && !active && !idle;
   const color   = avatarColor(employee.name);
   const timeToday   = fmtHM(totalMinsToday);
-  const punchInStr  = session?.punch_in ? format(new Date(session.punch_in), "h:mm a") : null;
+  const punchInStr  = session?.punch_in ? fmtTime(session.punch_in) : null;
 
   const statusColor = active ? C.green : idle ? C.amber : done ? C.muted : C.amber;
   const statusLabel = active ? "Active" : idle ? "Idle" : done ? "Done" : "Absent";
@@ -546,7 +547,7 @@ function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot })
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
           {lastScreenshot?.captured_at ? (
             <div style={{ fontSize: 10, color: "#CBD5E1" }}>
-              📷 {format(new Date(lastScreenshot.captured_at), "h:mm a")}
+              📷 {fmtTime(lastScreenshot.captured_at)}
             </div>
           ) : <div />}
           {employee.agent_version && (
@@ -646,7 +647,7 @@ function EmployeeDashboard({ user }) {
 
       {/* KPI Cards */}
       <div className="tm-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
-        <StatCard label="Status"           value={activeSession ? "Active" : "Offline"} color={activeSession ? C.green : C.muted} icon={activeSession ? "🟢" : "⚫"} sub={activeSession ? `since ${format(new Date(activeSession.punch_in), "h:mm a")}` : "not tracking"} />
+        <StatCard label="Status"           value={activeSession ? "Active" : "Offline"} color={activeSession ? C.green : C.muted} icon={activeSession ? "🟢" : "⚫"} sub={activeSession ? `since ${fmtTime(activeSession.punch_in)}` : "not tracking"} />
         <StatCard label="Hours Today"      value={fmtHMdec(totalMins)}  color={C.blue}   icon="⏱" sub={`${sessions.length} session${sessions.length !== 1 ? "s" : ""}`} />
         <StatCard label="Screenshots"      value={screenshots.length}   color={C.purple} icon="📷" sub="captured today" />
         <StatCard label="This Week"        value={fmtHMdec(chartData.reduce((a, d) => a + d.hours * 60, 0))} color={C.indigo} icon="📊" sub="total tracked" />

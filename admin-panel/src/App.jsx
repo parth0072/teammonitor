@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useContext, useCallback } fr
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
 import "./responsive.css";
 import { hasToken, clearToken, api } from "./api";
+import { setTimezone } from "./tz";
 import Login from "./pages/Login";
 import Setup from "./pages/Setup";
 import Dashboard from "./pages/Dashboard";
@@ -159,7 +160,14 @@ export default function App() {
 
   useEffect(() => {
     if (hasToken()) {
-      api.me().then(emp => { setUser(emp); setLoading(false); }).catch(() => { clearToken(); setLoading(false); });
+      api.me()
+        .then(emp => {
+          setUser(emp);
+          setLoading(false);
+          // Load org timezone and cache it for all formatters
+          api.getSettings().then(s => { if (s?.timezone) setTimezone(s.timezone); }).catch(() => {});
+        })
+        .catch(() => { clearToken(); setLoading(false); });
     } else {
       setLoading(false);
     }

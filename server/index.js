@@ -184,6 +184,7 @@ async function runMigrations() {
   // Seed default org settings if not already present
   const defaultSettings = {
     work_status_options: JSON.stringify(['WFO', 'WFH', 'Remote', 'On-site', 'Hybrid']),
+    timezone: 'Asia/Kolkata',
   };
   for (const [key, value] of Object.entries(defaultSettings)) {
     try {
