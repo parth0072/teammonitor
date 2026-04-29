@@ -3,6 +3,7 @@
 import AppKit
 import Foundation
 import Combine
+import UserNotifications
 
 extension Notification.Name {
     static let tmActivateWindow = Notification.Name("tm.activateWindow")
@@ -414,15 +415,33 @@ class TrackingManager: ObservableObject {
         TMLog("[Notifications] \(title): \(text)")
     }
 
-    /// Idle-specific notification — shows the custom in-app overlay banner
-    /// and opens the NotTrackingAlert modal (Start / Remind / Don't remind buttons).
+    /// Idle-specific notification — fires a real macOS system notification with
+    /// "Start Timer" / "Don't Remind Me Again" action buttons, plus the in-app overlay.
     func sendIdleNotification(_ text: String) {
-        NotificationOverlayManager.shared.show(
-            title: "⏱ Timer Not Running",
-            message: text,
-            isWarning: true,
-            muteAction: { [weak self] in self?.disableIdleReminder() }
+        // System notification (shows in Notification Center with action buttons)
+        let content = UNMutableNotificationContent()
+        content.title    = "⏱ Timer Not Running"
+        content.body     = text
+        content.sound    = .default
+        content.categoryIdentifier = "IDLE_REMINDER"
+        let request = UNNotificationRequest(
+            identifier: "idle-reminder",   // reuse same ID so it replaces the previous one
+            content: content,
+            trigger: nil                   // deliver immediately
         )
+        UNUserNotificationCenter.current().add(request) { err in
+            if let err { TMLog("[Notifications] idle system notification error: \(err)") }
+        }
+
+        // In-app overlay (visible even when the window is open)
+        Task { @MainActor in
+            NotificationOverlayManager.shared.show(
+                title: "⏱ Timer Not Running",
+                message: text,
+                isWarning: true,
+                muteAction: { [weak self] in self?.disableIdleReminder() }
+            )
+        }
         showNotTrackingAlert = true
     }
 

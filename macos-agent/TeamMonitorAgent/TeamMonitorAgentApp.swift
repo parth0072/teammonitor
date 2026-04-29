@@ -59,8 +59,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let adminAckCategory     = UNNotificationCategory(identifier: "ADMIN_NOTIFY_ACK",
             actions: [ackAction], intentIdentifiers: [], options: [])
 
+        // Idle / timer-not-running reminder category
+        let idleStartAction      = UNNotificationAction(identifier: "IDLE_START_NOW",    title: "Start Timer", options: [.foreground])
+        let idleMuteAction       = UNNotificationAction(identifier: "IDLE_DONT_REMIND",  title: "Don't Remind Me Again", options: [.destructive])
+        let idleReminderCategory = UNNotificationCategory(identifier: "IDLE_REMINDER",
+            actions: [idleStartAction, idleMuteAction], intentIdentifiers: [], options: [])
+
         UNUserNotificationCenter.current().setNotificationCategories([
-            adminBreakCategory, adminPunchOutCategory, adminAckCategory
+            adminBreakCategory, adminPunchOutCategory, adminAckCategory, idleReminderCategory
         ])
 
         // Listen for window-activation requests from TrackingManager
@@ -114,6 +120,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 let m = TrackingManager.shared
                 if m.isTracking { await m.punchOut() }
             }
+        case "IDLE_START_NOW":
+            // Bring window forward; user taps Start in the UI
+            break
+        case "IDLE_DONT_REMIND":
+            Task { @MainActor in TrackingManager.shared.disableIdleReminder() }
         default:
             break
         }
