@@ -11,6 +11,7 @@ struct OverlayNotification: Identifiable {
     let message:    String
     let isWarning:  Bool
     let persistent: Bool       // warning = stays until dismissed
+    let muteAction: (() -> Void)?  // if set, shows "Don't remind me again" button
     // progress is now driven by SwiftUI @State animation in NotificationCard — no timer needed
 }
 
@@ -29,7 +30,7 @@ final class NotificationOverlayManager: ObservableObject {
 
     private init() {}
 
-    func show(title: String, message: String, isWarning: Bool) {
+    func show(title: String, message: String, isWarning: Bool, muteAction: (() -> Void)? = nil) {
         // Replace existing notification with same title
         if let idx = notifications.firstIndex(where: { $0.title == title }) {
             let old = notifications[idx].id
@@ -37,7 +38,8 @@ final class NotificationOverlayManager: ObservableObject {
             notifications.remove(at: idx)
         }
         let note = OverlayNotification(title: title, message: message,
-                                       isWarning: isWarning, persistent: isWarning)
+                                       isWarning: isWarning, persistent: isWarning,
+                                       muteAction: muteAction)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
             notifications.append(note)
         }
@@ -236,7 +238,7 @@ private struct NotificationCard: View {
     @ViewBuilder
     private var footerStrip: some View {
         if note.persistent {
-            // Subtle info row
+            // Subtle info row + optional mute button
             HStack(spacing: 6) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 9))
@@ -245,6 +247,16 @@ private struct NotificationCard: View {
                     .font(.system(size: 10))
                     .foregroundColor(Color(hex: "475569"))
                 Spacer()
+                if let mute = note.muteAction {
+                    Button("Don't remind me") {
+                        mute()
+                        onDismiss()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Color(hex: "64748B"))
+                    .underline()
+                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 11)

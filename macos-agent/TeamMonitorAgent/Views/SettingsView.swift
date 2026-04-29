@@ -83,6 +83,32 @@ struct SettingsView: View {
                         }
                     }
 
+                    // MARK: Timer-not-running Reminders
+                    settingsSection("Reminders") {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Timer-not-running alerts")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text(manager.idleReminderDisabled
+                                     ? "Reminders muted — tap to re-enable"
+                                     : "Notifies you when the timer is stopped")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(manager.idleReminderDisabled
+                                                     ? Color(hex: "f59e0b")
+                                                     : Color(hex: "6b7280"))
+                            }
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { !manager.idleReminderDisabled },
+                                set: { on in
+                                    if on { manager.enableIdleReminder() }
+                                    else  { manager.disableIdleReminder() }
+                                }
+                            ))
+                            .labelsHidden()
+                        }
+                    }
+
                     // MARK: Break Reminders (shown only when admin enables it)
                     if APIService.shared.employee?.breakEnabled == true {
                         let intervalMins = APIService.shared.employee?.breakIntervalMinutes ?? 60

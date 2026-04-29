@@ -117,6 +117,14 @@ extension TrackingDashboardView {
                     .foregroundColor(.white)
                     .padding(.horizontal, 12).padding(.vertical, 5)
                     .background(Color(hex: "7c3aed")).cornerRadius(6).buttonStyle(.plain)
+
+                    Button("Don't remind me") {
+                        manager.disableIdleReminder()
+                    }
+                    .font(.system(size: 10))
+                    .foregroundColor(Color(hex: "7c3aed").opacity(0.6))
+                    .buttonStyle(.plain)
+                    .underline()
                 }
 
                 Button("✕") { manager.showStartReminder = false }

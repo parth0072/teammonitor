@@ -420,7 +420,8 @@ class TrackingManager: ObservableObject {
         NotificationOverlayManager.shared.show(
             title: "⏱ Timer Not Running",
             message: text,
-            isWarning: true
+            isWarning: true,
+            muteAction: { [weak self] in self?.disableIdleReminder() }
         )
         showNotTrackingAlert = true
     }
