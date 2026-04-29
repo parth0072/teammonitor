@@ -14,7 +14,7 @@ router.post('/', auth, async (req, res) => {
     `INSERT INTO bug_reports (employee_id, category, description, diagnostics)
      VALUES (?, ?, ?, ?)`,
     [
-      req.employee.id,
+      req.user.id,
       category || 'Other',
       description.trim(),
       diagnostics ? JSON.stringify(diagnostics) : null,
