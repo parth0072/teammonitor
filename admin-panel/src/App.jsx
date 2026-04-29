@@ -18,6 +18,7 @@ import Leaves from "./pages/Leaves";
 import Productivity from "./pages/Productivity";
 import OrgSettings from "./pages/OrgSettings";
 import TeamOverview from "./pages/TeamOverview";
+import Issues from "./pages/Issues";
 
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -45,6 +46,7 @@ const ADMIN_NAV = [
   { path: "/screenshots",  label: "Screenshots",   icon: "🖼" },
   { path: "/attendance",   label: "Attendance",    icon: "📅" },
   { path: "/timelines",    label: "Timelines",     icon: "⏱" },
+  { path: "/issues",       label: "Issues",        icon: "🐛" },
   { path: "/settings",     label: "Settings",      icon: "⚙️" },
 ];
 
@@ -191,6 +193,7 @@ export default function App() {
           <Route path="/timelines"    element={<ProtectedRoute><Timelines /></ProtectedRoute>} />
           <Route path="/leaves"       element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
           <Route path="/productivity" element={<ProtectedRoute><Productivity /></ProtectedRoute>} />
+          <Route path="/issues"       element={<AdminRoute><Issues /></AdminRoute>} />
           <Route path="/settings"     element={<AdminRoute><OrgSettings /></AdminRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

@@ -149,6 +149,10 @@ export const api = {
   sendSlackDigest:    (date)               => request('POST',  '/admin/slack-report',          { date }),
   previewSlackDigest: (date)               => request('GET',   `/admin/slack-report/preview?date=${date}`),
   sendTeamsDigest:    (date)               => request('POST',  '/admin/teams-report',           { date }),
+
+  // Bug / issue reports (from macOS agent)
+  getBugReports:          ()           => request('GET',  '/bug-reports'),
+  updateBugReportStatus:  (id, status, note) => request('PUT', `/bug-reports/${id}/status`, { status, note }),
 };
 
 export function saveToken(token) { localStorage.setItem('tm_token', token); }

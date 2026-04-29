@@ -37,11 +37,14 @@ router.get('/', auth, adminOnly, async (req, res) => {
 
 // PUT /api/bug-reports/:id/status  (admin only)
 router.put('/:id/status', auth, adminOnly, async (req, res) => {
-  const { status } = req.body;
+  const { status, note } = req.body;
   if (!['open', 'in_progress', 'resolved'].includes(status)) {
     return res.status(400).json({ error: 'invalid status' });
   }
-  await db.query('UPDATE bug_reports SET status=? WHERE id=?', [status, req.params.id]);
+  await db.query(
+    'UPDATE bug_reports SET status=?, admin_note=COALESCE(?, admin_note) WHERE id=?',
+    [status, note || null, req.params.id]
+  );
   res.json({ ok: true });
 });
 

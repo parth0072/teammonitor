@@ -163,6 +163,8 @@ async function runMigrations() {
        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
      )`,
 
+    `ALTER TABLE bug_reports ADD COLUMN IF NOT EXISTS admin_note TEXT DEFAULT NULL`,
+
     // Real-time idle state — updated by heartbeat, shown in admin Team Overview
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_idle    TINYINT(1) DEFAULT 0`,
     `ALTER TABLE employees ADD COLUMN IF NOT EXISTS idle_since DATETIME   DEFAULT NULL`,
