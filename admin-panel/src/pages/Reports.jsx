@@ -173,6 +173,9 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
               ? Math.round((new Date(s.punch_out) - new Date(s.punch_in)) / 60000) : null;
             const idleMins = wallMins != null && netMins > 0 ? wallMins - netMins : null;
             const isActive = !s.punch_out;
+            const heartbeatAgeMin = s.last_heartbeat_at
+              ? (Date.now() - new Date(s.last_heartbeat_at).getTime()) / 60000 : 999;
+            const isAway   = isActive && heartbeatAgeMin > 8;
             const brkList  = Array.isArray(s.breaks) ? s.breaks : [];
             const brkMins  = brkList.reduce((acc, b) => {
               if (!b.start || !b.end) return acc;
@@ -183,7 +186,7 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
               <div key={i} style={{
                 display:"flex", gap:0,
                 borderBottom:"1px solid #f8fafc",
-                borderLeft:`3px solid ${isActive ? "#f59e0b" : "#10b981"}`,
+                borderLeft:`3px solid ${isAway ? "#94a3b8" : isActive ? "#f59e0b" : "#10b981"}`,
               }}>
                 {/* Time column */}
                 <div style={{ width:120, flexShrink:0, padding:"14px 12px 14px 16px", borderRight:"1px solid #f1f5f9" }}>
@@ -191,8 +194,8 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
                     {s.punch_in ? format(new Date(s.punch_in), "h:mm a") : "?"}
                   </div>
                   <div style={{ fontSize:10, color:"#94a3b8", margin:"2px 0 0" }}>↓</div>
-                  <div style={{ fontFamily:"monospace", fontSize:12, color: isActive ? "#f59e0b" : "#64748b", fontWeight: isActive ? 600 : 400 }}>
-                    {isActive ? "● now" : s.punch_out ? format(new Date(s.punch_out), "h:mm a") : "—"}
+                  <div style={{ fontFamily:"monospace", fontSize:12, color: isAway ? "#94a3b8" : isActive ? "#f59e0b" : "#64748b", fontWeight: isActive ? 600 : 400 }}>
+                    {isAway ? "◌ away" : isActive ? "● now" : s.punch_out ? format(new Date(s.punch_out), "h:mm a") : "—"}
                   </div>
                 </div>
 
@@ -220,9 +223,9 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
                       </span>
                     )}
                     {isActive && (
-                      <span style={{ fontSize:11, background:"#fef9c3", color:"#854d0e", borderRadius:20, padding:"1px 8px", fontWeight:700 }}>
-                        ● Active
-                      </span>
+                      isAway
+                        ? <span style={{ fontSize:11, background:"#f1f5f9", color:"#64748b", borderRadius:20, padding:"1px 8px", fontWeight:700 }}>◌ Away</span>
+                        : <span style={{ fontSize:11, background:"#fef9c3", color:"#854d0e", borderRadius:20, padding:"1px 8px", fontWeight:700 }}>● Active</span>
                     )}
                   </div>
 

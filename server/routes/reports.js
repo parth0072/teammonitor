@@ -275,7 +275,8 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
               1440
             ) AS total_minutes,
             COALESCE(t.name, tj.name) AS task_name,
-            s.jira_issue_key, s.jira_issue_summary
+            s.jira_issue_key, s.jira_issue_summary,
+            s.last_heartbeat_at
      FROM sessions s
      LEFT JOIN tasks t  ON t.id = s.task_id
      LEFT JOIN tasks tj ON tj.jira_issue_key = s.jira_issue_key AND s.task_id IS NULL
@@ -328,9 +329,11 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   const productivePercent   = totalTrackedMinutes > 0
     ? Math.min(100, Math.round(totalActiveSeconds / (totalTrackedMinutes * 60) * 100)) : 0;
 
-  const activeSessions = sessions.filter(s => s.status === 'active' || s.total_minutes > 0);
+  // Include sessions that have time OR have a punch_out (avoids dropping 0-min completed sessions)
+  const activeSessions = sessions.filter(s => s.status === 'active' || s.total_minutes > 0 || s.punch_out);
   const punchInTimes   = activeSessions.map(s => new Date(s.punch_in));
-  const punchOutTimes  = activeSessions.filter(s => s.punch_out).map(s => new Date(s.punch_out));
+  // last_punch_out: scan ALL sessions that have a punch_out (not just activeSessions)
+  const punchOutTimes  = sessions.filter(s => s.punch_out).map(s => new Date(s.punch_out));
   const breaks         = computeBreaks(activeSessions);
   const totalBreakMins = breaks.reduce((s, b) => s + b.minutes, 0);
 

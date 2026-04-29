@@ -96,6 +96,9 @@ function TimelineBar({ sessions, idleLogs, sessionBreaks, dayResetHour }) {
 
 function SessionCard({ session, breaks }) {
   const isActive = !session.punch_out;
+  const heartbeatAgeMin = session.last_heartbeat_at
+    ? (Date.now() - new Date(session.last_heartbeat_at).getTime()) / 60000 : 999;
+  const isAway  = isActive && heartbeatAgeMin > 8;   // lid closed / asleep
   const wallMins = session.punch_in && session.punch_out
     ? Math.round((new Date(session.punch_out) - new Date(session.punch_in)) / 60000) : null;
   const netMins  = Number(session.total_minutes) || 0;
@@ -145,11 +148,15 @@ function SessionCard({ session, breaks }) {
           </span>
         )}
 
-        {/* Active badge */}
+        {/* Active / Away badge */}
         {isActive && (
-          <span style={{ background:"#fef9c3", color:"#854d0e", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700, marginLeft:"auto" }}>
-            ● Active now
-          </span>
+          isAway
+            ? <span style={{ background:"#f1f5f9", color:"#64748b", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700, marginLeft:"auto" }}>
+                ◌ Away
+              </span>
+            : <span style={{ background:"#fef9c3", color:"#854d0e", borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700, marginLeft:"auto" }}>
+                ● Active now
+              </span>
         )}
       </div>
 

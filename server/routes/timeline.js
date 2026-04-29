@@ -19,6 +19,7 @@ router.get('/', auth, adminOnly, async (req, res) => {
              e.department,
              s.jira_issue_key,
              s.jira_issue_summary,
+             s.last_heartbeat_at,
              COALESCE(t.name, s.jira_issue_summary, s.jira_issue_key) AS task_name
       FROM   sessions  s
       JOIN   employees e ON e.id = s.employee_id
