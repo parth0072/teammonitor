@@ -216,7 +216,27 @@ class TrackingManager: ObservableObject {
         // naturally pauses while the Mac is asleep, so no time accrues during
         // sleep. The session stays open on the server and resumes seamlessly on
         // wake — no employee action needed, no time lost.
-        //
+
+        // BEFORE sleep (lid close, manual sleep, display sleep):
+        // Fire a heartbeat with isIdle=true so the server marks the user idle/offline
+        // immediately instead of waiting for the 8-minute heartbeat timeout.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, let sid = self.currentSessionId else { return }
+            TMLog("[Sleep] Mac going to sleep — sending idle heartbeat")
+            let mins = self.trackedMinutes
+            let delivered = self.pendingDeliveredCommandIds
+            self.pendingDeliveredCommandIds = []
+            Task {
+                try? await self.api.heartbeat(
+                    sessionId: sid, totalMinutes: mins,
+                    isIdle: true, deliveredCommandIds: delivered
+                )
+            }
+        }
+
+        // AFTER wake: clear the idle flag so the user shows as active again.
         // On wake: only handle the case where the Mac slept past midnight (day
         // change → punch out stale session) or where activity was detected after
         // a prior idle break. If still actively tracking, nothing needs to happen.
@@ -227,6 +247,17 @@ class TrackingManager: ObservableObject {
             // Punch out and remind if the day rolled over during sleep.
             let dayChanged = self.checkDayChange()
             guard !dayChanged else { return }
+            // Clear server-side idle flag if we're still in a session
+            if let sid = self.currentSessionId {
+                let mins = self.trackedMinutes
+                TMLog("[Sleep] Mac woke — clearing idle flag")
+                Task {
+                    try? await self.api.heartbeat(
+                        sessionId: sid, totalMinutes: mins,
+                        isIdle: false, deliveredCommandIds: []
+                    )
+                }
+            }
             // Three cases:
             //  1. Actively tracking (no break)     → session continues silently, nothing to do.
             //  2. On an idle-triggered break        → auto-resume as soon as user is detected active.
