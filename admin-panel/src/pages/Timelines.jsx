@@ -98,7 +98,7 @@ function SessionCard({ session, breaks }) {
   const isActive = !session.punch_out;
   const heartbeatAgeMin = session.last_heartbeat_at
     ? (Date.now() - new Date(session.last_heartbeat_at).getTime()) / 60000 : 999;
-  const isAway  = isActive && heartbeatAgeMin > 8;   // lid closed / asleep
+  const isAway  = isActive && heartbeatAgeMin > 6;   // lid closed / asleep — heartbeat every 5 min, 6 min = 1 min grace
   const wallMins = session.punch_in && session.punch_out
     ? Math.round((new Date(session.punch_out) - new Date(session.punch_in)) / 60000) : null;
   const netMins  = Number(session.total_minutes) || 0;

@@ -176,7 +176,7 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
             const heartbeatAgeMin = s.last_heartbeat_at
               ? (Date.now() - new Date(s.last_heartbeat_at).getTime()) / 60000 : 999;
             // Away = no heartbeat for 8+ min OR agent explicitly flagged idle (e.g. lid close)
-            const isAway   = isActive && (heartbeatAgeMin > 8 || !!s.is_idle);
+            const isAway   = isActive && (heartbeatAgeMin > 6 || !!s.is_idle);
             const hbAgoStr = s.last_heartbeat_at
               ? heartbeatAgeMin < 1   ? "just now"
               : heartbeatAgeMin < 60  ? `${Math.round(heartbeatAgeMin)}m ago`
@@ -238,8 +238,8 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
                   )}
                   {/* Last heartbeat — always visible so admin can identify connectivity issues */}
                   {hbAgoStr && (
-                    <div style={{ marginTop:4, fontSize:10, color: heartbeatAgeMin > 8 ? "#ef4444" : "#94a3b8" }}>
-                      ⟳ last heartbeat {fmtTime(s.last_heartbeat_at)} ({hbAgoStr}){s.is_idle ? " · idle" : ""}
+                    <div style={{ marginTop:4, fontSize:10, color: heartbeatAgeMin > 6 ? "#ef4444" : "#94a3b8" }}>
+                      ⟳ last heartbeat {format(new Date(s.last_heartbeat_at), "h:mm a")} ({hbAgoStr}){s.is_idle ? " · idle" : ""}
                     </div>
                   )}
                 </div>

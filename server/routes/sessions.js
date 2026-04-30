@@ -432,8 +432,8 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
       // Treat as idle if agent reported idle, but only if heartbeat was recent (< 10 min ago)
       const heartbeatAge = h.last_heartbeat_at
         ? (now - new Date(h.last_heartbeat_at)) / 60000 : 999;
-      const is_idle   = !!h.is_idle && heartbeatAge < 8;
-      const is_online = heartbeatAge < 8;   // heartbeat every 5 min; 8-min window avoids false-offline flicker
+      const is_idle   = !!h.is_idle && heartbeatAge < 6;
+      const is_online = heartbeatAge < 6;   // heartbeat every 5 min; 6-min window = 1 min grace after missed beat
       return {
         employee_id:        h.employee_id,
         name:               h.name,
