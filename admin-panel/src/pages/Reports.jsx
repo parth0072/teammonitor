@@ -171,7 +171,7 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
             const netMins  = Number(s.total_minutes) || 0;
             const wallMins = s.punch_in && s.punch_out
               ? Math.round((new Date(s.punch_out) - new Date(s.punch_in)) / 60000) : null;
-            const idleMins = wallMins != null && netMins > 0 ? wallMins - netMins : null;
+            // idleMins removed — wall−tracked ≠ idle (includes lunch, pauses, etc.)
             const isActive = !s.punch_out;
             const heartbeatAgeMin = s.last_heartbeat_at
               ? (Date.now() - new Date(s.last_heartbeat_at).getTime()) / 60000 : 999;
@@ -211,11 +211,6 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
                     )}
                     {wallMins != null && wallMins !== netMins && (
                       <span style={{ fontSize:11, color:"#94a3b8" }}>{fmtHM(wallMins)} wall</span>
-                    )}
-                    {idleMins != null && idleMins > 2 && (
-                      <span style={{ fontSize:11, background:"#fef3c7", color:"#92400e", borderRadius:20, padding:"1px 8px", fontWeight:600 }}>
-                        {idleMins}m idle
-                      </span>
                     )}
                     {brkList.length > 0 && (
                       <span style={{ fontSize:11, background:"#fff7ed", color:"#c2410c", borderRadius:20, padding:"1px 8px", fontWeight:600 }}>
