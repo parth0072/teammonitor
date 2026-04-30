@@ -212,6 +212,11 @@ async function start() {
     cleanupOldScreenshots();
     setInterval(cleanupOldScreenshots, 24 * 60 * 60 * 1000);
 
+    // Heartbeat staleness is checked on-demand:
+    // • GET /api/sessions/team-overview — computes is_idle/is_online from last_heartbeat_at age at query time
+    // • GET /api/reports/daily/employee — frontend does same from last_heartbeat_at returned in payload
+    // No background polling needed.
+
     // Daily reports triggered by cPanel cron (POST /api/cron/daily-report)
   });
 }
