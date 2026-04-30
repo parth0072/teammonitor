@@ -269,7 +269,7 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
             LEAST(
               CASE WHEN s.status = 'active'
                 THEN COALESCE(s.total_minutes, 0)
-                   + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()), 0), 5)
+                   + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()), 0), 5)
                 ELSE COALESCE(s.total_minutes, 0)
               END,
               1440

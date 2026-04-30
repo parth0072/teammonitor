@@ -236,8 +236,8 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
                       {s.jira_issue_key && <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.jira_issue_key}</span>}
                     </div>
                   )}
-                  {/* Last heartbeat — always visible so admin can identify connectivity issues */}
-                  {hbAgoStr && (
+                  {/* Last heartbeat — only shown on active session for connectivity debugging */}
+                  {isActive && hbAgoStr && (
                     <div style={{ marginTop:4, fontSize:10, color: heartbeatAgeMin > 6 ? "#ef4444" : "#94a3b8" }}>
                       ⟳ last heartbeat {format(new Date(s.last_heartbeat_at), "h:mm a")} ({hbAgoStr}){s.is_idle ? " · idle" : ""}
                     </div>

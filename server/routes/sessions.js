@@ -91,8 +91,8 @@ router.put('/:id/punch-out', auth, async (req, res) => {
 router.put('/:id/heartbeat', auth, async (req, res) => {
   try {
     const { totalMinutes, screenPermission, agentVersion, isIdle, deliveredCommandIds = [] } = req.body;
-    await db.query('UPDATE sessions SET total_minutes=?, last_heartbeat_at=NOW() WHERE id=? AND employee_id=?',
-      [totalMinutes, req.params.id, req.user.id]);
+    await db.query('UPDATE sessions SET total_minutes=?, last_heartbeat_at=? WHERE id=? AND employee_id=?',
+      [totalMinutes, new Date(), req.params.id, req.user.id]);
     const empUpdates = [];
     const empValues  = [];
     if (screenPermission !== undefined) { empUpdates.push('screen_permission=?'); empValues.push(screenPermission ? 1 : 0); }
@@ -201,8 +201,8 @@ router.get('/', auth, adminOnly, async (req, res) => {
                 -- Only add heartbeat lag if agent is still live (last heartbeat < 5 min ago)
                 -- If no heartbeat for 5+ min the laptop is asleep/offline — freeze at stored value
                 THEN COALESCE(s.total_minutes, 0)
-                   + CASE WHEN TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()) < 5
-                           THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, NOW()), 0), 5)
+                   + CASE WHEN TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()) < 5
+                           THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()), 0), 5)
                            ELSE 0 END
                 ELSE COALESCE(s.total_minutes, 0)
               END AS total_minutes,
