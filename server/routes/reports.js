@@ -276,10 +276,12 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
             ) AS total_minutes,
             COALESCE(t.name, tj.name) AS task_name,
             s.jira_issue_key, s.jira_issue_summary,
-            s.last_heartbeat_at
+            s.last_heartbeat_at,
+            e.is_idle
      FROM sessions s
-     LEFT JOIN tasks t  ON t.id = s.task_id
-     LEFT JOIN tasks tj ON tj.jira_issue_key = s.jira_issue_key AND s.task_id IS NULL
+     LEFT JOIN tasks t      ON t.id = s.task_id
+     LEFT JOIN tasks tj     ON tj.jira_issue_key = s.jira_issue_key AND s.task_id IS NULL
+     LEFT JOIN employees e  ON e.id = s.employee_id
      WHERE s.employee_id = ? AND s.date = ? ORDER BY s.punch_in ASC`,
     [employeeId, date]
   );

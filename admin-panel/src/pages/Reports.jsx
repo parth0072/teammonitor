@@ -175,7 +175,13 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
             const isActive = !s.punch_out;
             const heartbeatAgeMin = s.last_heartbeat_at
               ? (Date.now() - new Date(s.last_heartbeat_at).getTime()) / 60000 : 999;
-            const isAway   = isActive && heartbeatAgeMin > 8;
+            // Away = no heartbeat for 8+ min OR agent explicitly flagged idle (e.g. lid close)
+            const isAway   = isActive && (heartbeatAgeMin > 8 || !!s.is_idle);
+            const hbAgoStr = s.last_heartbeat_at
+              ? heartbeatAgeMin < 1   ? "just now"
+              : heartbeatAgeMin < 60  ? `${Math.round(heartbeatAgeMin)}m ago`
+              : `${Math.round(heartbeatAgeMin / 60)}h ago`
+              : null;
             const brkList  = Array.isArray(s.breaks) ? s.breaks : [];
             const brkMins  = brkList.reduce((acc, b) => {
               if (!b.start || !b.end) return acc;
@@ -228,6 +234,12 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                       {s.task_name      && <span style={{ background:"#eff6ff", color:"#1d4ed8", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.task_name}</span>}
                       {s.jira_issue_key && <span style={{ background:"#f0f9ff", color:"#0369a1", borderRadius:4, padding:"2px 8px", fontSize:11, fontWeight:600 }}>{s.jira_issue_key}</span>}
+                    </div>
+                  )}
+                  {/* Last heartbeat — always visible so admin can identify connectivity issues */}
+                  {hbAgoStr && (
+                    <div style={{ marginTop:4, fontSize:10, color: heartbeatAgeMin > 8 ? "#ef4444" : "#94a3b8" }}>
+                      ⟳ last heartbeat {fmtTime(s.last_heartbeat_at)} ({hbAgoStr}){s.is_idle ? " · idle" : ""}
                     </div>
                   )}
                 </div>
