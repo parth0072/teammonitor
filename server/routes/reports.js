@@ -565,11 +565,11 @@ router.get('/team', auth, adminOnly, async (req, res) => {
       return {
         employee_id:         emp.id,
         name:                emp.name,
-        total_minutes:       s.total_minutes || 0,
-        session_count:       s.session_count || 0,
-        active_seconds:      a.active_seconds || 0,
-        idle_count:          il.idle_count || 0,
-        idle_seconds:        il.idle_seconds || 0,
+        total_minutes:       Number(s.total_minutes) || 0,
+        session_count:       Number(s.session_count) || 0,
+        active_seconds:      Number(a.active_seconds) || 0,
+        idle_count:          Number(il.idle_count) || 0,
+        idle_seconds:        Number(il.idle_seconds) || 0,
         productive_percent,
         focus_score,
       };
