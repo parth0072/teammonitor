@@ -52,18 +52,17 @@ function fmtHMdec(mins) {
   return (mins / 60).toFixed(1) + "h";
 }
 
-// A session is "stale" if active but no heartbeat for >10 minutes.
-// Uses last_heartbeat_at when available (accurate); falls back to
-// punch_in + total_minutes heuristic for sessions pre-dating this column.
+// A session is "stale" if active but no heartbeat for >6 minutes.
+// Heartbeat fires every 5 min; 6-min window = 1 min grace after a missed beat.
 function isStaleSession(s) {
   if (s?.status !== "active") return false;
   if (s.last_heartbeat_at) {
-    return Date.now() > new Date(s.last_heartbeat_at).getTime() + 10 * 60000;
+    return Date.now() > new Date(s.last_heartbeat_at).getTime() + 6 * 60000;
   }
-  // Fallback: punch_in + tracked time + 10 min buffer
+  // Fallback: punch_in + tracked time + 6 min buffer
   const punchIn    = new Date(s.punch_in).getTime();
   const trackedMs  = (s.total_minutes || 0) * 60000;
-  return Date.now() > punchIn + trackedMs + 10 * 60000;
+  return Date.now() > punchIn + trackedMs + 6 * 60000;
 }
 
 // ── Skeleton loader ───────────────────────────────────────────────────────────
@@ -201,7 +200,7 @@ function EmployeeTimeline({ employee, sessions }) {
         <span style={{ fontSize: 11, color: C.muted }}>
           {fmtHM(sessions.reduce((a, s) => a + (s.total_minutes || 0), 0))} today
         </span>
-        {sessions.some(s => s.status === "active") && (
+        {sessions.some(s => s.status === "active" && !isStaleSession(s)) && (
           <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: "#ECFDF5", padding: "1px 7px", borderRadius: 20 }}>● LIVE</span>
         )}
       </div>
@@ -794,8 +793,8 @@ function AdminDashboard() {
   });
 
   // "Done" = employee whose LATEST session is completed (not punched back in)
-  // "Active" = employee whose latest session is still active AND has recent heartbeat
-  // "Idle"   = active session but no heartbeat for >10 min (asleep / logged out)
+  // "Active" = employee whose latest session is still active AND heartbeat < 6 min ago
+  // "Idle"   = active session but no heartbeat for >6 min (asleep / logged out)
   // "Absent" = no sessions at all today
   const activeCount = Object.values(sessionByEmp).filter(s => s.status === "active" && !isStaleSession(s)).length;
   const idleCount   = Object.values(sessionByEmp).filter(s => isStaleSession(s)).length;

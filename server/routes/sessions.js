@@ -97,13 +97,12 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
     const empValues  = [];
     if (screenPermission !== undefined) { empUpdates.push('screen_permission=?'); empValues.push(screenPermission ? 1 : 0); }
     if (agentVersion)                   { empUpdates.push('agent_version=?');     empValues.push(agentVersion); }
-    if (isIdle !== undefined) {
-      empUpdates.push('is_idle=?');
-      empValues.push(isIdle ? 1 : 0);
-      // Set idle_since when transitioning to idle; clear it when resuming
-      empUpdates.push('idle_since=?');
-      empValues.push(isIdle ? new Date() : null);
-    }
+    // Always reset idle state on every heartbeat — clears stale is_idle=1 from a
+    // previous lid-close/sleep signal as soon as the agent sends a normal heartbeat
+    empUpdates.push('is_idle=?');
+    empValues.push(isIdle === true ? 1 : 0);
+    empUpdates.push('idle_since=?');
+    empValues.push(isIdle === true ? new Date() : null);
     if (empUpdates.length) {
       empValues.push(req.user.id);
       await db.query(`UPDATE employees SET ${empUpdates.join(', ')} WHERE id=?`, empValues);
