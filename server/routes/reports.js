@@ -308,6 +308,23 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
     [employeeId, date]
   );
 
+  // Fetch actual in-session breaks from session_breaks table
+  const [sessionBreakRows] = await db.query(
+    `SELECT session_id,
+            break_start AS start,
+            break_end   AS end,
+            COALESCE(TIMESTAMPDIFF(MINUTE, break_start, COALESCE(break_end, UTC_TIMESTAMP())), 0) AS minutes
+     FROM session_breaks WHERE employee_id = ? AND date = ? ORDER BY break_start ASC`,
+    [employeeId, date]
+  ).catch(() => [[]]);
+  // Attach breaks to their parent session
+  const breaksBySession = {};
+  for (const b of sessionBreakRows) {
+    if (!breaksBySession[b.session_id]) breaksBySession[b.session_id] = [];
+    breaksBySession[b.session_id].push({ start: b.start, end: b.end, minutes: Number(b.minutes) || 0 });
+  }
+  sessions.forEach(s => { s.breaks = breaksBySession[s.id] || []; });
+
   const hourBuckets = new Array(24).fill(0);
   for (const log of actLogs) {
     const h = new Date(log.start_time).getHours();
@@ -336,7 +353,12 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   const punchInTimes   = activeSessions.map(s => new Date(s.punch_in));
   // last_punch_out: scan ALL sessions that have a punch_out (not just activeSessions)
   const punchOutTimes  = sessions.filter(s => s.punch_out).map(s => new Date(s.punch_out));
-  const breaks         = computeBreaks(activeSessions);
+  // Combine inter-session gaps + actual session_breaks for stats + timeline display
+  const interSessionBreaks = computeBreaks(activeSessions);
+  const intraSessionBreaks = sessionBreakRows
+    .filter(b => b.end)
+    .map(b => ({ start: b.start, end: b.end, minutes: Number(b.minutes) || 0 }));
+  const breaks         = [...interSessionBreaks, ...intraSessionBreaks];
   const totalBreakMins = breaks.reduce((s, b) => s + b.minutes, 0);
 
   const work_pattern = {

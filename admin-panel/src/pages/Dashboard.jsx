@@ -249,17 +249,17 @@ function EmployeeTimeline({ employee, sessions }) {
                 style={{
                   position: "absolute", top: 4, height: 12, borderRadius: 4,
                   left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
-                  background: "#FEF3C7",
-                  border: "1px solid #FCD34D",
+                  background: "#FCD34D",
+                  border: "1px solid #D97706",
                   cursor: "default",
-                  zIndex: 2,
+                  zIndex: 3,
                 }}
               />
             );
           })
         )}
 
-        {/* Session segments */}
+        {/* Session segments — z-index 2 so they sit above the track but below breaks */}
         {sorted.map((s, i) => {
           const segStart = s.punch_in;
           const segEnd   = s.punch_out || (s.status === "active" ? now.toISOString() : s.punch_in);
@@ -274,6 +274,7 @@ function EmployeeTimeline({ employee, sessions }) {
                 background: isActive ? C.green : C.blue,
                 opacity: isActive ? 1 : 0.85,
                 cursor: "default",
+                zIndex: 2,
               }}
             />
           );
