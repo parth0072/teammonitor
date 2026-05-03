@@ -294,11 +294,11 @@ function EmployeeTimeline({ employee, sessions }) {
           );
         })}
 
-        {/* Lid-close / away segments — amber bar from last_heartbeat_at → now for stale active sessions */}
+        {/* Lid-close / away segments — amber bar from last_heartbeat_at → now, only when stale (>6 min) */}
         {sorted.map((s, i) => {
           if (s.status !== "active" || !s.last_heartbeat_at) return null;
           const hbAge = (now - new Date(s.last_heartbeat_at)) / 60000;
-          if (hbAge < 1) return null; // heartbeat is fresh — no away segment needed
+          if (hbAge < 6) return null; // heartbeat is fresh — normal 5-min interval, no away segment
           const x = xPct(s.last_heartbeat_at);
           const w = widthPct(s.last_heartbeat_at, now);
           return (

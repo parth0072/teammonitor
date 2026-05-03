@@ -163,7 +163,7 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
             {sessions.map((s, i) => {
               if (!s.punch_in || s.punch_out || !s.last_heartbeat_at) return null;
               const hbAge = (Date.now() - new Date(s.last_heartbeat_at).getTime()) / 60000;
-              if (hbAge < 1) return null;
+              if (hbAge < 6) return null; // heartbeat is fresh — normal 5-min interval, no away segment
               const left = toPct(s.last_heartbeat_at);
               const w    = Math.max(100 - left, 0.4);
               return (
