@@ -133,24 +133,49 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
                 background:"rgba(245,158,11,0.15)",
               }} />
             ))}
-            {/* Session blocks */}
+            {/* Session blocks — green bar ends at last_heartbeat_at for active sessions */}
             {sessions.map((s, i) => {
               if (!s.punch_in) return null;
-              const left  = toPct(s.punch_in);
-              const right = s.punch_out ? toPct(s.punch_out) : 100;
-              const w     = Math.max(right - left, 0.4);
               const isActive = !s.punch_out;
+              const left = toPct(s.punch_in);
+              // For active sessions stop the coloured bar at last heartbeat (not "now"),
+              // so the lid-close gap shows as amber below rather than solid orange.
+              const workedEnd = isActive && s.last_heartbeat_at
+                ? toPct(s.last_heartbeat_at)
+                : s.punch_out ? toPct(s.punch_out) : 100;
+              const w = Math.max(workedEnd - left, 0.4);
               return (
                 <div key={i} style={{
                   position:"absolute", top:0, height:"100%",
                   left:`${left}%`, width:`${w}%`,
                   background: isActive
-                    ? "linear-gradient(90deg,#f59e0b,#fbbf24)"
+                    ? "linear-gradient(90deg,#10b981,#34d399)"
                     : "linear-gradient(90deg,#10b981,#34d399)",
                   borderRadius:4,
                   cursor:"default",
+                  zIndex:1,
                 }}
-                  title={`${s.punch_in ? format(new Date(s.punch_in),"h:mm a") : "?"} → ${s.punch_out ? format(new Date(s.punch_out),"h:mm a") : "now"} · ${fmtHM(Number(s.total_minutes)||0)}`}
+                  title={`${s.punch_in ? format(new Date(s.punch_in),"h:mm a") : "?"} → ${s.punch_out ? format(new Date(s.punch_out),"h:mm a") : "now"} · ${fmtHM(Number(s.total_minutes)||0)} tracked`}
+                />
+              );
+            })}
+            {/* Lid-close / away segments — amber from last_heartbeat_at → now */}
+            {sessions.map((s, i) => {
+              if (!s.punch_in || s.punch_out || !s.last_heartbeat_at) return null;
+              const hbAge = (Date.now() - new Date(s.last_heartbeat_at).getTime()) / 60000;
+              if (hbAge < 1) return null;
+              const left = toPct(s.last_heartbeat_at);
+              const w    = Math.max(100 - left, 0.4);
+              return (
+                <div key={`away-${i}`} style={{
+                  position:"absolute", top:0, height:"100%",
+                  left:`${left}%`, width:`${w}%`,
+                  background:"linear-gradient(90deg,#fcd34d,#fbbf24)",
+                  borderRadius:4,
+                  cursor:"default",
+                  zIndex:1,
+                }}
+                  title={`Lid closed / away since ${format(new Date(s.last_heartbeat_at),"h:mm a")} (${Math.round(hbAge)}m ago)`}
                 />
               );
             })}
