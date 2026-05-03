@@ -198,7 +198,16 @@ function EmployeeTimeline({ employee, sessions }) {
         </div>
         <span style={{ fontSize: 12, fontWeight: 600, color: C.sub }}>{employee.name}</span>
         <span style={{ fontSize: 11, color: C.muted }}>
-          {fmtHM(sessions.reduce((a, s) => a + (s.total_minutes || 0), 0))} today
+          {(() => {
+            const trackedMins = sessions.reduce((a, s) => a + (Number(s.total_minutes) || 0), 0);
+            const firstIn = sorted[0]?.punch_in;
+            const wallMins = firstIn ? Math.round((now - new Date(firstIn)) / 60000) : 0;
+            // Show tracked time; if lid-close gap makes wall clock much larger, show both
+            if (wallMins > trackedMins + 10) {
+              return <>{fmtHM(trackedMins)} tracked · {fmtHM(wallMins)} elapsed</>;
+            }
+            return <>{fmtHM(trackedMins)} today</>;
+          })()}
         </span>
         {sessions.some(s => s.status === "active" && !isStaleSession(s)) && (
           <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: "#ECFDF5", padding: "1px 7px", borderRadius: 20 }}>● LIVE</span>
@@ -261,18 +270,45 @@ function EmployeeTimeline({ employee, sessions }) {
 
         {/* Session segments — z-index 2 so they sit above the track but below breaks */}
         {sorted.map((s, i) => {
-          const segStart = s.punch_in;
-          const segEnd   = s.punch_out || (s.status === "active" ? now.toISOString() : s.punch_in);
+          const segStart  = s.punch_in;
+          const isActive  = s.status === "active";
+          // For active sessions: green bar ends at last_heartbeat_at (last known working moment).
+          // If heartbeat is stale (lid closed / offline), the tail from last_heartbeat_at→now
+          // is shown as an amber "away" bar below, so the green bar stops at last_heartbeat_at.
+          const workedEnd = isActive && s.last_heartbeat_at
+            ? s.last_heartbeat_at
+            : s.punch_out || (isActive ? now.toISOString() : s.punch_in);
           const x = xPct(segStart);
-          const w = widthPct(segStart, segEnd);
-          const isActive = s.status === "active";
+          const w = widthPct(segStart, workedEnd);
           return (
-            <div key={i} title={`${s.task_name || s.jira_issue_key || "No task"} · ${fmtTime(segStart)} → ${s.punch_out ? fmtTime(segEnd) : "now"} (${s.total_minutes || 0}m)`}
+            <div key={i} title={`${s.task_name || s.jira_issue_key || "No task"} · ${fmtTime(segStart)} → ${s.punch_out ? fmtTime(s.punch_out) : "now"} (${s.total_minutes || 0}m tracked)`}
               style={{
                 position: "absolute", top: 4, height: 12, borderRadius: 4,
                 left: `${x}%`, width: `${w}%`,
                 background: isActive ? C.green : C.blue,
                 opacity: isActive ? 1 : 0.85,
+                cursor: "default",
+                zIndex: 2,
+              }}
+            />
+          );
+        })}
+
+        {/* Lid-close / away segments — amber bar from last_heartbeat_at → now for stale active sessions */}
+        {sorted.map((s, i) => {
+          if (s.status !== "active" || !s.last_heartbeat_at) return null;
+          const hbAge = (now - new Date(s.last_heartbeat_at)) / 60000;
+          if (hbAge < 1) return null; // heartbeat is fresh — no away segment needed
+          const x = xPct(s.last_heartbeat_at);
+          const w = widthPct(s.last_heartbeat_at, now);
+          return (
+            <div key={`away-${i}`}
+              title={`Lid closed / away · ${fmtTime(s.last_heartbeat_at)} → now (${Math.round(hbAge)}m)`}
+              style={{
+                position: "absolute", top: 4, height: 12, borderRadius: 4,
+                left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
+                background: "#FCD34D",
+                border: "1px solid #D97706",
                 cursor: "default",
                 zIndex: 2,
               }}
