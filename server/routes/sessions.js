@@ -114,7 +114,9 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
       }
     } catch (_) { /* non-fatal — don't block the heartbeat if breaks table missing */ }
 
-    await db.query('UPDATE sessions SET total_minutes=?, last_heartbeat_at=? WHERE id=? AND employee_id=?',
+    // GREATEST() prevents a post-restart agent (with reset trackedMinutes) from
+    // overwriting a higher server value — total_minutes only ever goes up.
+    await db.query('UPDATE sessions SET total_minutes=GREATEST(total_minutes, ?), last_heartbeat_at=? WHERE id=? AND employee_id=?',
       [totalMinutes, now, req.params.id, req.user.id]);
     const empUpdates = [];
     const empValues  = [];

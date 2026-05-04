@@ -955,7 +955,16 @@ class TrackingManager: ObservableObject {
         }
         let match = sessions.first { $0.id == sessionId }
         if match?.status == "active" {
-            TMLog("[TrackingManager] Session \(sessionId) verified active on server ✓")
+            // Sync trackedMinutes from server if server has a higher value.
+            // This prevents post-restart agents from underreporting — the server
+            // value is ground truth when the local counter was reset by a crash/lid-close.
+            let serverMins = match?.totalMinutes ?? 0
+            if serverMins > trackedMinutes {
+                TMLog("[SessionRestore] Server has more minutes (\(serverMins)) than local (\(trackedMinutes)) — syncing up")
+                await MainActor.run { self.trackedMinutes = serverMins }
+            } else {
+                TMLog("[SessionRestore] Session \(sessionId) verified — local: \(trackedMinutes)m, server: \(serverMins)m ✓")
+            }
             return
         }
         let serverStatus = match?.status ?? "not found"
