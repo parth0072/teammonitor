@@ -223,9 +223,12 @@ class TrackingManager: ObservableObject {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, let sid = self.currentSessionId else { return }
-            TMLog("[Sleep] Mac going to sleep — sending idle heartbeat")
+            guard let self, let sid = self.currentSessionId else {
+                TMLog("[LidClose] Mac going to sleep — no active session, nothing to do")
+                return
+            }
             let mins = self.trackedMinutes
+            TMLog("[LidClose] Mac going to sleep — session: \(sid), \(mins)m tracked, isOnBreak: \(self.isOnBreak), isIdle: \(self.isIdle), isTracking: \(self.isTracking)")
             let delivered = self.pendingDeliveredCommandIds
             self.pendingDeliveredCommandIds = []
             Task {
@@ -233,6 +236,7 @@ class TrackingManager: ObservableObject {
                     sessionId: sid, totalMinutes: mins,
                     isIdle: true, deliveredCommandIds: delivered
                 )
+                TMLog("[LidClose] Idle heartbeat sent — session: \(sid)")
             }
         }
 
@@ -244,19 +248,27 @@ class TrackingManager: ObservableObject {
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             guard let self else { return }
+            let sessionInfo = self.currentSessionId.map { "session: \($0), \(self.trackedMinutes)m" } ?? "no session"
+            TMLog("[LidOpen] Mac woke from sleep — \(sessionInfo), isTracking: \(self.isTracking), isOnBreak: \(self.isOnBreak), isIdleBreak: \(self.isIdleBreak)")
             // Punch out and remind if the day rolled over during sleep.
             let dayChanged = self.checkDayChange()
-            guard !dayChanged else { return }
+            guard !dayChanged else {
+                TMLog("[LidOpen] Day changed during sleep — stale session punched out")
+                return
+            }
             // Clear server-side idle flag if we're still in a session
             if let sid = self.currentSessionId {
                 let mins = self.trackedMinutes
-                TMLog("[Sleep] Mac woke — clearing idle flag")
+                TMLog("[LidOpen] Clearing idle flag on server — session: \(sid), \(mins)m tracked")
                 Task {
                     try? await self.api.heartbeat(
                         sessionId: sid, totalMinutes: mins,
                         isIdle: false, deliveredCommandIds: []
                     )
+                    TMLog("[LidOpen] Wake heartbeat sent — session: \(sid)")
                 }
+            } else {
+                TMLog("[LidOpen] No active session on wake — will show resume prompt if activity detected")
             }
             // Three cases:
             //  1. Actively tracking (no break)     → session continues silently, nothing to do.
@@ -274,8 +286,10 @@ class TrackingManager: ObservableObject {
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, self.isTracking else { return }
-            TMLog("[AutoCheckOut] App terminating — punching out")
+            guard let self else { return }
+            TMLog("[AppTerminate] App terminating — isTracking: \(self.isTracking), session: \(self.currentSessionId.map{"\($0)"} ?? "none"), \(self.trackedMinutes)m tracked")
+            guard self.isTracking else { return }
+            TMLog("[AutoCheckOut] App terminating — punching out session \(self.currentSessionId ?? -1), \(self.trackedMinutes)m tracked")
             // Synchronous-style: run punch-out on a detached task and give it 5 s.
             // The install script waits 7 s after pkill, so this has enough runway
             // even on a slow connection.
@@ -489,26 +503,33 @@ class TrackingManager: ObservableObject {
 
         // 2. One-shot commands — each delivered once, marked in pendingDeliveredCommandIds
         guard !r.commands.isEmpty else { return }
+        TMLog("[AdminCommand] \(r.commands.count) command(s) received: \(r.commands.map { "\($0.type)(id:\($0.id))" }.joined(separator: ", "))")
         var newDelivered: [Int] = []
         for cmd in r.commands {
+            TMLog("[AdminCommand] Executing: \(cmd.type) (id: \(cmd.id))")
             switch cmd.type {
             case "notify":
                 showAdminNotification(id: cmd.id, title: cmd.title ?? "Admin",
                                       message: cmd.message ?? "", action: cmd.action ?? "none")
             case "force_punch_out":
+                TMLog("[AdminCommand] force_punch_out — isTracking: \(isTracking)")
                 if isTracking { Task { await punchOut() } }
                 sendNotification("Admin ended your session", isWarning: true)
             case "force_break":
+                TMLog("[AdminCommand] force_break — isTracking: \(isTracking), isOnBreak: \(isOnBreak)")
                 if isTracking && !isOnBreak { Task { await takeBreak() } }
                 sendNotification("Admin started a break for you", isWarning: false)
             case "lock_tracking":
+                TMLog("[AdminCommand] lock_tracking — punching out if active")
                 trackingLocked = true
                 if isTracking { Task { await punchOut() } }
                 sendNotification("Tracking locked by admin", isWarning: true)
             case "unlock_tracking":
+                TMLog("[AdminCommand] unlock_tracking")
                 trackingLocked = false
                 sendNotification("Tracking unlocked by admin", isWarning: false)
             default:
+                TMLog("[AdminCommand] Unknown command type: \(cmd.type)")
                 break
             }
             newDelivered.append(cmd.id)
@@ -623,15 +644,21 @@ class TrackingManager: ObservableObject {
         showResumePrompt         = false
         stoppedTrackingAt        = nil
         secondsUntilNextReminder = 5 * 60
-        guard !isTracking else { return }
+        guard !isTracking else {
+            TMLog("[PunchIn] Already tracking — ignored (session: \(currentSessionId ?? -1))")
+            return
+        }
         guard !trackingLocked else {
+            TMLog("[PunchIn] Blocked — tracking locked by admin")
             sendNotification("Tracking is disabled by admin", isWarning: true)
             return
         }
         guard network.isOnline else {
+            TMLog("[PunchIn] Blocked — no internet connection")
             statusMessage = "No internet connection. Connect and try again."
             return
         }
+        TMLog("[PunchIn] Starting — task: \(task?.name ?? "none"), jira: \(jiraIssue?.key ?? "none")")
         statusMessage = "Starting session…"
 
         do {
@@ -651,6 +678,7 @@ class TrackingManager: ObservableObject {
             }
 
             let sessionId    = try await api.punchIn(taskId: task?.id, jiraIssueKey: jiraIssue?.key, jiraIssueSummary: jiraIssue?.summary)
+            TMLog("[PunchIn] ✅ Session \(sessionId) created — task: \(task?.name ?? "none"), jira: \(jiraIssue?.key ?? "none")")
             currentSessionId = sessionId
             currentTask      = task
             currentJiraIssue = jiraIssue
@@ -686,6 +714,7 @@ class TrackingManager: ObservableObject {
             saveSessionState()
             startAllServices(sessionId: sessionId)
         } catch {
+            TMLog("[PunchIn] ❌ Failed — \(error.localizedDescription)")
             statusMessage = "Error: \(error.localizedDescription)"
         }
     }
@@ -693,8 +722,12 @@ class TrackingManager: ObservableObject {
     // MARK: - Punch Out
 
     func punchOut() async {
-        guard isTracking, let sessionId = currentSessionId else { return }
+        guard isTracking, let sessionId = currentSessionId else {
+            TMLog("[PunchOut] Called but not tracking — ignored (session: \(currentSessionId.map{"\($0)"} ?? "none"), isTracking: \(isTracking))")
+            return
+        }
         let finalMinutes = trackedMinutes   // capture before clearing state
+        TMLog("[PunchOut] Stopping session \(sessionId) — \(finalMinutes)m tracked, isOnBreak: \(isOnBreak)")
         statusMessage = "Stopping session…"
         isTracking    = false
         isIdleBreak   = false
@@ -719,7 +752,10 @@ class TrackingManager: ObservableObject {
 
         do {
             try await api.punchOut(sessionId: sessionId, totalMinutes: finalMinutes)
-        } catch { }
+            TMLog("[PunchOut] ✅ Session \(sessionId) ended — \(finalMinutes)m tracked")
+        } catch {
+            TMLog("[PunchOut] ❌ API error for session \(sessionId) — \(error.localizedDescription)")
+        }
 
         statusMessage      = "Session ended. Have a great day!"
         stoppedTrackingAt  = Date()
@@ -741,7 +777,11 @@ class TrackingManager: ObservableObject {
     // MARK: - Take a Break / Resume
 
     func takeBreak() async {
-        guard isTracking, !isOnBreak else { return }
+        guard isTracking, !isOnBreak else {
+            TMLog("[Break] takeBreak called but guard failed — isTracking: \(isTracking), isOnBreak: \(isOnBreak)")
+            return
+        }
+        TMLog("[Break] Starting break — session: \(currentSessionId ?? -1), \(trackedMinutes)m tracked")
 
         sessionTimer?.invalidate(); sessionTimer = nil
         resumeTimer?.invalidate();  resumeTimer  = nil
@@ -759,11 +799,16 @@ class TrackingManager: ObservableObject {
         if let sessionId = currentSessionId {
             try? await api.heartbeat(sessionId: sessionId, totalMinutes: trackedMinutes, screenPermission: hasScreenPermission)
             try? await api.breakStart(sessionId: sessionId)
+            TMLog("[Break] ✅ Break started on server — session: \(sessionId)")
         }
     }
 
     func resumeFromBreak() {
-        guard isTracking, isOnBreak, let sessionId = currentSessionId else { return }
+        guard isTracking, isOnBreak, let sessionId = currentSessionId else {
+            TMLog("[Break] resumeFromBreak called but guard failed — isTracking: \(isTracking), isOnBreak: \(isOnBreak), session: \(currentSessionId.map{"\($0)"} ?? "none")")
+            return
+        }
+        TMLog("[Break] Resuming from break — session: \(sessionId), \(trackedMinutes)m tracked so far")
 
         cancelNotTrackingReminder()
         NotificationOverlayManager.shared.dismissWarnings()  // clear "Timer paused" overlay banner
@@ -893,7 +938,7 @@ class TrackingManager: ObservableObject {
             self?.showResumePrompt = true
         }
 
-        TMLog("[TrackingManager] Restored session \(state.sessionId) context (\(state.trackedMinutes) min) — showing resume prompt")
+        TMLog("[SessionRestore] Restored session \(state.sessionId) — \(state.trackedMinutes)m tracked, task: \(state.taskName ?? "none"), jira: \(state.jiraIssueKey ?? "none"), punchIn: \(state.punchInTime) — showing resume prompt")
 
         // Server verification — confirm session is still active on the server.
         if api.token != nil {
@@ -1093,12 +1138,16 @@ class TrackingManager: ObservableObject {
                 self.hasScreenPermission        = perm
                 self.pendingDeliveredCommandIds = []
                 let idle = self.isIdle || self.isOnBreak
+                TMLog("[Heartbeat] Sending — session: \(sessionId), \(mins)m tracked, isIdle: \(idle), isOnBreak: \(self.isOnBreak), deliveredCmds: \(delivered.count)")
                 Task {
                     if let resp = try? await self.api.heartbeat(
                         sessionId: sessionId, totalMinutes: mins,
                         screenPermission: perm, isIdle: idle,
                         deliveredCommandIds: delivered) {
+                        TMLog("[Heartbeat] Response — trackingLocked: \(resp.trackingLocked), commands: \(resp.commands.count)")
                         await self.handleHeartbeatResponse(resp)
+                    } else {
+                        TMLog("[Heartbeat] ❌ Failed — session: \(sessionId), \(mins)m")
                     }
                 }
                 self.heartbeatTickCount = 0
