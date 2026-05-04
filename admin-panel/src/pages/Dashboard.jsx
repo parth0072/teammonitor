@@ -270,11 +270,22 @@ function EmployeeTimeline({ employee, sessions }) {
 
         {/* Session segments — z-index 2 so they sit above the track but below breaks */}
         {sorted.map((s, i) => {
-          const segStart  = s.punch_in;
           const isActive  = s.status === "active";
+          const hbAge     = s.last_heartbeat_at ? (now - new Date(s.last_heartbeat_at)) / 60000 : 999;
+          const trackedMs = (Number(s.total_minutes) || 0) * 60000;
+          const elapsedMs = s.last_heartbeat_at ? new Date(s.last_heartbeat_at) - new Date(s.punch_in) : 0;
+
+          // If heartbeat is fresh but tracked time << elapsed time, the agent was offline mid-session.
+          // Infer the gap: assume tracked minutes are at the END (most recent work), so green bar
+          // starts from (last_heartbeat_at - total_minutes) rather than punch_in.
+          // The untracked prefix is shown as amber below.
+          const hasInferredGap = isActive && s.last_heartbeat_at && hbAge < 6 && (elapsedMs - trackedMs) > 10 * 60000;
+          const segStart  = hasInferredGap
+            ? new Date(new Date(s.last_heartbeat_at).getTime() - trackedMs).toISOString()
+            : s.punch_in;
+
           // For active sessions: green bar ends at last_heartbeat_at (last known working moment).
-          // If heartbeat is stale (lid closed / offline), the tail from last_heartbeat_at→now
-          // is shown as an amber "away" bar below, so the green bar stops at last_heartbeat_at.
+          // If heartbeat is stale (lid closed / offline), the amber bar below covers last_heartbeat_at→now.
           const workedEnd = isActive && s.last_heartbeat_at
             ? s.last_heartbeat_at
             : s.punch_out || (isActive ? now.toISOString() : s.punch_in);
@@ -294,26 +305,51 @@ function EmployeeTimeline({ employee, sessions }) {
           );
         })}
 
-        {/* Lid-close / away segments — amber bar from last_heartbeat_at → now, only when stale (>6 min) */}
+        {/* Lid-close / away segments */}
         {sorted.map((s, i) => {
           if (s.status !== "active" || !s.last_heartbeat_at) return null;
-          const hbAge = (now - new Date(s.last_heartbeat_at)) / 60000;
-          if (hbAge < 6) return null; // heartbeat is fresh — normal 5-min interval, no away segment
-          const x = xPct(s.last_heartbeat_at);
-          const w = widthPct(s.last_heartbeat_at, now);
-          return (
-            <div key={`away-${i}`}
-              title={`Lid closed / away · ${fmtTime(s.last_heartbeat_at)} → now (${Math.round(hbAge)}m)`}
-              style={{
-                position: "absolute", top: 4, height: 12, borderRadius: 4,
-                left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
-                background: "#FCD34D",
-                border: "1px solid #D97706",
-                cursor: "default",
-                zIndex: 2,
-              }}
-            />
-          );
+          const hbAge     = (now - new Date(s.last_heartbeat_at)) / 60000;
+          const trackedMs = (Number(s.total_minutes) || 0) * 60000;
+          const elapsedMs = new Date(s.last_heartbeat_at) - new Date(s.punch_in);
+
+          // Case A: heartbeat is stale → amber from last_heartbeat_at → now
+          if (hbAge >= 6) {
+            const x = xPct(s.last_heartbeat_at);
+            const w = widthPct(s.last_heartbeat_at, now);
+            return (
+              <div key={`away-${i}`}
+                title={`Lid closed / away · ${fmtTime(s.last_heartbeat_at)} → now (${Math.round(hbAge)}m)`}
+                style={{
+                  position: "absolute", top: 4, height: 12, borderRadius: 4,
+                  left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
+                  background: "#FCD34D", border: "1px solid #D97706",
+                  cursor: "default", zIndex: 2,
+                }}
+              />
+            );
+          }
+
+          // Case B: heartbeat is fresh but big tracked/elapsed gap → inferred lid-close
+          // Amber covers punch_in → inferred work start (= last_heartbeat_at - total_minutes)
+          if ((elapsedMs - trackedMs) > 10 * 60000) {
+            const inferredStart = new Date(new Date(s.last_heartbeat_at).getTime() - trackedMs).toISOString();
+            const gapMin = Math.round((elapsedMs - trackedMs) / 60000);
+            const x = xPct(s.punch_in);
+            const w = widthPct(s.punch_in, inferredStart);
+            return (
+              <div key={`away-${i}`}
+                title={`Lid closed / away · ${fmtTime(s.punch_in)} → ${fmtTime(inferredStart)} (~${gapMin}m)`}
+                style={{
+                  position: "absolute", top: 4, height: 12, borderRadius: 4,
+                  left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
+                  background: "#FCD34D", border: "1px solid #D97706",
+                  cursor: "default", zIndex: 2,
+                }}
+              />
+            );
+          }
+
+          return null;
         })}
 
         {/* Now indicator */}

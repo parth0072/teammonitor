@@ -91,8 +91,31 @@ router.put('/:id/punch-out', auth, async (req, res) => {
 router.put('/:id/heartbeat', auth, async (req, res) => {
   try {
     const { totalMinutes, screenPermission, agentVersion, isIdle, deliveredCommandIds = [] } = req.body;
+    const now = new Date();
+
+    // ── Lid-close gap detection ──────────────────────────────────────────────
+    // If the last heartbeat was > 6 min ago the agent was offline (lid close / sleep).
+    // Auto-insert a session_break for the exact gap so the timeline shows it correctly.
+    try {
+      const [[sess]] = await db.query(
+        'SELECT last_heartbeat_at, date FROM sessions WHERE id=? AND employee_id=?',
+        [req.params.id, req.user.id]
+      );
+      if (sess?.last_heartbeat_at) {
+        const gapMin = (now - new Date(sess.last_heartbeat_at)) / 60000;
+        if (gapMin > 6) {
+          const sessionDate = new Date(sess.date).toISOString().slice(0, 10);
+          await db.query(
+            `INSERT INTO session_breaks (session_id, employee_id, break_start, break_end, date)
+             VALUES (?, ?, ?, ?, ?)`,
+            [req.params.id, req.user.id, sess.last_heartbeat_at, now, sessionDate]
+          );
+        }
+      }
+    } catch (_) { /* non-fatal — don't block the heartbeat if breaks table missing */ }
+
     await db.query('UPDATE sessions SET total_minutes=?, last_heartbeat_at=? WHERE id=? AND employee_id=?',
-      [totalMinutes, new Date(), req.params.id, req.user.id]);
+      [totalMinutes, now, req.params.id, req.user.id]);
     const empUpdates = [];
     const empValues  = [];
     if (screenPermission !== undefined) { empUpdates.push('screen_permission=?'); empValues.push(screenPermission ? 1 : 0); }
