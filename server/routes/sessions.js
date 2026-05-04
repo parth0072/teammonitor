@@ -536,4 +536,21 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PATCH /api/sessions/:id/correct-minutes  — admin: manually correct total_minutes
+// Used when agent restart caused server to record lower minutes than actually tracked.
+router.patch('/:id/correct-minutes', auth, adminOnly, async (req, res) => {
+  try {
+    const { totalMinutes } = req.body;
+    if (typeof totalMinutes !== 'number' || totalMinutes < 0) {
+      return res.status(400).json({ error: 'totalMinutes must be a non-negative number' });
+    }
+    const [result] = await db.query(
+      'UPDATE sessions SET total_minutes=? WHERE id=?',
+      [totalMinutes, req.params.id]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Session not found' });
+    res.json({ ok: true, sessionId: Number(req.params.id), total_minutes: totalMinutes });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
