@@ -248,6 +248,31 @@ router.get('/', auth, adminOnly, async (req, res) => {
         breakMap[b.session_id].push({ start: b.break_start, end: b.break_end });
       }
       rows.forEach(r => { r.breaks = breakMap[r.id] || []; });
+
+      // For active sessions with no recorded breaks but a large elapsed/tracked gap,
+      // infer breaks from activity log gaps (covers lid-close before server fix was deployed).
+      for (const sess of rows) {
+        if (sess.breaks.length > 0 || sess.status !== 'active' || !sess.last_heartbeat_at) continue;
+        const elapsedMin  = (new Date(sess.last_heartbeat_at) - new Date(sess.punch_in)) / 60000;
+        const trackedMin  = Number(sess.total_minutes) || 0;
+        if (elapsedMin - trackedMin < 10) continue; // gap is trivial — skip
+
+        const [actLogs] = await db.query(
+          `SELECT start_time, end_time FROM activity_logs
+           WHERE employee_id = ? AND date = ? AND start_time >= ?
+           ORDER BY start_time ASC`,
+          [sess.employee_id, date, sess.punch_in]
+        ).catch(() => [[]]);
+
+        for (let i = 0; i < actLogs.length - 1; i++) {
+          const gapStart = new Date(actLogs[i].end_time);
+          const gapEnd   = new Date(actLogs[i + 1].start_time);
+          const gapMin   = (gapEnd - gapStart) / 60000;
+          if (gapMin >= 6) {
+            sess.breaks.push({ start: actLogs[i].end_time, end: actLogs[i + 1].start_time, inferred: true });
+          }
+        }
+      }
     }
     // TIMESTAMPDIFF → BIGINT → mysql2 returns string; coerce to Number
     rows.forEach(r => { r.total_minutes = Number(r.total_minutes) || 0; });
