@@ -398,7 +398,7 @@ async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
     total_active_seconds:  totalActiveSeconds,
     productive_percent:    productivePercent,
     punch_log: sessions,
-    top_apps:  topApps,
+    top_apps:  topApps.map(a => ({ ...a, total_seconds: Number(a.total_seconds) || 0 })),
     activity_logs:   actLogs.slice(0, 50),
     productive_hours,
     peak_hours,
@@ -650,7 +650,7 @@ Respond with JSON: {
       };
     }
 
-    res.json({ date, total_team_minutes: totalTeamMinutes, avg_focus_score: avgFocusScore, active_count: activeCount, members, team_top_apps: teamTopApps, team_ai_summary });
+    res.json({ date, total_team_minutes: totalTeamMinutes, avg_focus_score: avgFocusScore, active_count: activeCount, members, team_top_apps: teamTopApps.map(a => ({ ...a, total_seconds: Number(a.total_seconds) || 0 })), team_ai_summary });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
