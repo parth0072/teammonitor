@@ -22,7 +22,23 @@ async function request(method, path, body, isForm = false) {
   });
 
   if (res.status === 401) {
+    // Retry once after a short delay before logging out.
+    // On cPanel shared hosting, DB connections drop after idle periods and can
+    // produce a false 401. A single retry almost always succeeds in that case.
+    await new Promise(r => setTimeout(r, 1500));
+    const retry = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      body: isForm ? body : (body ? JSON.stringify(body) : undefined),
+    });
+    if (retry.status !== 401) {
+      const retryData = await retry.json().catch(() => ({}));
+      if (!retry.ok) throw new Error(retryData.error || `HTTP ${retry.status}`);
+      return retryData;
+    }
+    // Still 401 after retry — session is genuinely invalid
     localStorage.removeItem('tm_token');
+    localStorage.removeItem('tm_user');
     window.location.href = (import.meta.env.BASE_URL || '/') + 'login';
     return;
   }

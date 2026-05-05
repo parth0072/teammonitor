@@ -12,7 +12,8 @@ module.exports = async (req, res, next) => {
   let decoded;
   try {
     decoded = jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
+  } catch (err) {
+    console.error(`[auth] jwt.verify failed: ${err.message} | JWT_SECRET set: ${!!process.env.JWT_SECRET} | path: ${req.path}`);
     return res.status(401).json({ error: 'Invalid token' });
   }
 
