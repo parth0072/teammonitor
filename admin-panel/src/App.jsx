@@ -1,7 +1,7 @@
 import React, { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
 import "./responsive.css";
-import { hasToken, clearToken, api } from "./api";
+import { hasToken, clearToken, saveUser, getCachedUser, api } from "./api";
 import { setTimezone } from "./tz";
 import Login from "./pages/Login";
 import Setup from "./pages/Setup";
@@ -157,22 +157,28 @@ function AdminRoute({ children }) {
 }
 
 export default function App() {
-  const [user, setUser]     = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cached = getCachedUser();
+  const [user, setUser]       = useState(cached && hasToken() ? cached : null);
+  const [loading, setLoading] = useState(!cached || !hasToken());
 
   useEffect(() => {
-    if (hasToken()) {
-      api.me()
-        .then(emp => {
+    if (!hasToken()) { setLoading(false); return; }
+    api.me()
+      .then(emp => {
+        if (emp) {
           setUser(emp);
-          setLoading(false);
+          saveUser(emp);
           // Load org timezone and cache it for all formatters
           api.getSettings().then(s => { if (s?.timezone) setTimezone(s.timezone); }).catch(() => {});
-        })
-        .catch(() => { clearToken(); setLoading(false); });
-    } else {
-      setLoading(false);
-    }
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        // Network error (not 401 — those are already handled in api.js by
+        // clearing the token and redirecting). Keep the cached user so a
+        // temporary server restart or blip doesn't force a logout.
+        setLoading(false);
+      });
   }, []);
 
   return (

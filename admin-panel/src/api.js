@@ -155,6 +155,8 @@ export const api = {
   updateBugReportStatus:  (id, status, note) => request('PUT', `/bug-reports/${id}/status`, { status, note }),
 };
 
-export function saveToken(token) { localStorage.setItem('tm_token', token); }
-export function clearToken()     { localStorage.removeItem('tm_token'); }
-export function hasToken()       { return !!getToken(); }
+export function saveToken(token)  { localStorage.setItem('tm_token', token); }
+export function clearToken()      { localStorage.removeItem('tm_token'); localStorage.removeItem('tm_user'); }
+export function hasToken()        { return !!getToken(); }
+export function saveUser(user)    { localStorage.setItem('tm_user', JSON.stringify(user)); }
+export function getCachedUser()   { try { return JSON.parse(localStorage.getItem('tm_user')); } catch { return null; } }
