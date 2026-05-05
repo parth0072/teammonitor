@@ -15,7 +15,10 @@ module.exports = async (req, res, next) => {
   const header = req.headers['authorization'];
   const token  = header && header.startsWith('Bearer ') ? header.slice(7) : null;
 
-  if (!token) return res.status(401).json({ error: 'No token provided' });
+  if (!token) {
+    authLog(`No token provided | path: ${req.path}`);
+    return res.status(401).json({ error: 'No token provided' });
+  }
 
   // Step 1: verify JWT signature — only this should produce a 401
   let decoded;
