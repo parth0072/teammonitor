@@ -8,21 +8,30 @@ module.exports = async (req, res, next) => {
 
   if (!token) return res.status(401).json({ error: 'No token provided' });
 
+  // Step 1: verify JWT signature — only this should produce a 401
+  let decoded;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
 
-    // Live DB check — 401 immediately if admin deactivates the account mid-session
+  // Step 2: live DB check so admin can deactivate accounts mid-session.
+  // If the DB is temporarily unavailable (common on shared hosting after idle),
+  // trust the JWT rather than incorrectly logging the user out.
+  try {
     const [rows] = await db.query(
       'SELECT id FROM employees WHERE id = ? AND is_active = 1',
       [decoded.id]
     );
     if (!rows.length) return res.status(401).json({ error: 'Account disabled' });
-
-    req.user = decoded;
-    next();
-  } catch {
-    res.status(401).json({ error: 'Invalid token' });
+  } catch (dbErr) {
+    console.error('[auth] DB check failed, trusting JWT:', dbErr.message);
+    // fall through — token is valid, DB is just momentarily down
   }
+
+  req.user = decoded;
+  next();
 };
 
 // Admin-only gate (use after auth middleware)
