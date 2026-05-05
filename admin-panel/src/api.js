@@ -32,10 +32,28 @@ async function request(method, path, body, isForm = false) {
   return data;
 }
 
+// Like request() but never auto-redirects on 401 — throws instead so the
+// caller can decide whether to log out or silently keep the cached session.
+async function requestSilent(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status });
+  return data;
+}
+
 export const api = {
   // Auth
   login:     (email, password)           => request('POST', '/auth/login',     { email, password }),
-  me:        ()                          => request('GET',  '/auth/me'),
+  me:        ()                          => requestSilent('GET', '/auth/me'),
   bootstrap: (name, email, password)     => request('POST', '/auth/bootstrap', { name, email, password }),
 
   // Employees

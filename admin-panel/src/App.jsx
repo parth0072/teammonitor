@@ -173,10 +173,16 @@ export default function App() {
         }
         setLoading(false);
       })
-      .catch(() => {
-        // Network error (not 401 — those are already handled in api.js by
-        // clearing the token and redirecting). Keep the cached user so a
-        // temporary server restart or blip doesn't force a logout.
+      .catch((err) => {
+        // Only log out for explicit account deactivation.
+        // Everything else (network errors, JWT issues, DB hiccups, server
+        // restarts) keeps the cached user — don't punish the user for
+        // transient server-side problems.
+        if (err?.message === 'Account disabled') {
+          clearToken();
+          window.location.href = (import.meta.env.BASE_URL || '/') + 'login';
+          return;
+        }
         setLoading(false);
       });
   }, []);
