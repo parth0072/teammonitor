@@ -1,6 +1,15 @@
 // middleware/auth.js – token verification + live is_active check (no expiry)
-const jwt = require('jsonwebtoken');
-const db  = require('../db');
+const jwt  = require('jsonwebtoken');
+const db   = require('../db');
+const fs   = require('fs');
+const path = require('path');
+
+const LOG_FILE = path.join(__dirname, '../auth-debug.log');
+function authLog(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  try { fs.appendFileSync(LOG_FILE, line); } catch (_) {}
+  console.error(msg);
+}
 
 module.exports = async (req, res, next) => {
   const header = req.headers['authorization'];
@@ -13,7 +22,7 @@ module.exports = async (req, res, next) => {
   try {
     decoded = jwt.verify(token, process.env.JWT_SECRET);
   } catch (err) {
-    console.error(`[auth] jwt.verify failed: ${err.message} | JWT_SECRET set: ${!!process.env.JWT_SECRET} | path: ${req.path}`);
+    authLog(`jwt.verify FAILED | error: ${err.message} | JWT_SECRET set: ${!!process.env.JWT_SECRET} | path: ${req.path} | token[:20]: ${token.substring(0,20)}`);
     return res.status(401).json({ error: 'Invalid token' });
   }
 
@@ -25,9 +34,12 @@ module.exports = async (req, res, next) => {
       'SELECT id FROM employees WHERE id = ? AND is_active = 1',
       [decoded.id]
     );
-    if (!rows.length) return res.status(401).json({ error: 'Account disabled' });
+    if (!rows.length) {
+      authLog(`Account disabled | employee_id: ${decoded.id} | path: ${req.path}`);
+      return res.status(401).json({ error: 'Account disabled' });
+    }
   } catch (dbErr) {
-    console.error('[auth] DB check failed, trusting JWT:', dbErr.message);
+    authLog(`DB check failed (trusting JWT) | error: ${dbErr.message} | path: ${req.path}`);
     // fall through — token is valid, DB is just momentarily down
   }
 
