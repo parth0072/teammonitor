@@ -271,12 +271,18 @@ struct MenuBarView: View {
             Button("Punch Out") { Task { await manager.punchOut() } }
         } else {
             Button("Punch In") {
-                // Dismiss any "not tracking" modal that may be blocking the main window,
-                // then open the window and show the task picker.
                 manager.showNotTrackingAlert = false
-                NotificationCenter.default.post(name: .tmActivateWindow, object: nil)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    manager.showTaskPicker = true
+                let resumeTask = manager.currentTask ?? manager.lastActiveTask
+                let resumeJira = manager.currentJiraIssue ?? manager.lastActiveJiraIssue
+                if resumeTask != nil || resumeJira != nil {
+                    // Resume with the previous task directly — no picker needed
+                    Task { await manager.punchIn(task: resumeTask, jiraIssue: resumeJira) }
+                } else {
+                    // No previous task — open window and show task picker
+                    NotificationCenter.default.post(name: .tmActivateWindow, object: nil)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        manager.showTaskPicker = true
+                    }
                 }
             }
         }
