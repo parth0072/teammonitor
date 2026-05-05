@@ -58,15 +58,6 @@ router.get('/api/health', async (req, res) => {
   }
 });
 
-// Auth debug — no auth required, safe to expose (no secrets returned)
-router.get('/api/debug/auth', (req, res) => {
-  res.json({
-    jwtSecretSet: !!process.env.JWT_SECRET,
-    jwtSecretLength: process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0,
-    nodeEnv: process.env.NODE_ENV || 'not set',
-    time: new Date().toISOString(),
-  });
-});
 
 // Serve React admin panel static files
 const PUBLIC_DIR = path.join(__dirname, 'public');

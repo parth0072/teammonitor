@@ -129,7 +129,17 @@
       "Bash(ls /Users/coda/Desktop/worklog/TeamMonitor/macos-agent/*.xcodeproj/project.pbxproj)",
       "Bash(ffmpeg -i /System/Library/Sounds/Funk.aiff -af \"volume=3.0,alimiter=level_in=1:level_out=1:limit=0.95:attack=5:release=50\" /Users/coda/Desktop/worklog/TeamMonitor/macos-agent/TeamMonitorAgent/alert_loud.aiff -y)",
       "Bash(system_profiler SPDisplaysDataType)",
-      "Bash(xcodebuild -scheme TeamMonitorAgent -configuration Debug build)"
+      "Bash(xcodebuild -scheme TeamMonitorAgent -configuration Debug build)",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__Claude_in_Chrome__select_browser",
+      "Bash(osascript)",
+      "Bash(curl -s 'https://api.alphabyteinnovation.com/teammonitor/api/sessions?date=__TRACKED_VAR__' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJwYXJ0aDAwNzJAbGl2ZS5jb20iLCJyb2xlIjoiYWRtaW4iLCJuYW1lIjoicGFydGgiLCJpYXQiOjE3Nzc4NjgzNTZ9.ZbeMCn8JEPjsRvBTNnJzTeOfW-vPr4SFSWwYV5dlshE')",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -X PATCH https://api.alphabyteinnovation.com/teammonitor/api/sessions/375/correct-minutes -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJwYXJ0aDAwNzJAbGl2ZS5jb20iLCJyb2xlIjoiYWRtaW4iLCJuYW1lIjoicGFydGgiLCJpYXQiOjE3Nzc4NjgzNTZ9.ZbeMCn8JEPjsRvBTNnJzTeOfW-vPr4SFSWwYV5dlshE' -H 'Content-Type: application/json' -d '{\"totalMinutes\": 534}')",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}' https://api.alphabyteinnovation.com/teammonitor/api/sessions/team-overview -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJwYXJ0aDAwNzJAbGl2ZS5jb20iLCJyb2xlIjoiYWRtaW4iLCJuYW1lIjoicGFydGgiLCJpYXQiOjE3Nzc4NjgzNTZ9.ZbeMCn8JEPjsRvBTNnJzTeOfW-vPr4SFSWwYV5dlshE')",
+      "Bash(xargs cat *)",
+      "Read(//Users/coda/Desktop/worklog/**)"
     ]
   }
 }
