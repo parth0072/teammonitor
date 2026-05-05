@@ -5,8 +5,22 @@ const BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:3001/api'
   : '/teammonitor/api';
 
+// Cookie helpers — fallback for browsers (e.g. Arc) that clear localStorage on close
+const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
+function getCookieToken() {
+  const m = document.cookie.match(/(?:^|;\s*)tm_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+function setCookieToken(token) {
+  const secure = location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `tm_token=${encodeURIComponent(token)}; max-age=${COOKIE_MAX_AGE}; path=/${secure}; SameSite=Strict`;
+}
+function clearCookieToken() {
+  document.cookie = 'tm_token=; max-age=0; path=/; SameSite=Strict';
+}
+
 function getToken() {
-  return localStorage.getItem('tm_token');
+  return localStorage.getItem('tm_token') || getCookieToken();
 }
 
 async function request(method, path, body, isForm = false) {
@@ -189,8 +203,8 @@ export const api = {
   updateBugReportStatus:  (id, status, note) => request('PUT', `/bug-reports/${id}/status`, { status, note }),
 };
 
-export function saveToken(token)  { localStorage.setItem('tm_token', token); }
-export function clearToken()      { localStorage.removeItem('tm_token'); localStorage.removeItem('tm_user'); }
+export function saveToken(token)  { localStorage.setItem('tm_token', token); setCookieToken(token); }
+export function clearToken()      { localStorage.removeItem('tm_token'); localStorage.removeItem('tm_user'); clearCookieToken(); }
 export function hasToken()        { return !!getToken(); }
 export function saveUser(user)    { localStorage.setItem('tm_user', JSON.stringify(user)); }
 export function getCachedUser()   { try { return JSON.parse(localStorage.getItem('tm_user')); } catch { return null; } }
