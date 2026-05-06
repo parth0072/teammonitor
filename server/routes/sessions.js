@@ -222,11 +222,11 @@ router.get('/', auth, adminOnly, async (req, res) => {
     const [rows] = await db.query(
       `SELECT s.*,
               CASE WHEN s.status='active'
-                -- Only add heartbeat lag if agent is still live (last heartbeat < 5 min ago)
-                -- If no heartbeat for 5+ min the laptop is asleep/offline — freeze at stored value
+                -- Only add heartbeat lag if agent is still live (last heartbeat < 2 min ago)
+                -- If no heartbeat for 2+ min the laptop is asleep/offline — freeze at stored value
                 THEN COALESCE(s.total_minutes, 0)
-                   + CASE WHEN TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()) < 5
-                           THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()), 0), 5)
+                   + CASE WHEN TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()) < 2
+                           THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()), 0), 2)
                            ELSE 0 END
                 ELSE COALESCE(s.total_minutes, 0)
               END AS total_minutes,
@@ -401,13 +401,13 @@ router.get('/task-sessions', auth, adminOnly, async (req, res) => {
       params
     );
 
-    // For active sessions use stored total_minutes (kept current by heartbeats) + max 5 min lag
+    // For active sessions use stored total_minutes (kept current by heartbeats) + max 2 min lag
     const now = new Date();
     const sessions = rows.map(r => {
       let minutes = Number(r.total_minutes) || 0;
       if (r.status === 'active' && r.punch_in) {
         const lagMins = r.last_heartbeat_at
-          ? Math.min(5, Math.round((now - new Date(r.last_heartbeat_at)) / 60000))
+          ? Math.min(2, Math.round((now - new Date(r.last_heartbeat_at)) / 60000))
           : 0;
         minutes = (Number(r.total_minutes) || 0) + lagMins;
       }
@@ -481,8 +481,8 @@ router.get('/team-overview', auth, adminOnly, async (req, res) => {
       // Treat as idle if agent reported idle, but only if heartbeat was recent (< 10 min ago)
       const heartbeatAge = h.last_heartbeat_at
         ? (now - new Date(h.last_heartbeat_at)) / 60000 : 999;
-      const is_idle   = !!h.is_idle && heartbeatAge < 6;
-      const is_online = heartbeatAge < 6;   // heartbeat every 5 min; 6-min window = 1 min grace after missed beat
+      const is_idle   = !!h.is_idle && heartbeatAge < 2;
+      const is_online = heartbeatAge < 2;   // heartbeat every 1 min; 2-min window = 1 min grace after missed beat
       return {
         employee_id:        h.employee_id,
         name:               h.name,
@@ -520,8 +520,8 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
       `SELECT date,
         SUM(CASE WHEN status = 'active'
               THEN COALESCE(total_minutes, 0)
-                 + CASE WHEN TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()) < 5
-                         THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()), 0), 5)
+                 + CASE WHEN TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()) < 2
+                         THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()), 0), 2)
                          ELSE 0 END
               ELSE total_minutes END) AS total_minutes,
         COUNT(*) AS session_count
