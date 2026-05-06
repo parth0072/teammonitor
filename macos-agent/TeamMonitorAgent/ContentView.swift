@@ -33,6 +33,10 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .sessionExpired)) { _ in
             APIService.shared.logout()   // clear stale token from Keychain
             auth.isLoggedIn = false
+            // Bring the window to front so the employee sees the login screen
+            // (without this the window stays hidden behind other apps)
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.windows.first { $0.isVisible || !$0.isMiniaturized }?.makeKeyAndOrderFront(nil)
         }
         .task { await restoreSession() }
     }

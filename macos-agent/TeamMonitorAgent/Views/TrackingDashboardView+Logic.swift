@@ -17,13 +17,11 @@ extension TrackingDashboardView {
                 myTasks  = try await t
                 projects = try await p
             } catch APIError.unauthorized {
-                // Treat 401 the same as any other network error — do NOT auto-logout.
-                // A transient DB hiccup on the server can cause a false 401; clearing
-                // the token and hiding the login screen behind the menu bar would leave
-                // the employee in a broken state with no way out. Only the Sign Out
-                // button should trigger logout. Keep cached tasks visible.
-                TMLog("[loadTasks] 401 — keeping session alive (no auto-logout)")
-                tasksError = "Could not load tasks — will retry automatically."
+                // Token is invalid — log out and bring the window to front so the
+                // employee sees the login screen instead of a stuck/blank dashboard.
+                TMLog("[loadTasks] 401 — session expired, logging out")
+                APIService.shared.logout()
+                NotificationCenter.default.post(name: .sessionExpired, object: nil)
             } catch {
                 tasksError = error.localizedDescription
                 TMLog("[loadTasks] error: \(error)")
