@@ -167,7 +167,28 @@ class TrackingManager: ObservableObject {
         network.$isOnline
             .receive(on: RunLoop.main)
             .sink { [weak self] (online: Bool) in
-                self?.isOffline = !online
+                guard let self else { return }
+                let wasOffline = self.isOffline
+                self.isOffline = !online
+                // When network comes back while tracking, immediately sync accumulated
+                // minutes to the server (pass reconnect:true so the server skips
+                // gap/break insertion — the user was working, not sleeping).
+                if online && wasOffline && self.isTracking,
+                   let sessionId = self.currentSessionId {
+                    let mins = self.trackedMinutes
+                    let perm = ScreenshotService.hasPermission()
+                    // Reset tick count so the next scheduled heartbeat doesn't fire immediately after
+                    self.heartbeatTickCount = 0
+                    TMLog("[Network] Reconnected — syncing \(mins)m to server (session \(sessionId))")
+                    Task {
+                        if let resp = try? await self.api.heartbeat(
+                            sessionId: sessionId, totalMinutes: mins,
+                            screenPermission: perm, isIdle: false,
+                            deliveredCommandIds: [], reconnect: true) {
+                            await self.handleHeartbeatResponse(resp)
+                        }
+                    }
+                }
             }
             .store(in: &cancellables)
 

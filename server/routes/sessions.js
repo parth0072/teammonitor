@@ -90,29 +90,33 @@ router.put('/:id/punch-out', auth, async (req, res) => {
 // PUT /api/sessions/:id/heartbeat  – update running minutes; return pending admin commands
 router.put('/:id/heartbeat', auth, async (req, res) => {
   try {
-    const { totalMinutes, screenPermission, agentVersion, isIdle, deliveredCommandIds = [] } = req.body;
+    const { totalMinutes, screenPermission, agentVersion, isIdle, deliveredCommandIds = [], reconnect = false } = req.body;
     const now = new Date();
 
     // ── Lid-close gap detection ──────────────────────────────────────────────
     // If the last heartbeat was > 6 min ago the agent was offline (lid close / sleep).
     // Auto-insert a session_break for the exact gap so the timeline shows it correctly.
-    try {
-      const [[sess]] = await db.query(
-        'SELECT last_heartbeat_at, date FROM sessions WHERE id=? AND employee_id=?',
-        [req.params.id, req.user.id]
-      );
-      if (sess?.last_heartbeat_at) {
-        const gapMin = (now - new Date(sess.last_heartbeat_at)) / 60000;
-        if (gapMin > 6) {
-          const sessionDate = new Date(sess.date).toISOString().slice(0, 10);
-          await db.query(
-            `INSERT INTO session_breaks (session_id, employee_id, break_start, break_end, date)
-             VALUES (?, ?, ?, ?, ?)`,
-            [req.params.id, req.user.id, sess.last_heartbeat_at, now, sessionDate]
-          );
+    // Skip this when reconnect=true — that means the agent was tracking offline (network
+    // outage with lid open) and has just synced; no actual break occurred.
+    if (!reconnect) {
+      try {
+        const [[sess]] = await db.query(
+          'SELECT last_heartbeat_at, date FROM sessions WHERE id=? AND employee_id=?',
+          [req.params.id, req.user.id]
+        );
+        if (sess?.last_heartbeat_at) {
+          const gapMin = (now - new Date(sess.last_heartbeat_at)) / 60000;
+          if (gapMin > 6) {
+            const sessionDate = new Date(sess.date).toISOString().slice(0, 10);
+            await db.query(
+              `INSERT INTO session_breaks (session_id, employee_id, break_start, break_end, date)
+               VALUES (?, ?, ?, ?, ?)`,
+              [req.params.id, req.user.id, sess.last_heartbeat_at, now, sessionDate]
+            );
+          }
         }
-      }
-    } catch (_) { /* non-fatal — don't block the heartbeat if breaks table missing */ }
+      } catch (_) { /* non-fatal — don't block the heartbeat if breaks table missing */ }
+    }
 
     // GREATEST() prevents a post-restart agent (with reset trackedMinutes) from
     // overwriting a higher server value — total_minutes only ever goes up.
