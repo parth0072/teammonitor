@@ -438,11 +438,27 @@ class TrackingManager: ObservableObject {
             startAllServices(sessionId: sessionId)
             TMLog("[TrackingManager] Resumed restored session \(sessionId)")
 
-            // Immediate heartbeat so admin dashboard shows green right away
-            let mins = trackedMinutes
-            let perm = ScreenshotService.hasPermission()
-            Task { try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: mins, screenPermission: perm, isIdle: false, deliveredCommandIds: []) }
-            TMLog("[TrackingManager] Immediate heartbeat sent on restore-resume — session: \(sessionId), \(mins)m")
+            // Immediate heartbeat — syncs time + any pending breaks right away
+            let mins       = trackedMinutes
+            let perm       = ScreenshotService.hasPermission()
+            let delivered  = pendingDeliveredCommandIds
+            let breaksSnap = pendingBreaks
+            pendingDeliveredCommandIds = []
+            pendingBreaks              = []
+            Task {
+                if (try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: mins,
+                                                  screenPermission: perm, isIdle: false,
+                                                  deliveredCommandIds: delivered,
+                                                  breaks: breaksSnap)) != nil {
+                    TMLog("[ConfirmResume] Immediate heartbeat synced — session: \(sessionId), \(mins)m, breaks: \(breaksSnap.count)")
+                } else {
+                    await MainActor.run {
+                        self.pendingDeliveredCommandIds = delivered + self.pendingDeliveredCommandIds
+                        self.pendingBreaks = breaksSnap + self.pendingBreaks
+                    }
+                    TMLog("[ConfirmResume] Immediate heartbeat failed — will retry")
+                }
+            }
         } else {
             let task = currentTask ?? lastActiveTask
             let jira = currentJiraIssue ?? lastActiveJiraIssue
@@ -749,10 +765,13 @@ class TrackingManager: ObservableObject {
             saveSessionState()
             startAllServices(sessionId: sessionId)
 
-            // Immediate heartbeat so the admin dashboard shows green right away
-            // instead of waiting up to 5 minutes for the first scheduled heartbeat.
-            let perm = ScreenshotService.hasPermission()
-            Task { try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: 0, screenPermission: perm, isIdle: false, deliveredCommandIds: []) }
+            // Immediate heartbeat — admin dashboard goes green straight away
+            let perm      = ScreenshotService.hasPermission()
+            let delivered = pendingDeliveredCommandIds
+            pendingDeliveredCommandIds = []
+            Task { try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: 0,
+                                                 screenPermission: perm, isIdle: false,
+                                                 deliveredCommandIds: delivered) }
             TMLog("[PunchIn] Immediate heartbeat sent — session: \(sessionId)")
         } catch {
             TMLog("[PunchIn] ❌ Failed — \(error.localizedDescription)")
