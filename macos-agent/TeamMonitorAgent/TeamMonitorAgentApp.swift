@@ -272,6 +272,11 @@ struct MenuBarView: View {
         } else {
             Button("Punch In") {
                 manager.showNotTrackingAlert = false
+                // If a session was restored from a previous run, resume it — don't create a new one
+                if manager.currentSessionId != nil && !manager.isTracking {
+                    manager.confirmResume()
+                    return
+                }
                 let resumeTask = manager.currentTask ?? manager.lastActiveTask
                 let resumeJira = manager.currentJiraIssue ?? manager.lastActiveJiraIssue
                 if resumeTask != nil || resumeJira != nil {
