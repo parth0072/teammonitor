@@ -6,7 +6,7 @@
  * Exit: 0 = all pass, 1 = failures (blocks push)
  *
  * Tests the logic that has regressed multiple times:
- *   1. 2-minute idle threshold (heartbeat every 1 min; was 6 min when heartbeat was every 5 min)
+ *   1. 6-minute idle threshold (was 8 min, was 10 min — keep at 6)
  *   2. Heartbeat always clears is_idle unless isIdle===true
  *   3. is_online computed from last_heartbeat_at age, never from stored flag
  *   4. isAway = stale heartbeat OR is_idle (either condition sufficient)
@@ -27,7 +27,7 @@ function assert(description, condition) {
 
 // ── helpers (mirrors the real logic) ─────────────────────────────────────────
 
-const THRESHOLD_MINUTES = 2; // heartbeat fires every 1 min; 1 min grace
+const THRESHOLD_MINUTES = 6; // heartbeat fires every 5 min; 1 min grace
 
 function heartbeatAgeMin(lastHeartbeatAt) {
   if (!lastHeartbeatAt) return 999;
@@ -74,27 +74,27 @@ function minsAgo(n) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Threshold is 2 minutes — heartbeat every 1 min; 1 min grace
+// 1. Threshold is 6 minutes — not 8, not 10
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\n[1] 2-minute threshold');
+console.log('\n[1] 6-minute threshold');
 
-assert('1.9 min old heartbeat → online',
-  computeOnlineIdle({ last_heartbeat_at: minsAgo(1.9) }, 0).is_online === true);
+assert('5.9 min old heartbeat → online',
+  computeOnlineIdle({ last_heartbeat_at: minsAgo(5.9) }, 0).is_online === true);
 
-assert('2.0 min old heartbeat → offline',
-  computeOnlineIdle({ last_heartbeat_at: minsAgo(2.0) }, 0).is_online === false);
+assert('6.0 min old heartbeat → offline',
+  computeOnlineIdle({ last_heartbeat_at: minsAgo(6.0) }, 0).is_online === false);
 
-assert('6 min old heartbeat → offline (old 6-min threshold must NOT pass)',
-  computeOnlineIdle({ last_heartbeat_at: minsAgo(6) }, 0).is_online === false);
+assert('8 min old heartbeat → offline (old 8-min threshold must NOT pass)',
+  computeOnlineIdle({ last_heartbeat_at: minsAgo(8) }, 0).is_online === false);
 
-assert('10 min old heartbeat → offline',
+assert('10 min old heartbeat → offline (old 10-min threshold must NOT pass)',
   computeOnlineIdle({ last_heartbeat_at: minsAgo(10) }, 0).is_online === false);
 
-assert('Dashboard: 1 min old heartbeat → not stale',
-  isStaleSession({ status: 'active', last_heartbeat_at: minsAgo(1) }) === false);
+assert('Dashboard: fresh heartbeat → not stale',
+  isStaleSession({ status: 'active', last_heartbeat_at: minsAgo(2) }) === false);
 
-assert('Dashboard: 3 min old → stale',
-  isStaleSession({ status: 'active', last_heartbeat_at: minsAgo(3) }) === true);
+assert('Dashboard: 7 min old → stale',
+  isStaleSession({ status: 'active', last_heartbeat_at: minsAgo(7) }) === true);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Heartbeat always clears is_idle unless isIdle===true
@@ -122,7 +122,7 @@ assert('Heartbeat with isIdle=null → is_idle=0 (not truthy)',
 console.log('\n[3] isAway (Reports Day Timeline)');
 
 const freshSession   = { last_heartbeat_at: minsAgo(1),  punch_out: null };
-const staleSession   = { last_heartbeat_at: minsAgo(3),  punch_out: null };
+const staleSession   = { last_heartbeat_at: minsAgo(8),  punch_out: null };
 const completedSess  = { last_heartbeat_at: minsAgo(1),  punch_out: new Date().toISOString() };
 
 assert('Fresh heartbeat, is_idle=0 → NOT away',

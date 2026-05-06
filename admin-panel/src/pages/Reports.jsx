@@ -200,8 +200,8 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
             const isActive = !s.punch_out;
             const heartbeatAgeMin = s.last_heartbeat_at
               ? (Date.now() - new Date(s.last_heartbeat_at).getTime()) / 60000 : 999;
-            // Away = no heartbeat for 2+ min OR agent explicitly flagged idle (e.g. lid close)
-            const isAway   = isActive && (heartbeatAgeMin > 2 || !!s.is_idle);
+            // Away = no heartbeat for 6+ min OR agent explicitly flagged idle (e.g. lid close)
+            const isAway   = isActive && (heartbeatAgeMin > 6 || !!s.is_idle);
             const hbAgoStr = s.last_heartbeat_at
               ? heartbeatAgeMin < 1   ? "just now"
               : heartbeatAgeMin < 60  ? `${Math.round(heartbeatAgeMin)}m ago`

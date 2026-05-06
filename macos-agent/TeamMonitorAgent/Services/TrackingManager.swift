@@ -124,7 +124,7 @@ class TrackingManager: ObservableObject {
     private var activityWatchTimer:   Timer?   // auto check-in when activity detected while not tracking
     private var dayChangeTimer:       Timer?   // always-running — detects midnight even when not tracking
     private var heartbeatTickCount:        Int    = 0
-    private let kHeartbeatEvery:           Int    = 1   // sync every minute so admin panel stays current
+    private let kHeartbeatEvery:           Int    = 5
     private var lowActivityMinutes:        Int    = 0
     private var pendingDeliveredCommandIds: [Int] = []
 
