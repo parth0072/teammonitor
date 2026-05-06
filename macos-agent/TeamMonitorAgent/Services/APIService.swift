@@ -431,6 +431,8 @@ class APIService: ObservableObject {
 
     func heartbeat(sessionId: Int, totalMinutes: Int, screenPermission: Bool = true,
                    isIdle: Bool = false, deliveredCommandIds: [Int] = [],
+                   breaks: [(start: Date, end: Date)] = [],
+                   currentBreakStart: Date? = nil,
                    reconnect: Bool = false) async throws -> HeartbeatResponse {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         var body: [String: Any] = [
@@ -440,6 +442,14 @@ class APIService: ObservableObject {
             "isIdle":              isIdle,
             "deliveredCommandIds": deliveredCommandIds,
         ]
+        // Completed breaks (local-first: Mac is source of truth, server upserts on receive)
+        if !breaks.isEmpty {
+            body["breaks"] = breaks.map { ["start": iso($0.start), "end": iso($0.end)] }
+        }
+        // Currently on break — let server know the open break start time
+        if let bs = currentBreakStart {
+            body["currentBreakStart"] = iso(bs)
+        }
         if reconnect { body["reconnect"] = true }
         return try await put("/sessions/\(sessionId)/heartbeat", body: body)
     }

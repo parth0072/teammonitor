@@ -127,6 +127,8 @@ class TrackingManager: ObservableObject {
     private let kHeartbeatEvery:           Int    = 5
     private var lowActivityMinutes:        Int    = 0
     private var pendingDeliveredCommandIds: [Int] = []
+    /// Breaks completed offline (breakEnd API failed) — synced with the next heartbeat.
+    private var pendingBreaks: [(start: Date, end: Date)] = []
 
     private let kRecentTaskIds  = "tm_recent_task_ids"
     private let kRecentJiraKeys = "tm_recent_jira_keys"
@@ -175,17 +177,22 @@ class TrackingManager: ObservableObject {
                 // gap/break insertion — the user was working, not sleeping).
                 if online && wasOffline && self.isTracking,
                    let sessionId = self.currentSessionId {
-                    let mins = self.trackedMinutes
-                    let perm = ScreenshotService.hasPermission()
-                    // Reset tick count so the next scheduled heartbeat doesn't fire immediately after
-                    self.heartbeatTickCount = 0
-                    TMLog("[Network] Reconnected — syncing \(mins)m to server (session \(sessionId))")
+                    let mins       = self.trackedMinutes
+                    let perm       = ScreenshotService.hasPermission()
+                    let breaks     = self.pendingBreaks
+                    let breakStart = self.isOnBreak ? self.stoppedTrackingAt : nil
+                    self.pendingBreaks      = []
+                    self.heartbeatTickCount = 0   // avoid double-heartbeat right after reconnect
+                    TMLog("[Network] Reconnected — syncing \(mins)m + \(breaks.count) break(s) (session \(sessionId))")
                     Task {
                         if let resp = try? await self.api.heartbeat(
                             sessionId: sessionId, totalMinutes: mins,
                             screenPermission: perm, isIdle: false,
-                            deliveredCommandIds: [], reconnect: true) {
+                            deliveredCommandIds: [], breaks: breaks,
+                            currentBreakStart: breakStart, reconnect: true) {
                             await self.handleHeartbeatResponse(resp)
+                        } else {
+                            await MainActor.run { self.pendingBreaks = breaks + self.pendingBreaks }
                         }
                     }
                 }
@@ -712,6 +719,7 @@ class TrackingManager: ObservableObject {
             punchInTime      = Date()
             lastResumeTime   = Date()
             trackedMinutes   = 0        // per-session reset (heartbeat uses this)
+            pendingBreaks    = []       // new session — clear any stale break records
             // todayMinutes intentionally NOT reset — accumulates all day
             screenshotCount    = 0
             isTracking         = true
@@ -829,11 +837,9 @@ class TrackingManager: ObservableObject {
         saveSessionState()
         scheduleNotTrackingReminder()
 
-        if let sessionId = currentSessionId {
-            try? await api.heartbeat(sessionId: sessionId, totalMinutes: trackedMinutes, screenPermission: hasScreenPermission)
-            try? await api.breakStart(sessionId: sessionId)
-            TMLog("[Break] ✅ Break started on server — session: \(sessionId)")
-        }
+        // Local-first: store break start locally; the heartbeat will sync it to the server.
+        // No separate breakStart API call — everything goes through heartbeat.
+        TMLog("[Break] Break started locally — session: \(currentSessionId ?? -1), stoppedAt: \(stoppedTrackingAt!)")
     }
 
     func resumeFromBreak() {
@@ -859,14 +865,31 @@ class TrackingManager: ObservableObject {
         MenuBarState.shared.isOnBreak = false
         saveSessionState()
 
-        Task { try? await api.breakEnd(sessionId: sessionId) }
+        // Local-first: store the completed break; heartbeat will sync it to the server.
+        // stoppedTrackingAt = the moment takeBreak() was called (= break start).
+        if let breakStart = stoppedTrackingAt {
+            pendingBreaks.append((start: breakStart, end: Date()))
+            TMLog("[Break] Break stored locally: \(breakStart) → now, total pending: \(pendingBreaks.count)")
+        }
+
         startAllServices(sessionId: sessionId)
 
-        // Immediate heartbeat so admin dashboard reflects the resume instantly
+        // Immediate heartbeat — syncs trackedMinutes + the just-completed break right away.
         let resumeMins = trackedMinutes
-        let perm = ScreenshotService.hasPermission()
-        Task { try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: resumeMins, screenPermission: perm, isIdle: false, deliveredCommandIds: []) }
-        TMLog("[Break] Immediate heartbeat sent on resume — session: \(sessionId), \(resumeMins)m")
+        let perm       = ScreenshotService.hasPermission()
+        let breaksSnap = pendingBreaks
+        pendingBreaks  = []
+        Task {
+            if (try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: resumeMins,
+                                              screenPermission: perm, isIdle: false,
+                                              deliveredCommandIds: [], breaks: breaksSnap)) != nil {
+                TMLog("[Break] Resume heartbeat synced \(breaksSnap.count) break(s)")
+            } else {
+                await MainActor.run { self.pendingBreaks = breaksSnap + self.pendingBreaks }
+                TMLog("[Break] Resume heartbeat failed — \(breaksSnap.count) break(s) re-queued")
+            }
+        }
+        TMLog("[Break] Resuming — session: \(sessionId), \(resumeMins)m")
     }
 
     // MARK: - Resume after idle
@@ -1179,23 +1202,28 @@ class TrackingManager: ObservableObject {
 
             if self.heartbeatTickCount % self.kHeartbeatEvery == 0 {
                 let mins      = self.trackedMinutes
-                // Re-check live permission each heartbeat so the backend stays in sync
-                // if the user revokes/grants access while tracking.
                 let perm      = ScreenshotService.hasPermission()
                 let delivered = self.pendingDeliveredCommandIds
+                let breaks    = self.pendingBreaks
+                let breakStart = self.isOnBreak ? self.stoppedTrackingAt : nil
                 self.hasScreenPermission        = perm
                 self.pendingDeliveredCommandIds = []
+                self.pendingBreaks              = []   // optimistic clear; restored on failure
                 let idle = self.isIdle || self.isOnBreak
-                TMLog("[Heartbeat] Sending — session: \(sessionId), \(mins)m tracked, isIdle: \(idle), isOnBreak: \(self.isOnBreak), deliveredCmds: \(delivered.count)")
+                TMLog("[Heartbeat] Sending — session: \(sessionId), \(mins)m, isIdle: \(idle), breaks: \(breaks.count), onBreak: \(self.isOnBreak)")
                 Task {
                     if let resp = try? await self.api.heartbeat(
                         sessionId: sessionId, totalMinutes: mins,
                         screenPermission: perm, isIdle: idle,
-                        deliveredCommandIds: delivered) {
-                        TMLog("[Heartbeat] Response — trackingLocked: \(resp.trackingLocked), commands: \(resp.commands.count)")
+                        deliveredCommandIds: delivered,
+                        breaks: breaks,
+                        currentBreakStart: breakStart) {
+                        TMLog("[Heartbeat] ✅ Synced \(breaks.count) break(s) — trackingLocked: \(resp.trackingLocked)")
                         await self.handleHeartbeatResponse(resp)
                     } else {
-                        TMLog("[Heartbeat] ❌ Failed — session: \(sessionId), \(mins)m")
+                        // Restore unsynced breaks so the next heartbeat retries them
+                        await MainActor.run { self.pendingBreaks = breaks + self.pendingBreaks }
+                        TMLog("[Heartbeat] ❌ Failed — session: \(sessionId), \(mins)m, \(breaks.count) break(s) re-queued")
                     }
                 }
                 self.heartbeatTickCount = 0

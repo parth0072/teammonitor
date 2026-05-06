@@ -176,6 +176,10 @@ async function runMigrations() {
        \`value\`     TEXT         NOT NULL,
        updated_at  DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
      )`,
+
+    // Unique index on session_breaks so Mac-reported breaks can be upserted idempotently
+    // (ON DUPLICATE KEY UPDATE break_end). Safe to run multiple times — IF NOT EXISTS guard.
+    `ALTER TABLE session_breaks ADD UNIQUE INDEX IF NOT EXISTS uniq_session_break_start (session_id, break_start)`,
   ];
   for (const sql of migrations) {
     try {

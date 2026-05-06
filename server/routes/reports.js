@@ -265,11 +265,13 @@ async function saveMemory(employeeId, date, { totalTrackedMinutes, productivePer
 async function buildReport(employeeId, date, { saveToMemory = false } = {}) {
   const [sessions] = await db.query(
     `SELECT s.id, s.date, s.punch_in, s.punch_out, s.status,
-            -- Cap per-session at 1440 min (24h); active sessions get max 5 min heartbeat lag
+            -- Cap per-session at 1440 min (24h); active sessions: Mac reported + lag up to 5 min
             LEAST(
               CASE WHEN s.status = 'active'
                 THEN COALESCE(s.total_minutes, 0)
-                   + LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()), 0), 5)
+                   + CASE WHEN TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()) < 6
+                           THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()), 0), 5)
+                           ELSE 0 END
                 ELSE COALESCE(s.total_minutes, 0)
               END,
               1440

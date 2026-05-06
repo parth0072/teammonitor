@@ -90,32 +90,40 @@ router.put('/:id/punch-out', auth, async (req, res) => {
 // PUT /api/sessions/:id/heartbeat  – update running minutes; return pending admin commands
 router.put('/:id/heartbeat', auth, async (req, res) => {
   try {
-    const { totalMinutes, screenPermission, agentVersion, isIdle, deliveredCommandIds = [], reconnect = false } = req.body;
+    const { totalMinutes, screenPermission, agentVersion, isIdle,
+            deliveredCommandIds = [], reconnect = false,
+            breaks = [], currentBreakStart } = req.body;
     const now = new Date();
 
-    // ── Lid-close gap detection ──────────────────────────────────────────────
-    // If the last heartbeat was > 6 min ago the agent was offline (lid close / sleep).
-    // Auto-insert a session_break for the exact gap so the timeline shows it correctly.
-    // Skip this when reconnect=true — that means the agent was tracking offline (network
-    // outage with lid open) and has just synced; no actual break occurred.
-    if (!reconnect) {
+    // ── Mac-reported breaks (local-first) ────────────────────────────────────
+    // The Mac app is the source of truth for breaks. It stores them locally and
+    // sends them here via heartbeat. We upsert so re-sends are idempotent.
+    if (breaks.length > 0) {
+      const sessionDate = new Date().toISOString().slice(0, 10);
+      for (const b of breaks) {
+        if (!b.start || !b.end) continue;
+        try {
+          await db.query(
+            `INSERT INTO session_breaks (session_id, employee_id, break_start, break_end, date)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE break_end = VALUES(break_end)`,
+            [req.params.id, req.user.id, new Date(b.start), new Date(b.end), sessionDate]
+          );
+        } catch (_) { /* non-fatal */ }
+      }
+    }
+
+    // ── Open break (currently on break) ──────────────────────────────────────
+    // Ensure there is an open session_break row for the current break period.
+    if (currentBreakStart) {
+      const sessionDate = new Date().toISOString().slice(0, 10);
       try {
-        const [[sess]] = await db.query(
-          'SELECT last_heartbeat_at, date FROM sessions WHERE id=? AND employee_id=?',
-          [req.params.id, req.user.id]
+        await db.query(
+          `INSERT IGNORE INTO session_breaks (session_id, employee_id, break_start, date)
+           VALUES (?, ?, ?, ?)`,
+          [req.params.id, req.user.id, new Date(currentBreakStart), sessionDate]
         );
-        if (sess?.last_heartbeat_at) {
-          const gapMin = (now - new Date(sess.last_heartbeat_at)) / 60000;
-          if (gapMin > 6) {
-            const sessionDate = new Date(sess.date).toISOString().slice(0, 10);
-            await db.query(
-              `INSERT INTO session_breaks (session_id, employee_id, break_start, break_end, date)
-               VALUES (?, ?, ?, ?, ?)`,
-              [req.params.id, req.user.id, sess.last_heartbeat_at, now, sessionDate]
-            );
-          }
-        }
-      } catch (_) { /* non-fatal — don't block the heartbeat if breaks table missing */ }
+      } catch (_) { /* non-fatal */ }
     }
 
     // GREATEST() prevents a post-restart agent (with reset trackedMinutes) from
@@ -226,10 +234,9 @@ router.get('/', auth, adminOnly, async (req, res) => {
     const [rows] = await db.query(
       `SELECT s.*,
               CASE WHEN s.status='active'
-                -- Only add heartbeat lag if agent is still live (last heartbeat < 5 min ago)
-                -- If no heartbeat for 5+ min the laptop is asleep/offline — freeze at stored value
+                -- Add heartbeat lag up to the online threshold (6 min) — Mac is source of truth
                 THEN COALESCE(s.total_minutes, 0)
-                   + CASE WHEN TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()) < 5
+                   + CASE WHEN TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()) < 6
                            THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, s.last_heartbeat_at, UTC_TIMESTAMP()), 0), 5)
                            ELSE 0 END
                 ELSE COALESCE(s.total_minutes, 0)
@@ -524,7 +531,7 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
       `SELECT date,
         SUM(CASE WHEN status = 'active'
               THEN COALESCE(total_minutes, 0)
-                 + CASE WHEN TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()) < 5
+                 + CASE WHEN TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()) < 6
                          THEN LEAST(COALESCE(TIMESTAMPDIFF(MINUTE, last_heartbeat_at, NOW()), 0), 5)
                          ELSE 0 END
               ELSE total_minutes END) AS total_minutes,
