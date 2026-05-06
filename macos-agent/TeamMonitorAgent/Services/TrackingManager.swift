@@ -409,6 +409,12 @@ class TrackingManager: ObservableObject {
             saveSessionState()
             startAllServices(sessionId: sessionId)
             TMLog("[TrackingManager] Resumed restored session \(sessionId)")
+
+            // Immediate heartbeat so admin dashboard shows green right away
+            let mins = trackedMinutes
+            let perm = ScreenshotService.hasPermission()
+            Task { try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: mins, screenPermission: perm, isIdle: false, deliveredCommandIds: []) }
+            TMLog("[TrackingManager] Immediate heartbeat sent on restore-resume — session: \(sessionId), \(mins)m")
         } else {
             let task = currentTask ?? lastActiveTask
             let jira = currentJiraIssue ?? lastActiveJiraIssue
@@ -713,6 +719,12 @@ class TrackingManager: ObservableObject {
 
             saveSessionState()
             startAllServices(sessionId: sessionId)
+
+            // Immediate heartbeat so the admin dashboard shows green right away
+            // instead of waiting up to 5 minutes for the first scheduled heartbeat.
+            let perm = ScreenshotService.hasPermission()
+            Task { try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: 0, screenPermission: perm, isIdle: false, deliveredCommandIds: []) }
+            TMLog("[PunchIn] Immediate heartbeat sent — session: \(sessionId)")
         } catch {
             TMLog("[PunchIn] ❌ Failed — \(error.localizedDescription)")
             statusMessage = "Error: \(error.localizedDescription)"
@@ -828,6 +840,12 @@ class TrackingManager: ObservableObject {
 
         Task { try? await api.breakEnd(sessionId: sessionId) }
         startAllServices(sessionId: sessionId)
+
+        // Immediate heartbeat so admin dashboard reflects the resume instantly
+        let resumeMins = trackedMinutes
+        let perm = ScreenshotService.hasPermission()
+        Task { try? await self.api.heartbeat(sessionId: sessionId, totalMinutes: resumeMins, screenPermission: perm, isIdle: false, deliveredCommandIds: []) }
+        TMLog("[Break] Immediate heartbeat sent on resume — session: \(sessionId), \(resumeMins)m")
     }
 
     // MARK: - Resume after idle
