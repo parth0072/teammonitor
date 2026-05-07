@@ -794,6 +794,11 @@ function AdminDashboard() {
     setEmployees(emps.filter(e => e.is_active === 1));
     setIdleLogs(tlData?.idleLogs || []);
 
+    // DEBUG — remove after confirming idle logs work
+    console.log('[Dashboard] tlData raw:', tlData);
+    console.log('[Dashboard] idleLogs count:', (tlData?.idleLogs || []).length, tlData?.idleLogs);
+    console.log('[Dashboard] sessions with breaks:', (sess || []).map(s => ({ id: s.id, emp: s.employee_id, breaks: s.breaks })));
+
     const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
     const last7 = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
