@@ -64,27 +64,56 @@ router.get('/requests', auth, async (req, res) => {
   res.json(rows);
 });
 
-// POST /api/leaves/requests  (employee submits)
+// POST /api/leaves/requests
+//   Employee: submits own request (pending); balance checked.
+//   Admin: may pass employee_id to add on behalf of any employee;
+//          request is created and immediately approved; balance is deducted.
 router.post('/requests', auth, async (req, res) => {
-  const { leave_type_id, from_date, to_date, days, reason } = req.body;
+  const { leave_type_id, from_date, to_date, days, reason, note } = req.body;
   if (!leave_type_id || !from_date || !to_date) return res.status(400).json({ error: 'leave_type_id, from_date, to_date required' });
 
-  // Check balance
-  const year = new Date(from_date).getFullYear();
-  const [[bal]] = await db.query(
-    'SELECT * FROM leave_balances WHERE employee_id=? AND leave_type_id=? AND year=?',
-    [req.user.id, leave_type_id, year]
-  );
-  const remaining = bal ? (bal.allocated_days - bal.used_days) : 0;
-  const requested = parseFloat(days) || 1;
-  if (bal && remaining < requested) {
-    return res.status(400).json({ error: `Insufficient balance. Available: ${remaining} day(s)` });
+  const isAdmin    = req.user.role === 'admin';
+  const employeeId = (isAdmin && req.body.employee_id) ? req.body.employee_id : req.user.id;
+  const requested  = parseFloat(days) || 1;
+  const year       = new Date(from_date).getFullYear();
+
+  if (!isAdmin) {
+    // Regular employee: check balance
+    const [[bal]] = await db.query(
+      'SELECT * FROM leave_balances WHERE employee_id=? AND leave_type_id=? AND year=?',
+      [employeeId, leave_type_id, year]
+    );
+    const remaining = bal ? (bal.allocated_days - bal.used_days) : 0;
+    if (bal && remaining < requested) {
+      return res.status(400).json({ error: `Insufficient balance. Available: ${remaining} day(s)` });
+    }
   }
 
+  // Create the leave request
+  const status = isAdmin && req.body.employee_id ? 'approved' : 'pending';
   const [r] = await db.query(
-    'INSERT INTO leave_requests (employee_id, leave_type_id, from_date, to_date, days, reason) VALUES (?,?,?,?,?,?)',
-    [req.user.id, leave_type_id, from_date, to_date, requested, reason || '']
+    `INSERT INTO leave_requests
+       (employee_id, leave_type_id, from_date, to_date, days, reason, status, reviewed_by, reviewed_at, reviewer_note)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [
+      employeeId, leave_type_id, from_date, to_date, requested, reason || '',
+      status,
+      status === 'approved' ? req.user.id  : null,
+      status === 'approved' ? new Date()   : null,
+      status === 'approved' ? (note || '') : null,
+    ]
   );
+
+  // Auto-deduct balance when admin adds directly as approved
+  if (status === 'approved') {
+    await db.query(
+      `INSERT INTO leave_balances (employee_id, leave_type_id, year, allocated_days, used_days)
+       VALUES (?,?,?,0,?)
+       ON DUPLICATE KEY UPDATE used_days = used_days + ?`,
+      [employeeId, leave_type_id, year, requested, requested]
+    ).catch(() => {}); // ignore if balance row doesn't exist yet
+  }
+
   res.status(201).json({ id: r.insertId });
 });
 

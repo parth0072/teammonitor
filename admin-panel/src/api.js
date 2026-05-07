@@ -142,6 +142,7 @@ export const api = {
     return request('GET', `/leaves/requests${q ? '?'+q : ''}`);
   },
   submitLeaveRequest:  (data)      => request('POST', '/leaves/requests', data),
+  adminAddLeave:       (data)      => request('POST', '/leaves/requests', data),   // admin posts with employee_id → auto-approved
   approveLeave:  (id, note)        => request('PUT', `/leaves/requests/${id}/approve`, { note }),
   rejectLeave:   (id, note)        => request('PUT', `/leaves/requests/${id}/reject`,  { note }),
   cancelLeave:   (id)              => request('PUT', `/leaves/requests/${id}/cancel`),

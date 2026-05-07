@@ -104,6 +104,85 @@ function RequestModal({ leaveTypes, onClose, onSave }) {
   );
 }
 
+// ── Admin Add Leave Modal (on behalf of employee, auto-approved) ─────────────
+
+function AdminAddLeaveModal({ employees, leaveTypes, onClose, onSave }) {
+  const [form, setForm]   = useState({ employee_id: "", leave_type_id: "", from_date: "", to_date: "", reason: "", note: "" });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr]     = useState("");
+
+  const days = form.from_date && form.to_date ? workdays(form.from_date, form.to_date) : 0;
+
+  const save = async () => {
+    if (!form.employee_id)    return setErr("Select an employee.");
+    if (!form.leave_type_id)  return setErr("Select a leave type.");
+    if (!form.from_date || !form.to_date) return setErr("Both dates are required.");
+    if (form.to_date < form.from_date)    return setErr("End date must be after start date.");
+    setSaving(true); setErr("");
+    try {
+      await api.adminAddLeave({ ...form, days });
+      onSave();
+    } catch (e) { setErr(e.message); setSaving(false); }
+  };
+
+  return (
+    <div style={S.modal} onClick={onClose}>
+      <div style={{ ...S.modalBox, width: 500 }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: "#1e293b" }}>Add Leave for Employee</h3>
+        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20 }}>Leave will be recorded as <b>Approved</b> immediately.</div>
+
+        {err && <div style={{ background: "#fee2e2", color: "#991b1b", padding: "8px 12px", borderRadius: 8, marginBottom: 14, fontSize: 13 }}>{err}</div>}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={S.label}>Employee</label>
+            <select style={{ ...S.input, cursor: "pointer" }} value={form.employee_id} onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}>
+              <option value="">Select employee…</option>
+              {employees.filter(e => e.is_active).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={S.label}>Leave Type</label>
+            <select style={{ ...S.input, cursor: "pointer" }} value={form.leave_type_id} onChange={e => setForm(f => ({ ...f, leave_type_id: e.target.value }))}>
+              <option value="">Select type…</option>
+              {leaveTypes.filter(t => t.is_active).map(t => <option key={t.id} value={t.id}>{t.name} {t.is_paid ? "(Paid)" : "(Unpaid)"}</option>)}
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={S.label}>From Date</label>
+              <input style={S.input} type="date" value={form.from_date} onChange={e => setForm(f => ({ ...f, from_date: e.target.value }))} />
+            </div>
+            <div>
+              <label style={S.label}>To Date</label>
+              <input style={S.input} type="date" value={form.to_date} min={form.from_date} onChange={e => setForm(f => ({ ...f, to_date: e.target.value }))} />
+            </div>
+          </div>
+
+          {days > 0 && <div style={{ fontSize: 13, color: "#3b82f6", fontWeight: 600 }}>{days} working day{days !== 1 ? "s" : ""}</div>}
+
+          <div>
+            <label style={S.label}>Reason (optional)</label>
+            <textarea style={{ ...S.input, height: 60, resize: "vertical" }} value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Brief reason for leave…" />
+          </div>
+
+          <div>
+            <label style={S.label}>Admin Note (optional)</label>
+            <input style={S.input} value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="Internal note (shown in reviewer_note)…" />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+          <button style={{ ...S.btn, ...S.btnGray }} onClick={onClose}>Cancel</button>
+          <button style={{ ...S.btn, ...S.btnBlue }} onClick={save} disabled={saving}>{saving ? "Adding…" : "Add Leave"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Review Modal (approve/reject) ────────────────────────────────────────────
 
 function ReviewModal({ req_row, action, onClose, onSave }) {
@@ -323,7 +402,10 @@ export default function Leaves() {
             {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         )}
-        <button style={{ ...S.btn, ...S.btnBlue, marginLeft: "auto" }} onClick={() => setModal({ type: "request" })}>+ New Request</button>
+        {isAdmin
+          ? <button style={{ ...S.btn, ...S.btnBlue, marginLeft: "auto" }} onClick={() => setModal({ type: "adminAdd" })}>+ Add Leave</button>
+          : <button style={{ ...S.btn, ...S.btnBlue, marginLeft: "auto" }} onClick={() => setModal({ type: "request" })}>+ New Request</button>
+        }
       </div>
 
       <div style={S.card}>
@@ -512,6 +594,7 @@ export default function Leaves() {
       {tab === "balances" && BalancesTab}
 
       {modal?.type === "request"   && <RequestModal leaveTypes={leaveTypes} onClose={closeModal} onSave={closeModal} />}
+      {isAdmin && modal?.type === "adminAdd"  && <AdminAddLeaveModal employees={employees} leaveTypes={leaveTypes} onClose={closeModal} onSave={closeModal} />}
       {isAdmin && modal?.type === "review"    && <ReviewModal req_row={modal.data} action={modal.action} onClose={closeModal} onSave={closeModal} />}
       {isAdmin && modal?.type === "leaveType" && <LeaveTypeModal existing={modal.data} onClose={closeModal} onSave={closeModal} />}
       {isAdmin && modal?.type === "balance"   && <BalanceModal employees={employees} leaveTypes={leaveTypes} onClose={closeModal} onSave={closeModal} />}
