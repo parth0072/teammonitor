@@ -157,7 +157,7 @@ function StatCard({ label, value, sub, color, icon }) {
 
 // ── Employee Timeline ─────────────────────────────────────────────────────────
 
-function EmployeeTimeline({ employee, sessions }) {
+function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
   const color = avatarColor(employee.name);
   const now   = new Date();
 
@@ -267,6 +267,28 @@ function EmployeeTimeline({ employee, sessions }) {
             );
           })
         )}
+
+        {/* Idle segments — from idle_logs (app idle detection by macOS agent) */}
+        {idleLogs.map((il, i) => {
+          if (!il.idle_start) return null;
+          const idleMins = Math.round((il.duration_seconds || 0) / 60);
+          if (idleMins < 1) return null;
+          const x = xPct(il.idle_start);
+          const w = widthPct(il.idle_start, il.idle_end || new Date(new Date(il.idle_start).getTime() + (il.duration_seconds || 0) * 1000));
+          return (
+            <div key={`idle-${i}`}
+              title={`Idle · ${fmtTime(il.idle_start)} → ${il.idle_end ? fmtTime(il.idle_end) : "?"} (${idleMins}m)`}
+              style={{
+                position: "absolute", top: 4, height: 12, borderRadius: 4,
+                left: `${x}%`, width: `${Math.max(w, 0.4)}%`,
+                background: "rgba(239,68,68,0.35)",
+                border: "1px solid rgba(239,68,68,0.6)",
+                cursor: "default",
+                zIndex: 4,
+              }}
+            />
+          );
+        })}
 
         {/* Session segments — z-index 2 so they sit above the track but below breaks */}
         {sorted.map((s, i) => {
@@ -752,22 +774,25 @@ function AdminDashboard() {
   const [screenshots, setScreenshots] = useState([]);
   const [chartData,   setChartData]   = useState([]);
   const [topApps,     setTopApps]     = useState([]);
+  const [idleLogs,    setIdleLogs]    = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const autoRef = useRef(null);
 
   const load = useCallback(async () => {
-    const [sess, stats, ss, emps, apps] = await Promise.all([
+    const [sess, stats, ss, emps, apps, tlData] = await Promise.all([
       api.getSessions(today).catch(() => []),
       api.getSessionStats(7).catch(() => []),
       api.getScreenshots(today).catch(() => []),
       api.getEmployees().catch(() => []),
       api.getActivitySummary(today).catch(() => []),
+      api.getTimeline(today, today).catch(() => ({ idleLogs: [] })),
     ]);
 
     setSessions(sess);
     setScreenshots(ss);
     setEmployees(emps.filter(e => e.is_active === 1));
+    setIdleLogs(tlData?.idleLogs || []);
 
     const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
     const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -817,6 +842,14 @@ function AdminDashboard() {
   });
   const activeEmpCount = Object.keys(totalMinsByEmp).length;
   const avgMins        = activeEmpCount ? totalMins / activeEmpCount : 0;
+
+  // Group idle logs by employee for timeline rendering
+  const idleLogsByEmp = {};
+  idleLogs.forEach(il => {
+    const eid = il.employee_id;
+    if (!idleLogsByEmp[eid]) idleLogsByEmp[eid] = [];
+    idleLogsByEmp[eid].push(il);
+  });
 
   // Build latest-session-per-employee map
   const sessionByEmp = {};
@@ -929,13 +962,14 @@ function AdminDashboard() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               {[
-                { color: C.green,   label: "Active" },
-                { color: C.blue,    label: "Worked", opacity: 0.85 },
-                { color: "#FCD34D", label: "Break", border: true },
-                { color: "#FCA5A5", label: "Inactive", border: true },
+                { color: C.green,                  label: "Active" },
+                { color: C.blue,                   label: "Worked", opacity: 0.85 },
+                { color: "#FCD34D",                label: "Break",    border: "1px solid #D97706" },
+                { color: "rgba(239,68,68,0.35)",   label: "Idle",     border: "1px solid rgba(239,68,68,0.6)" },
+                { color: "#FCA5A5",                label: "Inactive", border: "1px solid #FCA5A5" },
               ].map(({ color, label, opacity, border }) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ width: 12, height: 8, borderRadius: 2, background: color, opacity: opacity || 1, border: border ? "1px solid #FCD34D" : "none" }} />
+                  <div style={{ width: 12, height: 8, borderRadius: 2, background: color, opacity: opacity || 1, border: border || "none" }} />
                   <span style={{ fontSize: 11, color: C.muted }}>{label}</span>
                 </div>
               ))}
@@ -946,6 +980,7 @@ function AdminDashboard() {
               key={emp.id}
               employee={emp}
               sessions={sessionsByEmpAll[emp.id] || []}
+              idleLogs={idleLogsByEmp[emp.id] || []}
             />
           ))}
         </div>
