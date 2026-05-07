@@ -249,7 +249,7 @@ function EmployeeTimeline({ employee, sessions }) {
             const bEnd = b.end ? new Date(b.end) : (s.status === "active" ? now : null);
             if (!bEnd) return null;
             const breakMins = Math.round((bEnd - new Date(b.start)) / 60000);
-            if (breakMins < 1) return null;
+            if (breakMins < 2) return null;  // filter sub-2-min noise / old false breaks
             const x = xPct(b.start);
             const w = widthPct(b.start, bEnd);
             return (
@@ -271,11 +271,13 @@ function EmployeeTimeline({ employee, sessions }) {
         {/* Session segments — z-index 2 so they sit above the track but below breaks */}
         {sorted.map((s, i) => {
           const isActive  = s.status === "active";
-          // For active sessions: green bar ends at last_heartbeat_at (last known working moment).
-          // If heartbeat is stale (lid closed / offline), the amber bar below covers last_heartbeat_at→now.
-          const workedEnd = isActive && s.last_heartbeat_at
-            ? s.last_heartbeat_at
-            : s.punch_out || (isActive ? now.toISOString() : s.punch_in);
+          const hbAge     = s.last_heartbeat_at ? (now - new Date(s.last_heartbeat_at)) / 60000 : 999;
+          const isStale   = isActive && hbAge >= 6;
+          // Fresh heartbeat → extend green to now. Stale → stop at last_heartbeat_at so
+          // the amber "away" bar covers the gap. Completed → stop at punch_out.
+          const workedEnd = isActive
+            ? (isStale ? s.last_heartbeat_at : now.toISOString())
+            : (s.punch_out || s.punch_in);
           const x = xPct(s.punch_in);
           const w = widthPct(s.punch_in, workedEnd);
           return (
