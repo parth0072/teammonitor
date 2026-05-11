@@ -65,6 +65,21 @@ function isStaleSession(s) {
   return Date.now() > punchIn + trackedMs + 6 * 60000;
 }
 
+// Three-mode employee status:
+//   'break'  — checked in, currently on an explicit break from the Mac app
+//   'idle'   — checked in, Mac detected idle (is_idle flag) OR heartbeat gone stale
+//   'active' — checked in, actively working
+//   'done'   — punched out / completed session today
+//   'absent' — no session today
+function getEmpMode(emp, session) {
+  if (!session || session.status !== "active") return session ? "done" : "absent";
+  // Open break: a session_break row with no break_end (sent via currentBreakStart heartbeat)
+  if ((session.breaks || []).some(b => b.end === null || b.end === undefined)) return "break";
+  // Idle: Mac agent flagged is_idle=1, OR heartbeat has gone stale (lid close / offline)
+  if (emp?.is_idle || isStaleSession(session)) return "idle";
+  return "active";
+}
+
 // ── Skeleton loader ───────────────────────────────────────────────────────────
 
 const pulse = `
@@ -209,9 +224,14 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
             return <>{fmtHM(trackedMins)} today</>;
           })()}
         </span>
-        {sessions.some(s => s.status === "active" && !isStaleSession(s)) && (
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: "#ECFDF5", padding: "1px 7px", borderRadius: 20 }}>● LIVE</span>
-        )}
+        {(() => {
+          const activeSess = sessions.find(s => s.status === "active");
+          if (!activeSess) return null;
+          const mode = getEmpMode(employee, activeSess);
+          if (mode === "break") return <span style={{ fontSize: 10, fontWeight: 700, color: "#D97706", background: "#FEF3C7", padding: "1px 7px", borderRadius: 20 }}>⏸ Break</span>;
+          if (mode === "idle")  return <span style={{ fontSize: 10, fontWeight: 700, color: "#92400E", background: "#FEF3C7", padding: "1px 7px", borderRadius: 20 }}>◌ Idle</span>;
+          return <span style={{ fontSize: 10, fontWeight: 700, color: C.green, background: "#ECFDF5", padding: "1px 7px", borderRadius: 20 }}>● Active</span>;
+        })()}
       </div>
 
       {/* Bar */}
@@ -360,12 +380,13 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
 
 // ── Team split widget ─────────────────────────────────────────────────────────
 
-function TeamSplitWidget({ active, idle, done, absent, total }) {
+function TeamSplitWidget({ active, onBreak, idle, done, absent, total }) {
   const rows = [
-    { label: "Active",  count: active,  color: C.green,  dot: "●" },
-    ...(idle > 0 ? [{ label: "Idle",    count: idle,    color: C.amber,  dot: "◌" }] : []),
-    { label: "Done",    count: done,    color: C.muted,  dot: "✓" },
-    { label: "Absent",  count: absent,  color: C.amber,  dot: "○" },
+    { label: "Active",  count: active,   color: C.green,  dot: "●" },
+    ...(onBreak > 0 ? [{ label: "Break", count: onBreak,  color: "#D97706", dot: "⏸" }] : []),
+    ...(idle > 0    ? [{ label: "Idle",  count: idle,     color: C.amber,   dot: "◌" }] : []),
+    { label: "Done",    count: done,     color: C.muted,  dot: "✓" },
+    { label: "Absent",  count: absent,   color: C.amber,  dot: "○" },
   ];
   return (
     <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
@@ -487,23 +508,25 @@ function ChartTooltip({ active, payload, label }) {
 // ── Enhanced Employee Card ────────────────────────────────────────────────────
 
 function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot }) {
-  const stale   = isStaleSession(session);
-  const active  = session?.status === "active" && !stale;
-  const idle    = session?.status === "active" && stale;
-  const done    = session && !active && !idle;
+  const mode  = getEmpMode(employee, session);
+  const onBreak = mode === "break";
+  const idle    = mode === "idle";
+  const active  = mode === "active";
+  const done    = mode === "done";
   const color   = avatarColor(employee.name);
   const timeToday   = fmtHM(totalMinsToday);
   const punchInStr  = session?.punch_in ? fmtTime(session.punch_in) : null;
 
-  const statusColor = active ? C.green : idle ? C.amber : done ? C.muted : C.amber;
-  const statusLabel = active ? "Active" : idle ? "Idle" : done ? "Done" : "Absent";
-  const statusBg    = active ? "#ECFDF5" : idle ? "#FFFBEB" : done ? "#F8FAFC" : "#FFFBEB";
+  const statusColor = active ? C.green : onBreak ? "#D97706" : idle ? C.amber : done ? C.muted : C.amber;
+  const statusLabel = active ? "Active" : onBreak ? "Break" : idle ? "Idle" : done ? "Done" : "Absent";
+  const statusBg    = active ? "#ECFDF5" : onBreak ? "#FEF3C7" : idle ? "#FFFBEB" : done ? "#F8FAFC" : "#FFFBEB";
+  const statusDot   = active ? "● " : onBreak ? "⏸ " : idle ? "◌ " : done ? "✓ " : "○ ";
 
   return (
     <div style={{
       background: C.card,
       borderRadius: 14,
-      border: `1.5px solid ${active ? "#A7F3D0" : idle ? "#FDE68A" : C.border}`,
+      border: `1.5px solid ${active ? "#A7F3D0" : onBreak ? "#FDE68A" : idle ? "#FDE68A" : C.border}`,
       boxShadow: active
         ? "0 0 0 3px rgba(18,182,106,0.12), 0 2px 8px rgba(0,0,0,0.06)"
         : "0 1px 4px rgba(0,0,0,0.06)",
@@ -511,15 +534,15 @@ function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot })
       transition: "box-shadow 0.2s, transform 0.2s",
     }}
       onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = active ? "0 0 0 3px rgba(18,182,106,0.12),0 2px 8px rgba(0,0,0,0.06)" : idle ? "0 0 0 3px rgba(247,144,9,0.12),0 2px 8px rgba(0,0,0,0.06)" : "0 1px 4px rgba(0,0,0,0.06)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = active ? "0 0 0 3px rgba(18,182,106,0.12),0 2px 8px rgba(0,0,0,0.06)" : (onBreak || idle) ? "0 0 0 3px rgba(247,144,9,0.12),0 2px 8px rgba(0,0,0,0.06)" : "0 1px 4px rgba(0,0,0,0.06)"; }}
     >
       {/* Screenshot / Avatar strip */}
-      <div style={{ position: "relative", height: 90, background: active ? "#F0FDF4" : idle ? "#FFFBEB" : C.light, overflow: "hidden" }}>
+      <div style={{ position: "relative", height: 90, background: active ? "#F0FDF4" : onBreak ? "#FFFBEB" : idle ? "#FFFBEB" : C.light, overflow: "hidden" }}>
         {lastScreenshot?.file_path ? (
           <img
             src={`${lastScreenshot.file_path}?token=${encodeURIComponent(localStorage.getItem("tm_token") || "")}`}
             alt="screenshot"
-            style={{ width: "100%", height: "100%", objectFit: "cover", opacity: active ? 1 : idle ? 0.6 : 0.55 }}
+            style={{ width: "100%", height: "100%", objectFit: "cover", opacity: active ? 1 : (onBreak || idle) ? 0.6 : 0.55 }}
           />
         ) : (
           <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -541,7 +564,7 @@ function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot })
           fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
           backdropFilter: "blur(4px)",
         }}>
-          {active ? "● " : idle ? "◌ " : done ? "✓ " : "○ "}{statusLabel}
+          {statusDot}{statusLabel}
         </div>
 
         {/* Screen permission warning */}
@@ -865,13 +888,17 @@ function AdminDashboard() {
     }
   });
 
-  // "Done" = employee whose LATEST session is completed (not punched back in)
-  // "Active" = employee whose latest session is still active AND heartbeat < 6 min ago
-  // "Idle"   = active session but no heartbeat for >6 min (asleep / logged out)
-  // "Absent" = no sessions at all today
-  const activeCount = Object.values(sessionByEmp).filter(s => s.status === "active" && !isStaleSession(s)).length;
-  const idleCount   = Object.values(sessionByEmp).filter(s => isStaleSession(s)).length;
-  const doneCount   = Object.values(sessionByEmp).filter(s => s.status !== "active").length;
+  // Build a lookup map for employee records (needed for is_idle flag in getEmpMode)
+  const empById = Object.fromEntries(employees.map(e => [e.id, e]));
+
+  // Three active-session modes + done + absent
+  const empModes = Object.fromEntries(
+    Object.entries(sessionByEmp).map(([eid, s]) => [eid, getEmpMode(empById[eid], s)])
+  );
+  const breakCount  = Object.values(empModes).filter(m => m === "break").length;
+  const activeCount = Object.values(empModes).filter(m => m === "active").length;
+  const idleCount   = Object.values(empModes).filter(m => m === "idle").length;
+  const doneCount   = Object.values(empModes).filter(m => m === "done").length;
   const absentCount = Math.max(0, employees.length - Object.keys(sessionByEmp).length);
 
   const screenshotByEmp = {};
@@ -880,10 +907,11 @@ function AdminDashboard() {
   });
 
   const sortedEmployees = [...employees].sort((a, b) => {
-    const sa = sessionByEmp[a.id], sb = sessionByEmp[b.id];
-    // active=0, idle=1, done=2, absent=3
-    const rank = s => s?.status === "active" ? (isStaleSession(s) ? 1 : 0) : s ? 2 : 3;
-    return rank(sa) - rank(sb) || a.name.localeCompare(b.name);
+    // active=0, break=1, idle=2, done=3, absent=4
+    const rankOf = { active: 0, break: 1, idle: 2, done: 3, absent: 4 };
+    const ra = rankOf[empModes[a.id] ?? "absent"] ?? 4;
+    const rb = rankOf[empModes[b.id] ?? "absent"] ?? 4;
+    return ra - rb || a.name.localeCompare(b.name);
   });
 
   const todayLabel = format(new Date(), "EEE");
@@ -950,6 +978,7 @@ function AdminDashboard() {
         {/* Team split */}
         <TeamSplitWidget
           active={activeCount}
+          onBreak={breakCount}
           idle={idleCount}
           done={doneCount}
           absent={absentCount}
