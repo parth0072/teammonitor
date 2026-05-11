@@ -877,18 +877,34 @@ class TrackingManager: ObservableObject {
         // Stop the activity watcher — idle detector (restarted in startAllServices) takes over
         activityWatchTimer?.invalidate(); activityWatchTimer = nil
 
-        isOnBreak      = false
-        isIdleBreak    = false   // clear idle-break flag whether user or auto resumed
-        lastResumeTime = Date()
+        let wasIdleBreak = isIdleBreak   // capture before clearing
+        isOnBreak        = false
+        isIdleBreak      = false   // clear idle-break flag whether user or auto resumed
+        lastResumeTime   = Date()
         statusMessage  = "Tracking active"
         MenuBarState.shared.isOnBreak = false
         saveSessionState()
 
-        // Local-first: store the completed break; heartbeat will sync it to the server.
+        // Local-first break recording.
         // stoppedTrackingAt = the moment takeBreak() was called (= break start).
-        if let breakStart = stoppedTrackingAt {
-            pendingBreaks.append((start: breakStart, end: Date()))
-            TMLog("[Break] Break stored locally: \(breakStart) → now, total pending: \(pendingBreaks.count)")
+        if wasIdleBreak {
+            // Idle-triggered break → log as idle_log (shows as red on dashboard timeline).
+            // pendingIdleStart is the actual moment the user went idle (set by onIdleStart);
+            // fall back to stoppedTrackingAt if for some reason it wasn't set.
+            let idleStart = pendingIdleStart ?? stoppedTrackingAt ?? Date()
+            let idleEnd   = Date()
+            pendingIdleStart = nil
+            let sid = sessionId   // capture for Task
+            Task {
+                try? await self.api.logIdle(sessionId: sid, idleStart: idleStart, idleEnd: idleEnd)
+                TMLog("[Break] Idle log sent to server: \(idleStart) → \(idleEnd) (\(Int(idleEnd.timeIntervalSince(idleStart)))s)")
+            }
+        } else {
+            // Manual break → store as session_break (shows as yellow), synced via heartbeat.
+            if let breakStart = stoppedTrackingAt {
+                pendingBreaks.append((start: breakStart, end: Date()))
+                TMLog("[Break] Break stored locally: \(breakStart) → now, total pending: \(pendingBreaks.count)")
+            }
         }
 
         startAllServices(sessionId: sessionId)
