@@ -239,29 +239,7 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
         {/* Track */}
         <div style={{ position: "absolute", top: 4, left: 0, right: 0, height: 12, background: C.border, borderRadius: 6 }} />
 
-        {/* Inactive gaps — periods between sessions where employee was punched out */}
-        {sorted.slice(0, -1).map((s, i) => {
-          const gapStart = s.punch_out;
-          const gapEnd   = sorted[i + 1]?.punch_in;
-          if (!gapStart || !gapEnd) return null;
-          const gapMins = Math.round((new Date(gapEnd) - new Date(gapStart)) / 60000);
-          if (gapMins < 2) return null;
-          const x = xPct(gapStart);
-          const w = widthPct(gapStart, gapEnd);
-          return (
-            <div key={`gap-${i}`}
-              title={`Inactive · ${fmtTime(gapStart)} → ${fmtTime(gapEnd)} (${gapMins}m)`}
-              style={{
-                position: "absolute", top: 4, height: 12, borderRadius: 4,
-                left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
-                background: "#FEE2E2",
-                border: "1px solid #FCA5A5",
-                cursor: "default",
-                zIndex: 1,
-              }}
-            />
-          );
-        })}
+        {/* Session gaps (punched-out periods) — shown as grey track underneath, no extra overlay needed */}
 
         {/* Break segments — from session.breaks (recorded by macOS agent) */}
         {sorted.flatMap((s, si) =>
@@ -301,8 +279,8 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
               style={{
                 position: "absolute", top: 4, height: 12, borderRadius: 4,
                 left: `${x}%`, width: `${Math.max(w, 0.4)}%`,
-                background: "rgba(239,68,68,0.35)",
-                border: "1px solid rgba(239,68,68,0.6)",
+                background: "rgba(239,68,68,0.5)",
+                border: "1px solid rgba(239,68,68,0.7)",
                 cursor: "default",
                 zIndex: 4,
               }}
@@ -327,8 +305,8 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
               style={{
                 position: "absolute", top: 4, height: 12, borderRadius: 4,
                 left: `${x}%`, width: `${w}%`,
-                background: isActive ? C.green : C.blue,
-                opacity: isActive ? 1 : 0.85,
+                background: C.green,
+                opacity: isActive ? 1 : 0.6,
                 cursor: "default",
                 zIndex: 2,
               }}
@@ -345,11 +323,11 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
           const w = widthPct(s.last_heartbeat_at, now);
           return (
             <div key={`away-${i}`}
-              title={`Lid closed / away · ${fmtTime(s.last_heartbeat_at)} → now (${Math.round(hbAge)}m)`}
+              title={`Idle / away · ${fmtTime(s.last_heartbeat_at)} → now (${Math.round(hbAge)}m)`}
               style={{
                 position: "absolute", top: 4, height: 12, borderRadius: 4,
                 left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
-                background: "#FCD34D", border: "1px solid #D97706",
+                background: "rgba(239,68,68,0.5)", border: "1px solid rgba(239,68,68,0.7)",
                 cursor: "default", zIndex: 2,
               }}
             />
@@ -1014,14 +992,12 @@ function AdminDashboard() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               {[
-                { color: C.green,                  label: "Active" },
-                { color: C.blue,                   label: "Worked", opacity: 0.85 },
-                { color: "#FCD34D",                label: "Break",    border: "1px solid #D97706" },
-                { color: "rgba(239,68,68,0.35)",   label: "Idle",     border: "1px solid rgba(239,68,68,0.6)" },
-                { color: "#FCA5A5",                label: "Inactive", border: "1px solid #FCA5A5" },
-              ].map(({ color, label, opacity, border }) => (
+                { color: C.green,   label: "Active" },
+                { color: "#FCD34D", label: "Break", border: "1px solid #D97706" },
+                { color: "rgba(239,68,68,0.5)", label: "Idle", border: "1px solid rgba(239,68,68,0.7)" },
+              ].map(({ color, label, border }) => (
                 <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ width: 12, height: 8, borderRadius: 2, background: color, opacity: opacity || 1, border: border || "none" }} />
+                  <div style={{ width: 12, height: 8, borderRadius: 2, background: color, border: border || "none" }} />
                   <span style={{ fontSize: 11, color: C.muted }}>{label}</span>
                 </div>
               ))}
