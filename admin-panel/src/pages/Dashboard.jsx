@@ -381,12 +381,11 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
 // ── Team split widget ─────────────────────────────────────────────────────────
 
 function TeamSplitWidget({ active, onBreak, idle, done, absent, total }) {
+  // Only the three real-time modes; Done/Absent shown as footer summary
   const rows = [
-    { label: "Active",  count: active,   color: C.green,  dot: "●" },
-    ...(onBreak > 0 ? [{ label: "Break", count: onBreak,  color: "#D97706", dot: "⏸" }] : []),
-    ...(idle > 0    ? [{ label: "Idle",  count: idle,     color: C.amber,   dot: "◌" }] : []),
-    { label: "Done",    count: done,     color: C.muted,  dot: "✓" },
-    { label: "Absent",  count: absent,   color: C.amber,  dot: "○" },
+    { label: "Active", count: active,  color: C.green,   dot: "●" },
+    { label: "Break",  count: onBreak, color: "#D97706", dot: "⏸" },
+    { label: "Idle",   count: idle,    color: C.amber,   dot: "◌" },
   ];
   return (
     <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
@@ -412,25 +411,44 @@ function TeamSplitWidget({ active, onBreak, idle, done, absent, total }) {
         </div>
       ))}
 
-      {/* Activity score ring placeholder */}
-      <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+      {/* Done / Absent summary */}
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 12, color: C.muted }}>
+          <span style={{ fontWeight: 700, color: C.sub }}>{done}</span> done today
+        </span>
+        <span style={{ fontSize: 12, color: C.muted }}>
+          <span style={{ fontWeight: 700, color: C.sub }}>{absent}</span> absent
+        </span>
+      </div>
+
+      {/* Tracking rate ring */}
+      <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Tracking rate</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: "50%",
-            background: `conic-gradient(${C.green} ${total ? (active / total) * 360 : 0}deg, ${C.border} 0deg)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.card,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 11, fontWeight: 700, color: C.text }}>
-              {total ? Math.round((active / total) * 100) : 0}%
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{total ? Math.round((active / total) * 100) : 0}% online</div>
-            <div style={{ fontSize: 11, color: C.muted }}>right now</div>
-          </div>
+          {(() => {
+            const working = active + onBreak + idle;
+            const pct = total ? Math.round((working / total) * 100) : 0;
+            const deg = total ? (working / total) * 360 : 0;
+            return (
+              <>
+                <div style={{
+                  width: 48, height: 48, borderRadius: "50%",
+                  background: `conic-gradient(${C.green} ${deg}deg, ${C.border} 0deg)`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <div style={{ width: 34, height: 34, borderRadius: "50%", background: C.card,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 11, fontWeight: 700, color: C.text }}>
+                    {pct}%
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{pct}% checked in</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>right now</div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
