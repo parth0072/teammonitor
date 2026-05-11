@@ -12,6 +12,7 @@ const EMP_COLS = `id, name, email, department, role, is_active,
   slow_work_alert_enabled, slow_work_alert_minutes,
   force_update_version, force_update_url,
   jira_url, jira_email, agent_version, tracking_locked,
+  is_idle, idle_since,
   CASE WHEN jira_api_token IS NOT NULL THEN 1 ELSE 0 END AS jira_configured,
   created_at`;
 
