@@ -172,7 +172,7 @@ function StatCard({ label, value, sub, color, icon }) {
 
 // ── Employee Timeline ─────────────────────────────────────────────────────────
 
-function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
+function EmployeeTimeline({ employee, sessions, idleLogs = [], sessionBreaks = [] }) {
   const color = avatarColor(employee.name);
   const now   = new Date();
 
@@ -241,30 +241,28 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [] }) {
 
         {/* Session gaps (punched-out periods) — shown as grey track underneath, no extra overlay needed */}
 
-        {/* Break segments — from session.breaks (recorded by macOS agent) */}
-        {sorted.flatMap((s, si) =>
-          (s.breaks || []).map((b, bi) => {
-            const bEnd = b.end ? new Date(b.end) : (s.status === "active" ? now : null);
-            if (!bEnd) return null;
-            const breakMins = Math.round((bEnd - new Date(b.start)) / 60000);
-            if (breakMins < 2) return null;  // filter sub-2-min noise / old false breaks
-            const x = xPct(b.start);
-            const w = widthPct(b.start, bEnd);
-            return (
-              <div key={`break-${si}-${bi}`}
-                title={`Break · ${fmtTime(b.start)} → ${b.end ? fmtTime(bEnd) : "ongoing"} (${breakMins}m)`}
-                style={{
-                  position: "absolute", top: 4, height: 12, borderRadius: 4,
-                  left: `${x}%`, width: `${Math.max(w, 0.6)}%`,
-                  background: "#FCD34D",
-                  border: "1px solid #D97706",
-                  cursor: "default",
-                  zIndex: 3,
-                }}
-              />
-            );
-          })
-        )}
+        {/* Break segments — from timeline API sessionBreaks (start_time/end_time/duration_minutes) */}
+        {sessionBreaks.map((b, bi) => {
+          const mins = b.duration_minutes ?? Math.round((new Date(b.end_time) - new Date(b.start_time)) / 60000);
+          if (mins < 1) return null; // filter sub-1-min noise
+          const endT = b.end_time ? new Date(b.end_time) : now;
+          const x = xPct(b.start_time);
+          const w = widthPct(b.start_time, endT);
+          return (
+            <div key={`break-tl-${bi}`}
+              title={`Break · ${fmtTime(b.start_time)} → ${b.end_time ? fmtTime(endT) : "ongoing"} (${mins}m)`}
+              style={{
+                position: "absolute", top: 2, height: 16, borderRadius: 4,
+                left: `${x}%`, width: `${Math.max(w, 0.8)}%`,
+                background: "#FCD34D",
+                border: "1px solid #D97706",
+                cursor: "default",
+                zIndex: 5,
+                minWidth: 4,
+              }}
+            />
+          );
+        })}
 
         {/* Idle segments — from idle_logs (app idle detection by macOS agent) */}
         {idleLogs.map((il, i) => {
@@ -792,9 +790,10 @@ function AdminDashboard() {
   const [employees,   setEmployees]   = useState([]);
   const [screenshots, setScreenshots] = useState([]);
   const [chartData,   setChartData]   = useState([]);
-  const [topApps,     setTopApps]     = useState([]);
-  const [idleLogs,    setIdleLogs]    = useState([]);
-  const [loading,     setLoading]     = useState(true);
+  const [topApps,      setTopApps]      = useState([]);
+  const [idleLogs,     setIdleLogs]     = useState([]);
+  const [sessionBreaks,setSessionBreaks]= useState([]);
+  const [loading,      setLoading]      = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const autoRef = useRef(null);
 
@@ -812,11 +811,7 @@ function AdminDashboard() {
     setScreenshots(ss);
     setEmployees(emps.filter(e => e.is_active === 1));
     setIdleLogs(tlData?.idleLogs || []);
-
-    // DEBUG — remove after confirming idle logs work
-    console.log('[Dashboard] tlData raw:', tlData);
-    console.log('[Dashboard] idleLogs count:', (tlData?.idleLogs || []).length, tlData?.idleLogs);
-    console.log('[Dashboard] sessions with breaks:', (sess || []).map(s => ({ id: s.id, emp: s.employee_id, breaks: s.breaks })));
+    setSessionBreaks(tlData?.sessionBreaks || []);
 
     const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
     const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -873,6 +868,14 @@ function AdminDashboard() {
     const eid = il.employee_id;
     if (!idleLogsByEmp[eid]) idleLogsByEmp[eid] = [];
     idleLogsByEmp[eid].push(il);
+  });
+
+  // Group session breaks by employee for timeline rendering
+  const sessionBreaksByEmp = {};
+  sessionBreaks.forEach(b => {
+    const eid = b.employee_id;
+    if (!sessionBreaksByEmp[eid]) sessionBreaksByEmp[eid] = [];
+    sessionBreaksByEmp[eid].push(b);
   });
 
   // Build latest-session-per-employee map
@@ -1009,6 +1012,7 @@ function AdminDashboard() {
               employee={emp}
               sessions={sessionsByEmpAll[emp.id] || []}
               idleLogs={idleLogsByEmp[emp.id] || []}
+              sessionBreaks={sessionBreaksByEmp[emp.id] || []}
             />
           ))}
         </div>
