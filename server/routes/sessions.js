@@ -142,7 +142,10 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
         );
         if (sessRow?.last_heartbeat_at) {
           const prevHb     = new Date(sessRow.last_heartbeat_at);
-          const threshold  = (sessRow.idle_stop_minutes || 5);  // employee-configured idle stop
+          // Threshold = idle_stop_minutes + heartbeat_interval (5 min) + 1 min grace.
+          // This ensures we only log idle when at least one full heartbeat cycle was
+          // missed beyond the idle stop point — normal 5-min heartbeats never trigger it.
+          const threshold  = (sessRow.idle_stop_minutes || 5) + 6;
           const gapMinutes = (now - prevHb) / 60000;
           if (gapMinutes > threshold) {
             const sessionDate = now.toISOString().slice(0, 10);

@@ -190,6 +190,12 @@ if (USE_MYSQL) {
       )`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS tracking_locked TINYINT DEFAULT 0`).catch(() => {});
 
+    // One-time cleanup: remove false idle_logs created by overly-aggressive heartbeat gap
+    // detection (threshold was idle_stop_minutes instead of idle_stop_minutes+6, causing
+    // every normal 5-min heartbeat to insert a 5-min idle_log). IDs 46-59 are the known
+    // false entries created on 2026-05-11 before the threshold was corrected.
+    await pool.query(`DELETE FROM idle_logs WHERE id IN (46,47,48,49,50,51,52,53,54,55,56,57,58,59)`).catch(() => {});
+
     console.log('✓  MySQL connected:', process.env.DB_NAME);
   }
 
