@@ -126,6 +126,36 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
       } catch (_) { /* non-fatal */ }
     }
 
+    // ── Heartbeat gap → auto idle log ────────────────────────────────────────
+    // If a heartbeat arrives long after the previous one (gap > employee's
+    // idle_stop_minutes), the agent was offline/sleeping during that window.
+    // Auto-insert an idle_log so the gap appears as a red Idle segment on the
+    // dashboard timeline — works for any agent version, even without v1.0.91.
+    // Skip when reconnect=true (Mac is actively syncing its own break records).
+    if (!reconnect) {
+      try {
+        const [[sessRow]] = await db.query(
+          `SELECT s.last_heartbeat_at, e.idle_stop_minutes
+           FROM sessions s JOIN employees e ON e.id = s.employee_id
+           WHERE s.id = ? AND s.employee_id = ?`,
+          [req.params.id, req.user.id]
+        );
+        if (sessRow?.last_heartbeat_at) {
+          const prevHb     = new Date(sessRow.last_heartbeat_at);
+          const threshold  = (sessRow.idle_stop_minutes || 5);  // employee-configured idle stop
+          const gapMinutes = (now - prevHb) / 60000;
+          if (gapMinutes > threshold) {
+            const sessionDate = now.toISOString().slice(0, 10);
+            await db.query(
+              `INSERT INTO idle_logs (employee_id, session_id, idle_start, idle_end, duration_seconds, date)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [req.user.id, req.params.id, prevHb, now, Math.round(gapMinutes * 60), sessionDate]
+            );
+          }
+        }
+      } catch (_) { /* non-fatal — idle_logs table may not exist yet on older installs */ }
+    }
+
     // GREATEST() prevents a post-restart agent (with reset trackedMinutes) from
     // overwriting a higher server value — total_minutes only ever goes up.
     await db.query('UPDATE sessions SET total_minutes=GREATEST(total_minutes, ?), last_heartbeat_at=? WHERE id=? AND employee_id=?',
