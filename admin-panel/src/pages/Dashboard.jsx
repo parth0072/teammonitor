@@ -172,7 +172,7 @@ function StatCard({ label, value, sub, color, icon }) {
 
 // ── Employee Timeline ─────────────────────────────────────────────────────────
 
-function EmployeeTimeline({ employee, sessions, idleLogs = [], sessionBreaks = [] }) {
+function EmployeeTimeline({ employee, sessions, idleLogs = [], sessionBreaks = [], activityGaps = [] }) {
   const color = avatarColor(employee.name);
   const now   = new Date();
 
@@ -281,6 +281,35 @@ function EmployeeTimeline({ employee, sessions, idleLogs = [], sessionBreaks = [
                 border: "1px solid rgba(239,68,68,0.7)",
                 cursor: "default",
                 zIndex: 4,
+              }}
+            />
+          );
+        })}
+
+        {/* Activity gap segments — gaps >5 min in app-usage logs = no activity recorded.
+            Only render gaps that fall *within* a session window (not between sessions). */}
+        {activityGaps.filter(g => {
+          if (!g.gap_start || !g.gap_end || g.duration_minutes < 5) return false;
+          const gStart = new Date(g.gap_start);
+          const gEnd   = new Date(g.gap_end);
+          return sorted.some(s => {
+            const sStart = new Date(s.punch_in);
+            const sEnd   = s.punch_out ? new Date(s.punch_out) : now;
+            return gStart < sEnd && gEnd > sStart;
+          });
+        }).map((g, i) => {
+          const x = xPct(g.gap_start);
+          const w = widthPct(g.gap_start, g.gap_end);
+          return (
+            <div key={`actgap-${i}`}
+              title={`No activity · ${fmtTime(g.gap_start)} → ${fmtTime(g.gap_end)} (${g.duration_minutes}m)`}
+              style={{
+                position: "absolute", top: 4, height: 12, borderRadius: 4,
+                left: `${x}%`, width: `${Math.max(w, 0.4)}%`,
+                background: "rgba(239,68,68,0.35)",
+                border: "1px solid rgba(239,68,68,0.6)",
+                cursor: "default",
+                zIndex: 3,
               }}
             />
           );
@@ -791,8 +820,9 @@ function AdminDashboard() {
   const [screenshots, setScreenshots] = useState([]);
   const [chartData,   setChartData]   = useState([]);
   const [topApps,      setTopApps]      = useState([]);
-  const [idleLogs,     setIdleLogs]     = useState([]);
-  const [sessionBreaks,setSessionBreaks]= useState([]);
+  const [idleLogs,      setIdleLogs]      = useState([]);
+  const [sessionBreaks, setSessionBreaks] = useState([]);
+  const [activityGaps,  setActivityGaps]  = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const autoRef = useRef(null);
@@ -812,6 +842,7 @@ function AdminDashboard() {
     setEmployees(emps.filter(e => e.is_active === 1));
     setIdleLogs(tlData?.idleLogs || []);
     setSessionBreaks(tlData?.sessionBreaks || []);
+    setActivityGaps(tlData?.activityGaps || []);
 
     const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
     const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -876,6 +907,14 @@ function AdminDashboard() {
     const eid = b.employee_id;
     if (!sessionBreaksByEmp[eid]) sessionBreaksByEmp[eid] = [];
     sessionBreaksByEmp[eid].push(b);
+  });
+
+  // Group activity gaps by employee for timeline rendering
+  const activityGapsByEmp = {};
+  activityGaps.forEach(g => {
+    const eid = g.employee_id;
+    if (!activityGapsByEmp[eid]) activityGapsByEmp[eid] = [];
+    activityGapsByEmp[eid].push(g);
   });
 
   // Build latest-session-per-employee map
@@ -1013,6 +1052,7 @@ function AdminDashboard() {
               sessions={sessionsByEmpAll[emp.id] || []}
               idleLogs={idleLogsByEmp[emp.id] || []}
               sessionBreaks={sessionBreaksByEmp[emp.id] || []}
+              activityGaps={activityGapsByEmp[emp.id] || []}
             />
           ))}
         </div>

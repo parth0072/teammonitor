@@ -66,6 +66,17 @@ router.get('/', auth, adminOnly, async (req, res) => {
     if (empFilter) { appSql += ' AND employee_id = ?'; appParams.push(employeeId); }
     appSql += ' GROUP BY employee_id, date, app_name ORDER BY employee_id, date, total_seconds DESC';
 
+    // ── Raw activity times for gap detection ──────────────────────────────────
+    // Lightweight query: only fetch the timestamps needed to detect idle gaps
+    let actGapSql = `
+      SELECT employee_id, start_time, end_time
+      FROM   activity_logs
+      WHERE  date BETWEEN ? AND ?
+    `;
+    const actGapParams = [startDate, endDate];
+    if (empFilter) { actGapSql += ' AND employee_id = ?'; actGapParams.push(employeeId); }
+    actGapSql += ' ORDER BY employee_id, start_time';
+
     // ── Screenshot count per employee per day ─────────────────────────────────
     let ssSql = `
       SELECT employee_id, date, COUNT(*) AS count
@@ -78,11 +89,12 @@ router.get('/', auth, adminOnly, async (req, res) => {
 
     // Run all queries independently — a failure in breaks/apps won't kill sessions
     const results = await Promise.allSettled([
-      db.query(sessSql,  sessParams),
-      db.query(idleSql,  idleParams),
-      db.query(brkSql,   brkParams),
-      db.query(appSql,   appParams),
-      db.query(ssSql,    ssParams),
+      db.query(sessSql,    sessParams),
+      db.query(idleSql,    idleParams),
+      db.query(brkSql,     brkParams),
+      db.query(appSql,     appParams),
+      db.query(ssSql,      ssParams),
+      db.query(actGapSql,  actGapParams),
     ]);
 
     const pick = (r) => r.status === 'fulfilled' ? (r.value[0] || []) : [];
@@ -92,6 +104,7 @@ router.get('/', auth, adminOnly, async (req, res) => {
     const sessionBreaks   = pick(results[2]);
     const appLogs         = pick(results[3]);
     const screenshotCounts= pick(results[4]);
+    const actLogs         = pick(results[5]);
 
     // Log any query errors for server-side debugging
     results.forEach((r, i) => {
@@ -106,7 +119,39 @@ router.get('/', auth, adminOnly, async (req, res) => {
       if (topApps[key].length < 4) topApps[key].push({ app: row.app_name, secs: Number(row.total_seconds) });
     }
 
-    res.json({ sessions, idleLogs, sessionBreaks, topApps, screenshotCounts });
+    // ── Activity gap detection ────────────────────────────────────────────────
+    // A gap > GAP_MIN minutes between consecutive activity log entries for the
+    // same employee indicates the user was idle (no app usage recorded).
+    // These are surfaced as red "Idle" segments on the dashboard timeline.
+    const GAP_MIN = 5; // minutes — same granularity as Mac screenshot interval
+    const activityGaps = [];
+    let prevEmpId = null;
+    let prevEnd   = null;
+    for (const row of actLogs) {
+      const eid = row.employee_id;
+      if (eid !== prevEmpId) {
+        prevEmpId = eid;
+        prevEnd   = null;
+      }
+      if (prevEnd) {
+        const gapMs  = new Date(row.start_time) - new Date(prevEnd);
+        const gapMin = gapMs / 60000;
+        if (gapMin >= GAP_MIN) {
+          activityGaps.push({
+            employee_id:      eid,
+            gap_start:        prevEnd,
+            gap_end:          row.start_time,
+            duration_minutes: Math.round(gapMin),
+          });
+        }
+      }
+      // Track the furthest end_time seen for this employee
+      if (!prevEnd || new Date(row.end_time) > new Date(prevEnd)) {
+        prevEnd = row.end_time;
+      }
+    }
+
+    res.json({ sessions, idleLogs, sessionBreaks, topApps, screenshotCounts, activityGaps });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
