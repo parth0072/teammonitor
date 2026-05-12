@@ -50,17 +50,28 @@ function workdays(from, to) {
 
 function RequestModal({ leaveTypes, onClose, onSave }) {
   const [form, setForm] = useState({ leave_type_id: "", from_date: "", to_date: "", reason: "" });
+  const [isHalfDay, setIsHalfDay] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const days = form.from_date && form.to_date ? workdays(form.from_date, form.to_date) : 0;
+  const fullDays = form.from_date && form.to_date ? workdays(form.from_date, form.to_date) : 0;
+  const effectiveDays = isHalfDay ? 0.5 : fullDays;
+
+  const toggleHalfDay = (checked) => {
+    setIsHalfDay(checked);
+    if (checked && form.from_date) setForm(f => ({ ...f, to_date: f.from_date }));
+  };
+
+  const handleFromDate = (val) => {
+    setForm(f => ({ ...f, from_date: val, ...(isHalfDay ? { to_date: val } : {}) }));
+  };
 
   const save = async () => {
     if (!form.leave_type_id || !form.from_date || !form.to_date) return setErr("All fields are required.");
-    if (form.to_date < form.from_date) return setErr("End date must be after start date.");
+    if (!isHalfDay && form.to_date < form.from_date) return setErr("End date must be after start date.");
     setSaving(true); setErr("");
     try {
-      await api.submitLeaveRequest({ ...form, days });
+      await api.submitLeaveRequest({ ...form, days: effectiveDays });
       onSave();
     } catch (e) { setErr(e.message); }
     setSaving(false);
@@ -79,17 +90,27 @@ function RequestModal({ leaveTypes, onClose, onSave }) {
               {leaveTypes.filter(t => t.is_active).map(t => <option key={t.id} value={t.id}>{t.name} {t.is_paid ? "(Paid)" : "(Unpaid)"}</option>)}
             </select>
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", userSelect: "none" }}>
+            <input type="checkbox" checked={isHalfDay} onChange={e => toggleHalfDay(e.target.checked)} />
+            Half Day
+          </label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label style={S.label}>From Date</label>
-              <input style={S.input} type="date" value={form.from_date} onChange={e => setForm(f => ({ ...f, from_date: e.target.value }))} />
+              <input style={S.input} type="date" value={form.from_date} onChange={e => handleFromDate(e.target.value)} />
             </div>
             <div>
               <label style={S.label}>To Date</label>
-              <input style={S.input} type="date" value={form.to_date} min={form.from_date} onChange={e => setForm(f => ({ ...f, to_date: e.target.value }))} />
+              <input style={{ ...S.input, ...(isHalfDay ? { background: "#f1f5f9", color: "#94a3b8" } : {}) }}
+                type="date" value={form.to_date} min={form.from_date} disabled={isHalfDay}
+                onChange={e => setForm(f => ({ ...f, to_date: e.target.value }))} />
             </div>
           </div>
-          {days > 0 && <div style={{ fontSize: 13, color: "#3b82f6", fontWeight: 600 }}>{days} working day{days !== 1 ? "s" : ""}</div>}
+          {effectiveDays > 0 && (
+            <div style={{ fontSize: 13, color: "#3b82f6", fontWeight: 600 }}>
+              {isHalfDay ? "½ day" : `${effectiveDays} working day${effectiveDays !== 1 ? "s" : ""}`}
+            </div>
+          )}
           <div>
             <label style={S.label}>Reason (optional)</label>
             <textarea style={{ ...S.input, height: 72, resize: "vertical" }} value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Brief reason for leave…" />
@@ -108,19 +129,30 @@ function RequestModal({ leaveTypes, onClose, onSave }) {
 
 function AdminAddLeaveModal({ employees, leaveTypes, onClose, onSave }) {
   const [form, setForm]   = useState({ employee_id: "", leave_type_id: "", from_date: "", to_date: "", reason: "", note: "" });
+  const [isHalfDay, setIsHalfDay] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr]     = useState("");
 
-  const days = form.from_date && form.to_date ? workdays(form.from_date, form.to_date) : 0;
+  const fullDays = form.from_date && form.to_date ? workdays(form.from_date, form.to_date) : 0;
+  const effectiveDays = isHalfDay ? 0.5 : fullDays;
+
+  const toggleHalfDay = (checked) => {
+    setIsHalfDay(checked);
+    if (checked && form.from_date) setForm(f => ({ ...f, to_date: f.from_date }));
+  };
+
+  const handleFromDate = (val) => {
+    setForm(f => ({ ...f, from_date: val, ...(isHalfDay ? { to_date: val } : {}) }));
+  };
 
   const save = async () => {
     if (!form.employee_id)    return setErr("Select an employee.");
     if (!form.leave_type_id)  return setErr("Select a leave type.");
     if (!form.from_date || !form.to_date) return setErr("Both dates are required.");
-    if (form.to_date < form.from_date)    return setErr("End date must be after start date.");
+    if (!isHalfDay && form.to_date < form.from_date) return setErr("End date must be after start date.");
     setSaving(true); setErr("");
     try {
-      await api.adminAddLeave({ ...form, days });
+      await api.adminAddLeave({ ...form, days: effectiveDays });
       onSave();
     } catch (e) { setErr(e.message); setSaving(false); }
   };
@@ -150,18 +182,29 @@ function AdminAddLeaveModal({ employees, leaveTypes, onClose, onSave }) {
             </select>
           </div>
 
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", userSelect: "none" }}>
+            <input type="checkbox" checked={isHalfDay} onChange={e => toggleHalfDay(e.target.checked)} />
+            Half Day
+          </label>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label style={S.label}>From Date</label>
-              <input style={S.input} type="date" value={form.from_date} onChange={e => setForm(f => ({ ...f, from_date: e.target.value }))} />
+              <input style={S.input} type="date" value={form.from_date} onChange={e => handleFromDate(e.target.value)} />
             </div>
             <div>
               <label style={S.label}>To Date</label>
-              <input style={S.input} type="date" value={form.to_date} min={form.from_date} onChange={e => setForm(f => ({ ...f, to_date: e.target.value }))} />
+              <input style={{ ...S.input, ...(isHalfDay ? { background: "#f1f5f9", color: "#94a3b8" } : {}) }}
+                type="date" value={form.to_date} min={form.from_date} disabled={isHalfDay}
+                onChange={e => setForm(f => ({ ...f, to_date: e.target.value }))} />
             </div>
           </div>
 
-          {days > 0 && <div style={{ fontSize: 13, color: "#3b82f6", fontWeight: 600 }}>{days} working day{days !== 1 ? "s" : ""}</div>}
+          {effectiveDays > 0 && (
+            <div style={{ fontSize: 13, color: "#3b82f6", fontWeight: 600 }}>
+              {isHalfDay ? "½ day" : `${effectiveDays} working day${effectiveDays !== 1 ? "s" : ""}`}
+            </div>
+          )}
 
           <div>
             <label style={S.label}>Reason (optional)</label>
@@ -207,7 +250,7 @@ function ReviewModal({ req_row, action, onClose, onSave }) {
         </h3>
         <div style={{ fontSize: 14, color: "#374151", marginBottom: 16 }}>
           <div><b>{req_row.employee_name}</b> — {req_row.leave_type_name}</div>
-          <div style={{ color: "#64748b", marginTop: 4 }}>{req_row.from_date} → {req_row.to_date} ({req_row.days} day{req_row.days !== 1 ? "s" : ""})</div>
+          <div style={{ color: "#64748b", marginTop: 4 }}>{req_row.from_date} → {req_row.to_date} ({req_row.days < 1 ? "½ day" : `${req_row.days} day${req_row.days !== 1 ? "s" : ""}`})</div>
           {req_row.reason && <div style={{ marginTop: 6, fontStyle: "italic", color: "#6b7280" }}>"{req_row.reason}"</div>}
         </div>
         <div>
@@ -438,7 +481,11 @@ export default function Leaves() {
                   </td>
                   <td style={S.td}>{r.from_date}</td>
                   <td style={S.td}>{r.to_date}</td>
-                  <td style={S.td}>{r.days}</td>
+                  <td style={S.td}>
+                    {r.days < 1
+                      ? <span style={{ background: "#ede9fe", color: "#6d28d9", padding: "2px 8px", borderRadius: 10, fontSize: 12, fontWeight: 700 }}>½ day</span>
+                      : r.days}
+                  </td>
                   <td style={{ ...S.td, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.reason || "—"}</td>
                   <td style={S.td}><StatusBadge status={r.status} /></td>
                   <td style={S.td}>
