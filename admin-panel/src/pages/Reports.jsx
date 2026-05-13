@@ -66,11 +66,25 @@ const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, perc
 function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] }) {
   const totalNetMins = sessions.reduce((s, r) => s + (Number(r.total_minutes) || 0), 0);
   const totalBrkMins = breaks.reduce((s, b) => s + (Number(b.minutes) || 0), 0);
-  const totalIdleMin = Math.round(idleLogs.reduce((s, l) => s + (Number(l.duration_seconds) || 0), 0) / 60);
+  const workTimeMins = totalNetMins + totalBrkMins;
   const firstIn  = workPattern?.first_punch_in;
   const lastOut  = workPattern?.last_punch_out;
-  const grossMins = firstIn && lastOut
-    ? Math.round((new Date(lastOut) - new Date(firstIn)) / 60000) : null;
+
+  // For active sessions use the most recent heartbeat as the effective end,
+  // so Wall Clock = first punch-in → last heartbeat (not "now").
+  const lastHeartbeatTs = sessions.reduce((max, s) => {
+    const ts = s.last_heartbeat_at ? new Date(s.last_heartbeat_at).getTime() : 0;
+    return ts > max ? ts : max;
+  }, 0);
+  const effectiveEnd = lastOut
+    ? new Date(lastOut)
+    : lastHeartbeatTs ? new Date(lastHeartbeatTs) : null;
+
+  const grossMins = firstIn && effectiveEnd
+    ? Math.round((effectiveEnd - new Date(firstIn)) / 60000) : null;
+
+  // Idle = Wall Clock − Work Time (always adds up, covers unlogged Mac-side pauses too)
+  const totalIdleMin = grossMins != null ? Math.max(0, grossMins - workTimeMins) : 0;
 
   // Build sorted interleaved list
   const items = [
@@ -90,9 +104,8 @@ function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] })
   }
 
   // Gantt bar helpers
-  const spanStart = firstIn  ? new Date(firstIn).getTime()  : null;
-  const spanEnd   = lastOut  ? new Date(lastOut).getTime()
-    : sessions.find(s => !s.punch_out) ? Date.now() : null;
+  const spanStart = firstIn       ? new Date(firstIn).getTime()      : null;
+  const spanEnd   = effectiveEnd  ? effectiveEnd.getTime()            : null;
   const spanMs = spanStart && spanEnd ? spanEnd - spanStart : null;
   const toPct  = ts  => spanMs ? ((new Date(ts).getTime() - spanStart) / spanMs * 100) : 0;
   const durPct = (a, b) => spanMs ? ((new Date(b).getTime() - new Date(a).getTime()) / spanMs * 100) : 0;
@@ -106,13 +119,14 @@ function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] })
           <div style={{ fontSize:15, fontWeight:700, color:"#1e293b" }}>Day Timeline</div>
           <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
             {[
-              { label:"Work Time", value: fmtHM(totalNetMins + totalBrkMins), color:"#10b981" },
-              { label:"Active", value: fmtHM(totalNetMins), color:"#3b82f6" },
+              { label:"Work Time",     value: fmtHM(workTimeMins),   color:"#10b981" },
+              { label:"Active",        value: fmtHM(totalNetMins),   color:"#3b82f6" },
               totalIdleMin > 0 ? { label:"Idle Deducted", value: fmtHM(totalIdleMin), color:"#ef4444" } : null,
               breaks.length > 0 ? { label:`${breaks.length} Break${breaks.length>1?"s":""}`, value: fmtHM(totalBrkMins), color:"#f59e0b" } : null,
-              grossMins != null ? { label:"Wall Clock", value: fmtHM(grossMins), color:"#6366f1" } : null,
-              firstIn  ? { label:"First In",  value: format(new Date(firstIn),  "h:mm a"), color:"#3b82f6" } : null,
-              lastOut  ? { label:"Last Out",  value: format(new Date(lastOut),  "h:mm a"), color:"#64748b" } : null,
+              grossMins != null ? { label:"Wall Clock",   value: fmtHM(grossMins),   color:"#6366f1" } : null,
+              firstIn      ? { label:"First In",  value: format(new Date(firstIn), "h:mm a"),     color:"#3b82f6" } : null,
+              lastOut      ? { label:"Last Out",  value: format(new Date(lastOut), "h:mm a"),     color:"#64748b" } : null,
+              !lastOut && effectiveEnd ? { label:"Last HB", value: format(effectiveEnd, "h:mm a"), color:"#94a3b8" } : null,
             ].filter(Boolean).map(m => (
               <div key={m.label} style={{ textAlign:"right" }}>
                 <div style={{ fontSize:10, color:"#94a3b8", textTransform:"uppercase", letterSpacing:.5, marginBottom:2 }}>{m.label}</div>

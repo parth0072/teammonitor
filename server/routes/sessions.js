@@ -4,16 +4,50 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { adminOnly } = require('../middleware/auth');
 
+// Helper: today's date string in IST (UTC+5:30)
+function todayIST() {
+  return new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+}
+
+// Helper: midnight IST of a given date string (e.g. '2026-05-12') expressed as UTC
+function midnightISTofDate(dateStr) {
+  // midnight IST = 18:30 UTC of the same calendar date
+  return new Date(dateStr + 'T18:30:00.000Z');
+}
+
+// Auto-close any stale active sessions from previous IST days for an employee.
+// Called on punch-in and on heartbeat so stale sessions are always cleaned up.
+async function closeStaleSessionsIST(employeeId) {
+  const today = todayIST();
+  const [stale] = await db.query(
+    `SELECT id, date, last_heartbeat_at, total_minutes FROM sessions
+     WHERE employee_id=? AND status='active' AND date < ?`,
+    [employeeId, today]
+  );
+  for (const s of stale) {
+    const midnight = midnightISTofDate(s.date);
+    // punch_out = midnight IST of that day (caps the session cleanly at day boundary)
+    const punchOut = midnight;
+    await db.query(
+      `UPDATE sessions SET punch_out=?, status='completed' WHERE id=?`,
+      [punchOut, s.id]
+    );
+  }
+}
+
 // POST /api/sessions/punch-in
 router.post('/punch-in', auth, async (req, res) => {
   try {
     const now    = new Date();
-    const date   = now.toISOString().slice(0, 10);
+    const date   = todayIST();           // use IST date so session date matches IST calendar day
     const taskId            = req.body.taskId            || null;
     const jiraIssueKey      = req.body.jiraIssueKey      || null;
     const jiraIssueSummary  = req.body.jiraIssueSummary  || null;
 
-    // Check if already punched in today
+    // Close any stale sessions from previous IST days before creating a new one
+    await closeStaleSessionsIST(req.user.id).catch(() => {});
+
+    // Check if already punched in today (IST)
     const [existing] = await db.query(
       "SELECT id, task_id FROM sessions WHERE employee_id=? AND date=? AND status='active'",
       [req.user.id, date]
@@ -94,6 +128,11 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
             deliveredCommandIds = [], reconnect = false,
             breaks = [], currentBreakStart } = req.body;
     const now = new Date();
+
+    // ── Auto-close stale sessions from previous IST days ─────────────────────
+    // If this heartbeat is for a session from a previous IST calendar day,
+    // close it now so it shows correctly on the dashboard.
+    await closeStaleSessionsIST(req.user.id).catch(() => {});
 
     // ── Mac-reported breaks (local-first) ────────────────────────────────────
     // The Mac app is the source of truth for breaks. It stores them locally and
