@@ -63,9 +63,10 @@ const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, perc
 };
 
 // ── Day Timeline ──────────────────────────────────────────────────────────────
-function DayTimeline({ sessions = [], breaks = [], workPattern }) {
+function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] }) {
   const totalNetMins = sessions.reduce((s, r) => s + (Number(r.total_minutes) || 0), 0);
   const totalBrkMins = breaks.reduce((s, b) => s + (Number(b.minutes) || 0), 0);
+  const totalIdleMin = Math.round(idleLogs.reduce((s, l) => s + (Number(l.duration_seconds) || 0), 0) / 60);
   const firstIn  = workPattern?.first_punch_in;
   const lastOut  = workPattern?.last_punch_out;
   const grossMins = firstIn && lastOut
@@ -106,6 +107,7 @@ function DayTimeline({ sessions = [], breaks = [], workPattern }) {
           <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
             {[
               { label:"Net Tracked", value: fmtHM(totalNetMins), color:"#10b981" },
+              totalIdleMin > 0 ? { label:"Idle Deducted", value: fmtHM(totalIdleMin), color:"#ef4444" } : null,
               breaks.length > 0 ? { label:`${breaks.length} Break${breaks.length>1?"s":""}`, value: fmtHM(totalBrkMins), color:"#f59e0b" } : null,
               grossMins != null ? { label:"Wall Clock", value: fmtHM(grossMins), color:"#6366f1" } : null,
               firstIn  ? { label:"First In",  value: format(new Date(firstIn),  "h:mm a"), color:"#3b82f6" } : null,
@@ -319,6 +321,7 @@ export default function Reports() {
   const [dailyReport,    setDailyReport]    = useState(null);
   const [reportLoading,  setReportLoading]  = useState(false);
   const [empWeekStats,   setEmpWeekStats]   = useState([]);
+  const [idleLogs,       setIdleLogs]       = useState([]);
   const [teamReport,     setTeamReport]     = useState(null);
   const [teamLoading,    setTeamLoading]    = useState(false);
 
@@ -349,14 +352,17 @@ export default function Reports() {
   useEffect(() => { api.getEmployees().then(setEmployees); }, []);
   useEffect(() => { loadData(); }, [date, employeeId]);
   useEffect(() => {
-    if (employeeId === "all") { setDailyReport(null); setEmpWeekStats([]); return; }
-    setReportLoading(true); setDailyReport(null);
+    if (employeeId === "all") { setDailyReport(null); setEmpWeekStats([]); setIdleLogs([]); return; }
+    setReportLoading(true); setDailyReport(null); setIdleLogs([]);
     Promise.all([
       api.getDailyReport(employeeId, date),
       api.getEmployeeStats(employeeId, 7).catch(() => []),
-    ]).then(([rpt, stats]) => {
+      api.getTimeline(date, date, employeeId).catch(() => ({})),
+    ]).then(([rpt, stats, timeline]) => {
       setDailyReport(rpt);
       setEmpWeekStats(Array.isArray(stats) ? stats : []);
+      const logs = (timeline?.idleLogs || []).filter(l => String(l.employee_id) === String(employeeId));
+      setIdleLogs(logs);
     }).catch(() => {}).finally(() => setReportLoading(false));
   }, [employeeId, date]);
 
@@ -547,6 +553,7 @@ export default function Reports() {
                 sessions={dailyReport.punch_log || []}
                 breaks={dailyReport.breaks || []}
                 workPattern={dailyReport.work_pattern}
+                idleLogs={idleLogs}
               />
 
               {/* Work Pattern + Productive Hours — side by side */}
