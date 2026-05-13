@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { format } from "date-fns";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { fmtHM, fmtDur } from "../tz";
 
 const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899"];
 const S = {
@@ -21,9 +22,7 @@ const S = {
   appRow:   { display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:"1px solid #f1f5f9" },
 };
 
-const fmtDur = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; };
 const initials = n => (n||"?").split(" ").map(x=>x[0]).join("").toUpperCase().slice(0,2);
-const fmtHM  = m => { const h=Math.floor(m/60),mn=m%60; return `${h}h ${String(mn).padStart(2,"0")}m`; };
 const fmtInterval = s => { const secs = s||300; if(secs<120) return `${secs}s`; return `${Math.round(secs/60)} min`; };
 const INTERVAL_OPTIONS = [
   { value:60,   label:"Every 1 minute" },
@@ -813,7 +812,7 @@ export default function EmployeeDetail() {
                 <div style={S.card}>
                   <div style={S.cardTitle}>🕐 Punch Log</div>
                   {report.punch_log.map((s, i) => {
-                    const dur = s.duration_minutes ? `${Math.floor(s.duration_minutes/60)}h ${s.duration_minutes%60}m` : "—";
+                    const dur = s.duration_minutes ? fmtHM(s.duration_minutes) : "—";
                     return (
                       <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:"1px solid #f1f5f9" }}>
                         <div style={{ width:8, height:8, borderRadius:"50%", background: s.punch_out ? "#10b981" : "#f59e0b", flexShrink:0 }} />
@@ -872,7 +871,7 @@ export default function EmployeeDetail() {
                       { label:"First Punch",     value: report.work_pattern.first_punch_in  ? new Date(report.work_pattern.first_punch_in).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})  : "—" },
                       { label:"Last Punch",      value: report.work_pattern.last_punch_out ? new Date(report.work_pattern.last_punch_out).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : "—" },
                       { label:"Avg Session",     value: report.work_pattern.avg_session_minutes ? `${report.work_pattern.avg_session_minutes}m` : "—" },
-                      { label:"Longest Session", value: report.work_pattern.longest_session_minutes ? `${Math.floor(report.work_pattern.longest_session_minutes/60)}h ${report.work_pattern.longest_session_minutes%60}m` : "—" },
+                      { label:"Longest Session", value: report.work_pattern.longest_session_minutes ? fmtHM(report.work_pattern.longest_session_minutes) : "—" },
                       { label:"Total Sessions",  value: report.work_pattern.total_sessions ?? "—" },
                     ].map(stat => (
                       <div key={stat.label} style={{ background:"#f8fafc", borderRadius:8, padding:"12px 16px" }}>

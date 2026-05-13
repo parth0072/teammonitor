@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../api";
 import { format } from "date-fns";
-import { fmtTime } from "../tz";
+import { fmtTime, fmtHM, fmtHMdec } from "../tz";
 import { useAuth } from "../App";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -43,14 +43,6 @@ function initials(name = "") {
   return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
-function fmtHM(mins) {
-  const h = Math.floor(mins / 60), m = mins % 60;
-  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
-}
-
-function fmtHMdec(mins) {
-  return (mins / 60).toFixed(1) + "h";
-}
 
 // A session is "stale" if active but no heartbeat for >6 minutes.
 // Heartbeat fires every 5 min; 6-min window = 1 min grace after a missed beat.

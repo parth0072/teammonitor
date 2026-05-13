@@ -8,9 +8,7 @@ import {
 } from "recharts";
 
 const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899","#06b6d4","#84cc16"];
-const fmtDur = s => { s = Math.round(Number(s)||0); const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; };
-const fmtHM  = m => { m = Math.round(Number(m)||0); const h=Math.floor(m/60),mn=m%60; return `${h}h ${String(mn).padStart(2,"0")}m`; };
-import { fmtTime } from "../tz";
+import { fmtTime, fmtHM, fmtDur } from "../tz";
 
 const PRESETS = [
   { label:"Today",      days:0 },
@@ -618,7 +616,7 @@ export default function Reports() {
                         { label:"First Punch",     value: dailyReport.work_pattern.first_punch_in             ? format(new Date(dailyReport.work_pattern.first_punch_in),  "h:mm a") : "—" },
                         { label:"Last Punch",      value: dailyReport.work_pattern.last_punch_out             ? format(new Date(dailyReport.work_pattern.last_punch_out), "h:mm a") : "—" },
                         { label:"Avg Session",     value: dailyReport.work_pattern.avg_session_minutes        ? `${dailyReport.work_pattern.avg_session_minutes}m`           : "—" },
-                        { label:"Longest Session", value: dailyReport.work_pattern.longest_session_minutes    ? `${Math.floor(dailyReport.work_pattern.longest_session_minutes/60)}h ${dailyReport.work_pattern.longest_session_minutes%60}m` : "—" },
+                        { label:"Longest Session", value: dailyReport.work_pattern.longest_session_minutes    ? fmtHM(dailyReport.work_pattern.longest_session_minutes) : "—" },
                         { label:"Total Sessions",  value: dailyReport.work_pattern.total_sessions ?? "—" },
                       ].map(stat => (
                         <div key={stat.label} style={{ background:"#f8fafc", borderRadius:8, padding:"10px 14px" }}>
@@ -1101,7 +1099,7 @@ export default function Reports() {
                 <div>
                   <div style={{ color:"#fff", fontWeight:700, fontSize:14 }}>Daily Team Report — {new Date(slackPreview.date + "T12:00:00").toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric" })}</div>
                   <div style={{ color:"rgba(255,255,255,0.7)", fontSize:12, marginTop:2 }}>
-                    {slackPreview.previews.length} active · Team total {Math.floor(slackPreview.previews.reduce((s,p) => s+p.total_minutes,0)/60)}h {slackPreview.previews.reduce((s,p) => s+p.total_minutes,0)%60}m
+                    {slackPreview.previews.length} active · Team total {fmtHM(slackPreview.previews.reduce((s,p) => s+p.total_minutes,0))}
                   </div>
                 </div>
               </div>
@@ -1111,17 +1109,16 @@ export default function Reports() {
               )}
 
               {slackPreview.previews.map((p, i) => {
-                const fmtM = m => { const h=Math.floor(m/60),mn=m%60; return h>0?`${h}h ${mn>0?mn+"m":""}`.trim():`${mn}m`; };
                 const focusEmoji = p.focus_score >= 8 ? "🟢" : p.focus_score >= 5 ? "🟡" : "🔴";
                 const bar = "█".repeat(Math.round((p.focus_score/10)*8)) + "░".repeat(8-Math.round((p.focus_score/10)*8));
-                const breakLine = p.breaks > 0 ? `☕ ${p.breaks} break${p.breaks!==1?"s":""} · ${fmtM(p.break_minutes)}` : "☕ No breaks";
+                const breakLine = p.breaks > 0 ? `☕ ${p.breaks} break${p.breaks!==1?"s":""} · ${fmtHM(p.break_minutes)}` : "☕ No breaks";
                 const firstSentence = s => (s||"").split(/(?<=[.!?])\s+/)[0] || s || "";
                 return (
                   <div key={i} style={{ padding:"14px 18px", borderTop:"1px solid #e2e8f0", background:"#fff" }}>
                     {/* Row 1: name + time + focus bar */}
                     <div style={{ fontSize:13, color:"#1d1c1d", marginBottom:8 }}>
                       {focusEmoji}&nbsp; <strong>{p.employee.name}</strong>&nbsp;&nbsp;
-                      <code style={{ background:"#f1f5f9", padding:"1px 6px", borderRadius:3, fontSize:12 }}>{fmtM(p.total_minutes)}</code>&nbsp;&nbsp;
+                      <code style={{ background:"#f1f5f9", padding:"1px 6px", borderRadius:3, fontSize:12 }}>{fmtHM(p.total_minutes)}</code>&nbsp;&nbsp;
                       Focus <strong>{p.focus_score}/10</strong>&nbsp;
                       <code style={{ background:"#f1f5f9", padding:"1px 6px", borderRadius:3, fontSize:12 }}>{bar}</code>
                     </div>

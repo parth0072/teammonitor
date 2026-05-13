@@ -5,10 +5,7 @@ import { format, subDays, eachDayOfInterval, parseISO } from "date-fns";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const fmtHM  = m => { const h=Math.floor((m||0)/60),mn=(m||0)%60; return `${h}h ${String(mn).padStart(2,"0")}m`; };
-const fmtHMPad = m => { const h=Math.floor((m||0)/60),mn=(m||0)%60; return `${String(h).padStart(2,"0")}:${String(mn).padStart(2,"0")}`; };
-import { fmtTime } from "../tz";
-const fmtDur   = s  => { s=Math.round(Number(s)||0); const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; };
+import { fmtTime, fmtHM, fmtDur, fmtHMPad } from "../tz";
 const sessionDate = s => String(s.date||"").slice(0,10) || String(s.punch_in||"").slice(0,10);
 
 function toPct(dt, resetHour) {

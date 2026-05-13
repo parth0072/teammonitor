@@ -41,6 +41,35 @@ export function fmtDateTime(dt) {
   return intlFmt(dt, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
+// ── Duration formatters ──────────────────────────────────────────────────────
+// Single source of truth — import these everywhere, never define them locally.
+
+/** "5h 04m" — primary format; input = minutes */
+export function fmtHM(m) {
+  m = Math.round(Number(m) || 0);
+  const h = Math.floor(m / 60), mn = m % 60;
+  return h > 0 ? `${h}h ${String(mn).padStart(2, "0")}m` : `${mn}m`;
+}
+
+/** "5h 4m" — compact unpadded; input = seconds (activity / app logs) */
+export function fmtDur(s) {
+  s = Math.round(Number(s) || 0);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+/** "05:04" — zero-padded HH:MM clock; input = minutes (Timelines summary rows) */
+export function fmtHMPad(m) {
+  m = Math.round(Number(m) || 0);
+  const h = Math.floor(m / 60), mn = m % 60;
+  return `${String(h).padStart(2, "0")}:${String(mn).padStart(2, "0")}`;
+}
+
+/** "5.1h" — decimal hours; input = minutes (Dashboard stat cards) */
+export function fmtHMdec(m) {
+  return (Math.round(Number(m) || 0) / 60).toFixed(1) + "h";
+}
+
 // Common timezones for the settings dropdown
 export const TIMEZONES = [
   { label: 'UTC',                         value: 'UTC' },

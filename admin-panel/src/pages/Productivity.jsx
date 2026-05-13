@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api";
 import { useAuth } from "../App";
 import { format } from "date-fns";
+import { fmtHM, fmtDur } from "../tz";
 
 const CAT = {
   productive:   { label: "Productive",   color: "#16a34a", bg: "#dcfce7" },
@@ -9,8 +10,6 @@ const CAT = {
   unproductive: { label: "Unproductive", color: "#dc2626", bg: "#fee2e2" },
 };
 
-const fmtH = m => { m = Math.round(Number(m) || 0); const h = Math.floor(m / 60), mn = m % 60; return h > 0 ? `${h}h ${mn}m` : `${mn}m`; };
-const fmtS = s => { s = Math.round(Number(s) || 0); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
 
 // Fallback categorizer using hardcoded keywords (used when no DB rule exists for an app)
 const PRODUCTIVE_KW   = ["code","xcode","visual studio","intellij","pycharm","webstorm","android studio","sublime","atom","vim","neovim","emacs","terminal","iterm","hyper","warp","figma","sketch","adobe","photoshop","illustrator","affinity","word","excel","powerpoint","pages","numbers","keynote","notion","obsidian","slack","teams","zoom","meet","webex","mail","outlook","spark","jira","linear","asana","trello","basecamp","clickup","postman","insomnia","tableplus","sequel","datagrip","dbeaver","docker","github desktop","sourcetree","git","filezilla"];
@@ -59,7 +58,7 @@ function MiniBar({ days_data, metric = "score" }) {
           ? (v >= 75 ? "#16a34a" : v >= 50 ? "#f59e0b" : v > 0 ? "#dc2626" : "#e2e8f0")
           : "#3b82f6";
         return (
-          <div key={i} title={`${d.date}: ${metric === "score" ? v + "%" : fmtH(v)}`}
+          <div key={i} title={`${d.date}: ${metric === "score" ? v + "%" : fmtHM(v)}`}
             style={{ flex: 1, minWidth: 6, height: Math.max(h, v > 0 ? 3 : 1), background: color, borderRadius: "2px 2px 0 0" }} />
         );
       })}
@@ -75,7 +74,7 @@ function AppCategoryBar({ topApps, rulesMap }) {
     <div style={{ marginTop: 10 }}>
       <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", gap: 1 }}>
         {Object.entries(cats).map(([cat, secs]) => secs > 0 && (
-          <div key={cat} style={{ flex: secs, background: CAT[cat].color }} title={`${CAT[cat].label}: ${fmtS(secs)}`} />
+          <div key={cat} style={{ flex: secs, background: CAT[cat].color }} title={`${CAT[cat].label}: ${fmtDur(secs)}`} />
         ))}
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
@@ -357,7 +356,7 @@ export default function Productivity() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 28 }}>
         {[
           { label: "Team Avg Score",     value: teamAvgScore !== null ? `${teamAvgScore}%` : "—", color: teamAvgScore >= 75 ? "#16a34a" : teamAvgScore >= 50 ? "#f59e0b" : "#dc2626", bg: "#f0fdf4", icon: "📈" },
-          { label: "Total Hours Tracked",value: fmtH(teamTotalHours),                             color: "#2563eb", bg: "#eff6ff", icon: "⏱" },
+          { label: "Total Hours Tracked",value: fmtHM(teamTotalHours),                             color: "#2563eb", bg: "#eff6ff", icon: "⏱" },
           { label: "Employees Tracked",  value: employees.filter(e => e.totalTracked > 0).length, color: "#7c3aed", bg: "#f5f3ff", icon: "👥" },
           { label: "Score Method",       value: hasCustomPolicy ? "App Rules" : "Idle-based",     color: "#0f766e", bg: "#f0fdfa", icon: "🎯" },
         ].map(c => (
@@ -411,11 +410,11 @@ export default function Productivity() {
 
                 <div style={{ display: "flex", gap: 20, alignItems: "center", flexShrink: 0 }}>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: "#2563eb" }}>{fmtH(emp.totalTracked)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#2563eb" }}>{fmtHM(emp.totalTracked)}</div>
                     <div style={{ fontSize: 11, color: "#94a3b8" }}>Tracked</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: "#f59e0b" }}>{fmtS(emp.totalIdle)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#f59e0b" }}>{fmtDur(emp.totalIdle)}</div>
                     <div style={{ fontSize: 11, color: "#94a3b8" }}>Idle</div>
                   </div>
                   <ScoreRing score={emp.avgScore} size={60} isCustom={hasCustomPolicy} />
@@ -452,7 +451,7 @@ export default function Productivity() {
                               {d.score !== null ? `${d.score}%` : "—"}
                             </div>
                             <div style={{ fontSize: 11, color: "#94a3b8", width: 40, textAlign: "right" }}>
-                              {fmtH(d.tracked_minutes)}
+                              {fmtHM(d.tracked_minutes)}
                             </div>
                           </div>
                         ))
@@ -476,7 +475,7 @@ export default function Productivity() {
                                 <div style={{ flex: 1, height: 6, background: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
                                   <div style={{ height: "100%", width: `${(a.secs / maxS) * 100}%`, background: CAT[cat].color, borderRadius: 3 }} />
                                 </div>
-                                <div style={{ fontSize: 11, color: "#64748b", width: 40, textAlign: "right" }}>{fmtS(a.secs)}</div>
+                                <div style={{ fontSize: 11, color: "#64748b", width: 40, textAlign: "right" }}>{fmtDur(a.secs)}</div>
                                 <span title={hasRule ? "Custom rule" : "Keyword match"}
                                   style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
                                     background: CAT[cat].bg, color: CAT[cat].color,

@@ -2,15 +2,10 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { format, subDays, parseISO } from "date-fns";
-import { fmtTime } from "../tz";
+import { fmtTime, fmtHM } from "../tz";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function fmtMins(m) {
-  if (!m || m <= 0) return "0m";
-  const h = Math.floor(m / 60), mn = m % 60;
-  return h > 0 ? `${h}h ${mn > 0 ? mn + "m" : ""}`.trim() : `${mn}m`;
-}
 
 const DATE_OPTIONS = Array.from({ length: 7 }, (_, i) => {
   const d = subDays(new Date(), i);
@@ -146,7 +141,7 @@ function TaskDetailModal({ task, onClose }) {
               {/* Summary KPIs */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
                 {[
-                  { label:"Total Time",    value: fmtMins(sessions.reduce((s,r) => s + r.total_minutes, 0)), icon:"⏱" },
+                  { label:"Total Time",    value: fmtHM(sessions.reduce((s,r) => s + r.total_minutes, 0)), icon:"⏱" },
                   { label:"Contributors", value: empNames.length,                                            icon:"👥" },
                   { label:"Sessions",     value: sessions.length,                                            icon:"📋" },
                 ].map(k => (
@@ -219,7 +214,7 @@ function TaskDetailModal({ task, onClose }) {
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
                                     marginBottom:8 }}>
                         <div style={{ fontSize:12, fontWeight:700, color:"#475569" }}>{dayLabel}</div>
-                        <div style={{ fontSize:12, fontWeight:700, color:"#1e293b" }}>{fmtMins(dayTotal)} total</div>
+                        <div style={{ fontSize:12, fontWeight:700, color:"#1e293b" }}>{fmtHM(dayTotal)} total</div>
                       </div>
                       <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
                         {rows.map((s, i) => (
@@ -243,7 +238,7 @@ function TaskDetailModal({ task, onClose }) {
                                 : <span style={{ color:"#10b981", fontWeight:700 }}>Active now</span>}
                             </div>
                             <div style={{ fontSize:14, fontWeight:800, color:"#1e293b", flexShrink:0 }}>
-                              {fmtMins(s.total_minutes)}
+                              {fmtHM(s.total_minutes)}
                             </div>
                             <div style={{ fontSize:10, fontWeight:700, flexShrink:0, padding:"2px 8px", borderRadius:20,
                                           background: s.status === "active" ? "#d1fae5" : "#f1f5f9",
@@ -282,7 +277,7 @@ function SummaryStrip({ members }) {
 
   const stats = [
     { label: "Active Today",     value: `${active.length} / ${members.length}`, color: "#3b82f6", bg: "#eff6ff" },
-    { label: "Total Hours",      value: fmtMins(totalMin),                      color: "#8b5cf6", bg: "#f5f3ff" },
+    { label: "Total Hours",      value: fmtHM(totalMin),                      color: "#8b5cf6", bg: "#f5f3ff" },
     { label: "Avg Productivity", value: `${avgProd}%`,                          color: pc.text,   bg: pc.bg    },
     { label: "Unique Tasks",     value: allTasks.length,                        color: "#10b981", bg: "#d1fae5" },
   ];
@@ -333,7 +328,7 @@ function HoursChart({ members }) {
                 )}
               </div>
               <div style={{ width:52, fontSize:13, fontWeight:700, color: m.total_minutes > 0 ? "#1e293b" : "#94a3b8", textAlign:"right", flexShrink:0 }}>
-                {fmtMins(m.total_minutes)}
+                {fmtHM(m.total_minutes)}
               </div>
               <div style={{ width:50, fontSize:11, fontWeight:700, color:pc.text, background:pc.bg,
                             borderRadius:20, padding:"2px 6px", textAlign:"center", flexShrink:0 }}>
@@ -379,7 +374,7 @@ function EmployeeCard({ member, rank }) {
           </div>
         </div>
         <div style={{ textAlign:"right", flexShrink:0 }}>
-          <div style={{ fontSize:18, fontWeight:800, color: hasData ? "#1e293b" : "#94a3b8" }}>{fmtMins(member.total_minutes)}</div>
+          <div style={{ fontSize:18, fontWeight:800, color: hasData ? "#1e293b" : "#94a3b8" }}>{fmtHM(member.total_minutes)}</div>
           {hasData && (
             <div style={{ fontSize:11, fontWeight:700, color:pc.text, background:pc.bg,
                           borderRadius:20, padding:"1px 8px", display:"inline-block", marginTop:2 }}>
@@ -397,7 +392,7 @@ function EmployeeCard({ member, rank }) {
             {/* Stacked bar */}
             <div style={{ display:"flex", height:8, borderRadius:4, overflow:"hidden", marginBottom:10, gap:1 }}>
               {member.tasks.map((t, i) => (
-                <div key={i} title={`${t.task_name} — ${fmtMins(t.minutes)}`}
+                <div key={i} title={`${t.task_name} — ${fmtHM(t.minutes)}`}
                   style={{ flex:t.minutes, background:COLORS[i%COLORS.length], minWidth:2 }} />
               ))}
             </div>
@@ -410,7 +405,7 @@ function EmployeeCard({ member, rank }) {
                     {t.task_name}
                     {t.jira_issue_key && <span style={{ marginLeft:5, fontSize:10, color:"#3b82f6", fontWeight:700 }}>{t.jira_issue_key}</span>}
                   </div>
-                  <div style={{ fontSize:12, fontWeight:600, color:"#1e293b", flexShrink:0 }}>{fmtMins(t.minutes)}</div>
+                  <div style={{ fontSize:12, fontWeight:600, color:"#1e293b", flexShrink:0 }}>{fmtHM(t.minutes)}</div>
                   <div style={{ fontSize:11, color:"#94a3b8", flexShrink:0, width:30, textAlign:"right" }}>{pct}%</div>
                 </div>
               );
@@ -499,7 +494,7 @@ function TaskView({ members, onSelectTask }) {
 
               {/* Stats + Details button */}
               <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6, flexShrink:0 }}>
-                <div style={{ fontSize:20, fontWeight:800, color:"#1e293b" }}>{fmtMins(task.totalMinutes)}</div>
+                <div style={{ fontSize:20, fontWeight:800, color:"#1e293b" }}>{fmtHM(task.totalMinutes)}</div>
                 <div style={{ fontSize:11, color:"#64748b" }}>{task.employees.length} contributor{task.employees.length !== 1 ? "s" : ""}</div>
                 {/* Details button always opens the modal */}
                 <button
@@ -516,7 +511,7 @@ function TaskView({ members, onSelectTask }) {
             <div style={{ padding:"14px 20px 0" }}>
               <div style={{ display:"flex", height:10, borderRadius:5, overflow:"hidden", marginBottom:14, gap:1 }}>
                 {task.employees.map((e, i) => (
-                  <div key={i} title={`${e.name}: ${fmtMins(e.minutes)}`}
+                  <div key={i} title={`${e.name}: ${fmtHM(e.minutes)}`}
                     style={{ flex:e.minutes, background:empColor[e.name], minWidth:3 }} />
                 ))}
               </div>
@@ -545,7 +540,7 @@ function TaskView({ members, onSelectTask }) {
                     </div>
                     {/* Time */}
                     <div style={{ width:52, fontSize:13, fontWeight:700, color:"#1e293b", textAlign:"right", flexShrink:0 }}>
-                      {fmtMins(emp.minutes)}
+                      {fmtHM(emp.minutes)}
                     </div>
                     {/* Pct */}
                     <div style={{ width:36, fontSize:11, color:"#94a3b8", textAlign:"right", flexShrink:0 }}>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { api } from "../api";
 import { format, subDays } from "date-fns";
 import { useAuth } from "../App";
+import { fmtHM } from "../tz";
 
 const S = {
   title:   { fontSize: 26, fontWeight: 700, color: "#1e293b", margin: 0 },
@@ -21,7 +22,6 @@ const DATE_OPTIONS = Array.from({ length: 7 }, (_, i) => {
   return { label: i===0?"Today":i===1?"Yesterday":format(d,"EEE, MMM d"), value: format(d,"yyyy-MM-dd") };
 });
 
-const fmtDur = m => { if (!m) return "—"; const h=Math.floor(m/60),mn=m%60; return h>0?`${h}h ${mn}m`:`${mn}m`; };
 
 export default function Attendance() {
   const { user }  = useAuth();
@@ -48,8 +48,8 @@ export default function Attendance() {
       <div style={S.sumGrid}>
         {[{ label:"Total Sessions", value:sessions.length, color:"#3b82f6" },
           { label:"Active Now",     value:activeNow,       color:"#10b981" },
-          { label:"Total Hours",    value:fmtDur(totalMins),color:"#8b5cf6" },
-          { label:"Avg Session",    value:fmtDur(avgMins),  color:"#f59e0b" },
+          { label:"Total Hours",    value:fmtHM(totalMins),color:"#8b5cf6" },
+          { label:"Avg Session",    value:fmtHM(avgMins),  color:"#f59e0b" },
         ].map(s => (
           <div key={s.label} style={S.sumCard}>
             <div style={{ fontSize:26, fontWeight:700, color:s.color }}>{s.value}</div>
@@ -77,7 +77,7 @@ export default function Attendance() {
               {isAdmin && <td style={S.td}><span style={{ fontWeight:600 }}>{s.employee_name}</span>{s.department && <span style={{ color:"#94a3b8", fontSize:12, marginLeft:6 }}>{s.department}</span>}</td>}
               <td style={S.td}>{s.punch_in ? format(new Date(s.punch_in),"h:mm a") : "—"}</td>
               <td style={S.td}>{s.punch_out ? format(new Date(s.punch_out),"h:mm a") : <span style={{ color:"#10b981" }}>Active</span>}</td>
-              <td style={S.td}>{fmtDur(s.total_minutes)}</td>
+              <td style={S.td}>{fmtHM(s.total_minutes)}</td>
               <td style={S.td}><span style={{ ...S.badge, background: s.status==="active"?"#dcfce7":"#f1f5f9", color: s.status==="active"?"#16a34a":"#64748b" }}>{s.status==="active"?"● Working":"✓ Done"}</span></td>
             </tr>
           ))}
