@@ -66,7 +66,6 @@ const renderPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, name, perc
 function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] }) {
   const totalNetMins = sessions.reduce((s, r) => s + (Number(r.total_minutes) || 0), 0);
   const totalBrkMins = breaks.reduce((s, b) => s + (Number(b.minutes) || 0), 0);
-  const workTimeMins = totalNetMins + totalBrkMins;
   const firstIn  = workPattern?.first_punch_in;
   const lastOut  = workPattern?.last_punch_out;
 
@@ -83,8 +82,32 @@ function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] })
   const grossMins = firstIn && effectiveEnd
     ? Math.round((effectiveEnd - new Date(firstIn)) / 60000) : null;
 
-  // Idle = Wall Clock − Work Time (always adds up, covers unlogged Mac-side pauses too)
-  const totalIdleMin = grossMins != null ? Math.max(0, grossMins - workTimeMins) : 0;
+  // Away gaps = gaps between consecutive sessions (user closed Mac and re-opened).
+  // These count as break time and are NOT deducted from Work Time.
+  const sortedSessions = [...sessions].sort((a, b) =>
+    (a.punch_in ? new Date(a.punch_in).getTime() : 0) -
+    (b.punch_in ? new Date(b.punch_in).getTime() : 0)
+  );
+  const awayGaps = []; // { start, end, minutes }
+  for (let i = 0; i + 1 < sortedSessions.length; i++) {
+    const prevOut = sortedSessions[i].punch_out;
+    const nextIn  = sortedSessions[i + 1].punch_in;
+    if (prevOut && nextIn) {
+      const gapMs = new Date(nextIn).getTime() - new Date(prevOut).getTime();
+      if (gapMs > 0) awayGaps.push({ start: prevOut, end: nextIn, minutes: Math.round(gapMs / 60000) });
+    }
+  }
+  const awayMins = awayGaps.reduce((s, g) => s + g.minutes, 0);
+
+  // Work Time = tracked time + explicit breaks + inter-session away gaps
+  // (breaks and away are not deducted — Mac already excluded them from total_minutes)
+  const workTimeMins = totalNetMins + totalBrkMins + awayMins;
+
+  // Idle = only keyboard/mouse inactivity logged by the Mac agent (from idle_logs).
+  // NOT Wall Clock − Work Time (that includes unrelated gaps).
+  const totalIdleMin = Math.round(
+    idleLogs.reduce((s, l) => s + (Number(l.duration_seconds) || 0), 0) / 60
+  );
 
   // Build sorted interleaved list
   const items = [
@@ -123,6 +146,7 @@ function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] })
               { label:"Active",        value: fmtHM(totalNetMins),   color:"#3b82f6" },
               totalIdleMin > 0 ? { label:"Idle Deducted", value: fmtHM(totalIdleMin), color:"#ef4444" } : null,
               breaks.length > 0 ? { label:`${breaks.length} Break${breaks.length>1?"s":""}`, value: fmtHM(totalBrkMins), color:"#f59e0b" } : null,
+              awayMins > 0 ? { label:"Away", value: fmtHM(awayMins), color:"#94a3b8" } : null,
               grossMins != null ? { label:"Wall Clock",   value: fmtHM(grossMins),   color:"#6366f1" } : null,
               firstIn      ? { label:"First In",  value: format(new Date(firstIn), "h:mm a"),     color:"#3b82f6" } : null,
               lastOut      ? { label:"Last Out",  value: format(new Date(lastOut), "h:mm a"),     color:"#64748b" } : null,
@@ -176,7 +200,19 @@ function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] })
                 />
               );
             })}
-            {/* Lid-close / away segments — amber from last_heartbeat_at → now */}
+            {/* Inter-session away gaps — gray segments between sessions */}
+            {awayGaps.map((g, i) => (
+              <div key={`away-gap-${i}`} style={{
+                position:"absolute", top:0, height:"100%",
+                left:`${toPct(g.start)}%`,
+                width:`${Math.max(durPct(g.start, g.end), 0.3)}%`,
+                background:"rgba(148,163,184,0.5)",
+                zIndex:1,
+              }}
+                title={`Away ${format(new Date(g.start),"h:mm a")} → ${format(new Date(g.end),"h:mm a")} · ${fmtHM(g.minutes)}`}
+              />
+            ))}
+            {/* Current away — amber from last_heartbeat_at for active sessions with stale HB */}
             {sessions.map((s, i) => {
               if (!s.punch_in || s.punch_out || !s.last_heartbeat_at) return null;
               const hbAge = (Date.now() - new Date(s.last_heartbeat_at).getTime()) / 60000;
@@ -187,12 +223,12 @@ function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] })
                 <div key={`away-${i}`} style={{
                   position:"absolute", top:0, height:"100%",
                   left:`${left}%`, width:`${w}%`,
-                  background:"linear-gradient(90deg,#fcd34d,#fbbf24)",
+                  background:"rgba(148,163,184,0.5)",
                   borderRadius:4,
                   cursor:"default",
                   zIndex:1,
                 }}
-                  title={`Lid closed / away since ${format(new Date(s.last_heartbeat_at),"h:mm a")} (${Math.round(hbAge)}m ago)`}
+                  title={`Away since ${format(new Date(s.last_heartbeat_at),"h:mm a")} (${Math.round(hbAge)}m ago)`}
                 />
               );
             })}

@@ -165,11 +165,10 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
       } catch (_) { /* non-fatal */ }
     }
 
-    // ── Heartbeat gap → auto idle log ────────────────────────────────────────
-    // If a heartbeat arrives long after the previous one (gap > employee's
-    // idle_stop_minutes), the agent was offline/sleeping during that window.
-    // Auto-insert an idle_log so the gap appears as a red Idle segment on the
-    // dashboard timeline — works for any agent version, even without v1.0.91.
+    // ── Heartbeat gap → auto break (away/sleep) ──────────────────────────────
+    // A large gap between heartbeats means the Mac was sleeping or the user was
+    // away — this is treated as a BREAK (not idle). Idle is only keyboard/mouse
+    // inactivity detected by the Mac agent itself and sent via logIdle().
     // Skip when reconnect=true (Mac is actively syncing its own break records).
     if (!reconnect) {
       try {
@@ -182,20 +181,22 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
         if (sessRow?.last_heartbeat_at) {
           const prevHb     = new Date(sessRow.last_heartbeat_at);
           // Threshold = idle_stop_minutes + heartbeat_interval (5 min) + 1 min grace.
-          // This ensures we only log idle when at least one full heartbeat cycle was
+          // This ensures we only log a break when at least one full heartbeat cycle was
           // missed beyond the idle stop point — normal 5-min heartbeats never trigger it.
           const threshold  = (sessRow.idle_stop_minutes || 5) + 6;
           const gapMinutes = (now - prevHb) / 60000;
           if (gapMinutes > threshold) {
             const sessionDate = now.toISOString().slice(0, 10);
+            // Insert as a session_break (away/sleep gap), not idle_log.
+            // Idle = keyboard/mouse inactivity (from Mac); Break = Mac offline/sleeping.
             await db.query(
-              `INSERT INTO idle_logs (employee_id, session_id, idle_start, idle_end, duration_seconds, date)
-               VALUES (?, ?, ?, ?, ?, ?)`,
-              [req.user.id, req.params.id, prevHb, now, Math.round(gapMinutes * 60), sessionDate]
+              `INSERT INTO session_breaks (session_id, employee_id, break_start, break_end, date)
+               VALUES (?, ?, ?, ?, ?)`,
+              [req.params.id, req.user.id, prevHb, now, sessionDate]
             );
           }
         }
-      } catch (_) { /* non-fatal — idle_logs table may not exist yet on older installs */ }
+      } catch (_) { /* non-fatal */ }
     }
 
     // GREATEST() prevents a post-restart agent (with reset trackedMinutes) from
