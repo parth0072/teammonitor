@@ -106,7 +106,8 @@ function DayTimeline({ sessions = [], breaks = [], workPattern, idleLogs = [] })
           <div style={{ fontSize:15, fontWeight:700, color:"#1e293b" }}>Day Timeline</div>
           <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
             {[
-              { label:"Net Tracked", value: fmtHM(totalNetMins), color:"#10b981" },
+              { label:"Work Time", value: fmtHM(totalNetMins + totalBrkMins), color:"#10b981" },
+              { label:"Active", value: fmtHM(totalNetMins), color:"#3b82f6" },
               totalIdleMin > 0 ? { label:"Idle Deducted", value: fmtHM(totalIdleMin), color:"#ef4444" } : null,
               breaks.length > 0 ? { label:`${breaks.length} Break${breaks.length>1?"s":""}`, value: fmtHM(totalBrkMins), color:"#f59e0b" } : null,
               grossMins != null ? { label:"Wall Clock", value: fmtHM(grossMins), color:"#6366f1" } : null,
