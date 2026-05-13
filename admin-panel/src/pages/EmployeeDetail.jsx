@@ -52,7 +52,7 @@ export default function EmployeeDetail() {
     api.getScreenshots(today, id).then(setScreenshots);
     api.getActivitySummary(today, id).then(setAppSummary);
     api.getActivity(today, id).then(setActivity);
-    api.getSessions(today).then(rows => setSessions(rows.filter(s => String(s.employee_id) === String(id))));
+    api.getEmployeeSessions(id, today).then(setSessions);
   }, [id, today]);
 
   useEffect(() => {

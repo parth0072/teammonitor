@@ -441,20 +441,30 @@ export default function Reports() {
     setLoading(true);
     try {
       const empId = employeeId === "all" ? undefined : employeeId;
-      const [sess, apps, act, stats] = await Promise.all([
-        api.getSessions(date),
+      // When a specific employee is selected, fetch only their sessions (server-filtered).
+      // Team stats are not needed — empWeekStats from the separate effect covers the bar chart.
+      const sessPromise = empId
+        ? api.getEmployeeSessions(empId, date)
+        : api.getSessions(date);
+      const calls = [
+        sessPromise,
         api.getActivitySummary(date, empId),
         api.getActivity(date, empId),
-        api.getSessionStats(7),
-      ]);
-      setSessions(empId ? sess.filter(s => String(s.employee_id) === empId) : sess);
+        ...(!empId ? [api.getSessionStats(7)] : []),
+      ];
+      const [sess, apps, act, stats] = await Promise.all(calls);
+      setSessions(sess);
       // Cast SUM() strings to numbers to fix MySQL string concatenation bug
       setAppSummary(apps.map(a => ({ ...a, total_seconds: Number(a.total_seconds) || 0 })));
       setActivity(act);
-      setWeekStats(stats.map(r => ({
-        day:   format(new Date(r.date.slice(0,10)+"T00:00:00"), "EEE M/d"),
-        hours: +((Number(r.total_minutes)||0) / 60).toFixed(1),
-      })));
+      if (stats) {
+        setWeekStats(stats.map(r => ({
+          day:   format(new Date(r.date.slice(0,10)+"T00:00:00"), "EEE M/d"),
+          hours: +((Number(r.total_minutes)||0) / 60).toFixed(1),
+        })));
+      } else {
+        setWeekStats([]);
+      }
     } catch(e) { console.error(e); }
     setLoading(false);
   }
@@ -825,26 +835,36 @@ export default function Reports() {
 
       {/* Week chart + Pie */}
       <div style={S.row2}>
+        {/* 7-day bar chart — shows selected employee's stats when filtered, team stats otherwise */}
         <div style={S.card}>
-          <div style={S.cardTitle}>Hours Tracked — Last 7 Days</div>
-          {weekStats.length === 0
-            ? <div style={S.empty}>No data for this period.</div>
-            : (() => {
-                const maxH = Math.max(...weekStats.map(w => w.hours), 0.1);
-                return (
-                  <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:160, paddingTop:8 }}>
-                    {weekStats.map((d, i) => (
-                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                        {d.hours > 0 && <div style={{ fontSize:10, color:"#64748b" }}>{d.hours}h</div>}
-                        <div style={{ width:"100%", background: d.hours > 0 ? "#3b82f6" : "#e2e8f0",
-                          height: d.hours > 0 ? Math.max((d.hours / maxH) * 110, 6) : 4, borderRadius:"4px 4px 0 0" }} />
-                        <div style={{ fontSize:10, color:"#94a3b8", textAlign:"center", lineHeight:1.3 }}>{d.day}</div>
-                      </div>
-                    ))}
+          <div style={S.cardTitle}>
+            Hours Tracked — Last 7 Days
+            {employeeId !== "all" && employees.find(e => String(e.id) === employeeId)
+              ? ` · ${employees.find(e => String(e.id) === employeeId).name.split(" ")[0]}`
+              : ""}
+          </div>
+          {(() => {
+            const chartData = employeeId !== "all"
+              ? empWeekStats.map(r => ({
+                  day:   format(new Date(r.date.slice(0,10)+"T00:00:00"), "EEE M/d"),
+                  hours: +((Number(r.total_minutes)||0) / 60).toFixed(1),
+                }))
+              : weekStats;
+            if (chartData.length === 0) return <div style={S.empty}>No data for this period.</div>;
+            const maxH = Math.max(...chartData.map(w => w.hours), 0.1);
+            return (
+              <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:160, paddingTop:8 }}>
+                {chartData.map((d, i) => (
+                  <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                    {d.hours > 0 && <div style={{ fontSize:10, color:"#64748b" }}>{d.hours}h</div>}
+                    <div style={{ width:"100%", background: d.hours > 0 ? "#3b82f6" : "#e2e8f0",
+                      height: d.hours > 0 ? Math.max((d.hours / maxH) * 110, 6) : 4, borderRadius:"4px 4px 0 0" }} />
+                    <div style={{ fontSize:10, color:"#94a3b8", textAlign:"center", lineHeight:1.3 }}>{d.day}</div>
                   </div>
-                );
-              })()
-          }
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         <div style={S.card}>
