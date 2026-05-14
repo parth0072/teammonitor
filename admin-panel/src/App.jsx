@@ -1,5 +1,10 @@
 import React, { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "react-router-dom";
+import {
+  LayoutDashboard, TrendingUp, FolderOpen, Trophy, BarChart3,
+  Umbrella, Users, ScanLine, CalendarCheck2, AlignLeft, Bug,
+  Settings2, Monitor, LogOut,
+} from "lucide-react";
 import "./responsive.css";
 import { hasToken, clearToken, saveUser, getCachedUser, api } from "./api";
 import { setTimezone } from "./tz";
@@ -34,28 +39,28 @@ const S = {
 };
 
 const ADMIN_NAV = [
-  { path: "/dashboard",    label: "Dashboard",     icon: "▦"  },
-  { path: "/productivity", label: "Productivity",  icon: "📈" },
-  { path: "/projects",     label: "Projects",      icon: "📁" },
-  { path: "/overview",      label: "Team Overview",  icon: "🏅" },
-  { path: "/reports",      label: "Reports",       icon: "📊" },
-  { path: "/leaves",       label: "Leaves",        icon: "🏖" },
-  { path: "/employees",    label: "Employees",     icon: "👥" },
-  { path: "/screenshots",  label: "Screenshots",   icon: "🖼" },
-  { path: "/attendance",   label: "Attendance",    icon: "📅" },
-  { path: "/timelines",    label: "Timelines",     icon: "⏱" },
-  { path: "/issues",       label: "Issues",        icon: "🐛" },
-  { path: "/settings",     label: "Settings",      icon: "⚙️" },
+  { path: "/dashboard",    label: "Dashboard",      Icon: LayoutDashboard },
+  { path: "/productivity", label: "Productivity",   Icon: TrendingUp      },
+  { path: "/projects",     label: "Projects",       Icon: FolderOpen      },
+  { path: "/overview",     label: "Team Overview",  Icon: Trophy          },
+  { path: "/reports",      label: "Reports",        Icon: BarChart3       },
+  { path: "/leaves",       label: "Leaves",         Icon: Umbrella        },
+  { path: "/employees",    label: "Employees",      Icon: Users           },
+  { path: "/screenshots",  label: "Screenshots",    Icon: ScanLine        },
+  { path: "/attendance",   label: "Attendance",     Icon: CalendarCheck2  },
+  { path: "/timelines",    label: "Timelines",      Icon: AlignLeft       },
+  { path: "/issues",       label: "Issues",         Icon: Bug             },
+  { path: "/settings",     label: "Settings",       Icon: Settings2       },
 ];
 
 const EMPLOYEE_NAV = [
-  { path: "/dashboard",    label: "My Dashboard",  icon: "▦"  },
-  { path: "/productivity", label: "My Productivity",icon: "📈" },
-  { path: "/projects",     label: "Projects",      icon: "📁" },
-  { path: "/leaves",       label: "My Leaves",     icon: "🏖" },
-  { path: "/screenshots",  label: "My Screenshots",icon: "🖼" },
-  { path: "/attendance",   label: "My Attendance", icon: "📅" },
-  { path: "/timelines",    label: "My Timeline",   icon: "⏱" },
+  { path: "/dashboard",    label: "My Dashboard",   Icon: LayoutDashboard },
+  { path: "/productivity", label: "My Productivity",Icon: TrendingUp      },
+  { path: "/projects",     label: "Projects",       Icon: FolderOpen      },
+  { path: "/leaves",       label: "My Leaves",      Icon: Umbrella        },
+  { path: "/screenshots",  label: "My Screenshots", Icon: ScanLine        },
+  { path: "/attendance",   label: "My Attendance",  Icon: CalendarCheck2  },
+  { path: "/timelines",    label: "My Timeline",    Icon: AlignLeft       },
 ];
 
 function useIsMobile() {
@@ -91,14 +96,15 @@ function Sidebar({ open, onClose }) {
               aria-label="Close menu"
             >✕</button>
           )}
-          <span>🖥</span> TeamMonitor
+          <Monitor size={20} strokeWidth={2} /> TeamMonitor
         </div>
         <nav style={S.nav}>
           {navItems.map(item => (
             <NavLink key={item.path} to={item.path}
               onClick={isMobile ? onClose : undefined}
               style={({ isActive }) => ({ ...S.navLink, ...(isActive ? S.navLinkActive : {}) })}>
-              <span>{item.icon}</span>{item.label}
+              <item.Icon size={16} strokeWidth={1.75} />
+              {item.label}
             </NavLink>
           ))}
         </nav>
@@ -109,7 +115,7 @@ function Sidebar({ open, onClose }) {
               <div style={{ color: "#64748b", fontSize: 11, marginTop: 2 }}>{isAdmin ? "Administrator" : "Employee"}</div>
             </div>
           )}
-          <button style={S.logoutBtn} onClick={handleLogout}>⏻ &nbsp;Sign Out</button>
+          <button style={S.logoutBtn} onClick={handleLogout}><LogOut size={14} strokeWidth={1.75} /> Sign Out</button>
         </div>
       </div>
     </>
