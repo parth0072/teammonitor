@@ -790,6 +790,7 @@ class TrackingManager: ObservableObject {
         TMLog("[PunchOut] Stopping session \(sessionId) — \(finalMinutes)m tracked, isOnBreak: \(isOnBreak)")
         statusMessage = "Stopping session…"
         isTracking    = false
+        isOnBreak     = false   // clear break state — punchOut always ends any active break
         isIdleBreak   = false
         showIdleAlert = false
         MenuBarState.shared.isTracking = false
