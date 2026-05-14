@@ -10,7 +10,6 @@ import Employees from "./pages/Employees";
 import EmployeeDetail from "./pages/EmployeeDetail";
 import Screenshots from "./pages/Screenshots";
 import Attendance from "./pages/Attendance";
-import Activity from "./pages/Activity";
 import Reports from "./pages/Reports";
 import Projects from "./pages/Projects";
 import Timelines from "./pages/Timelines";
@@ -36,7 +35,6 @@ const S = {
 
 const ADMIN_NAV = [
   { path: "/dashboard",    label: "Dashboard",     icon: "▦"  },
-  { path: "/activity",     label: "Live Activity", icon: "🟢" },
   { path: "/productivity", label: "Productivity",  icon: "📈" },
   { path: "/projects",     label: "Projects",      icon: "📁" },
   { path: "/overview",      label: "Team Overview",  icon: "🏅" },
@@ -52,7 +50,6 @@ const ADMIN_NAV = [
 
 const EMPLOYEE_NAV = [
   { path: "/dashboard",    label: "My Dashboard",  icon: "▦"  },
-  { path: "/activity",     label: "My Activity",   icon: "🟢" },
   { path: "/productivity", label: "My Productivity",icon: "📈" },
   { path: "/projects",     label: "Projects",      icon: "📁" },
   { path: "/leaves",       label: "My Leaves",     icon: "🏖" },
@@ -200,7 +197,6 @@ export default function App() {
           <Route path="/reports"      element={<AdminRoute><Reports /></AdminRoute>} />
           <Route path="/screenshots"  element={<ProtectedRoute><Screenshots /></ProtectedRoute>} />
           <Route path="/attendance"   element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
-          <Route path="/activity"     element={<ProtectedRoute><Activity /></ProtectedRoute>} />
           <Route path="/projects"     element={<ProtectedRoute><Projects /></ProtectedRoute>} />
           <Route path="/timelines"    element={<ProtectedRoute><Timelines /></ProtectedRoute>} />
           <Route path="/leaves"       element={<ProtectedRoute><Leaves /></ProtectedRoute>} />

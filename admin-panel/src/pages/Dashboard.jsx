@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "../api";
 import { format } from "date-fns";
-import { fmtTime, fmtHM, fmtHMdec } from "../tz";
+import { fmtTime, fmtHM, fmtHMdec, fmtDur } from "../tz";
 import { useAuth } from "../App";
+import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Cell,
@@ -71,6 +72,26 @@ function getEmpMode(emp, session) {
   if (emp?.is_idle || isStaleSession(session)) return "idle";
   return "active";
 }
+
+
+// ── App categorization ────────────────────────────────────────────────────────
+
+const PRODUCTIVE_KW = ["code","xcode","visual studio","intellij","pycharm","webstorm","android studio",
+  "sublime","atom","vim","neovim","terminal","iterm","hyper","warp","figma","sketch","adobe","photoshop",
+  "illustrator","affinity","word","excel","powerpoint","pages","numbers","keynote","notion","obsidian",
+  "slack","teams","zoom","meet","webex","mail","outlook","jira","linear","asana","trello","postman",
+  "insomnia","tableplus","sequel","datagrip","dbeaver","docker","github desktop","sourcetree","safari",
+  "chrome","firefox","edge","arc"];
+const UNPRODUCTIVE_KW = ["youtube","netflix","spotify","twitch","hulu","disney","twitter","facebook",
+  "instagram","tiktok","snapchat","reddit","steam","epic games","whatsapp","telegram","signal"];
+function categorize(app = "") {
+  const l = app.toLowerCase();
+  if (UNPRODUCTIVE_KW.some(k => l.includes(k))) return "unproductive";
+  if (PRODUCTIVE_KW.some(k => l.includes(k)))   return "productive";
+  return "neutral";
+}
+const CAT_COLOR = { productive: "#16a34a", neutral: "#3b82f6", unproductive: "#dc2626" };
+const CAT_BG    = { productive: "#dcfce7", neutral: "#dbeafe", unproductive: "#fee2e2" };
 
 // ── Skeleton loader ───────────────────────────────────────────────────────────
 
@@ -523,6 +544,7 @@ function ChartTooltip({ active, payload, label }) {
 // ── Enhanced Employee Card ────────────────────────────────────────────────────
 
 function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot }) {
+  const navigate = useNavigate();
   const mode  = getEmpMode(employee, session);
   const onBreak = mode === "break";
   const idle    = mode === "idle";
@@ -538,16 +560,19 @@ function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot })
   const statusDot   = active ? "● " : onBreak ? "⏸ " : idle ? "◌ " : done ? "✓ " : "○ ";
 
   return (
-    <div style={{
-      background: C.card,
-      borderRadius: 14,
-      border: `1.5px solid ${active ? "#A7F3D0" : onBreak ? "#FDE68A" : idle ? "#FDE68A" : C.border}`,
-      boxShadow: active
-        ? "0 0 0 3px rgba(18,182,106,0.12), 0 2px 8px rgba(0,0,0,0.06)"
-        : "0 1px 4px rgba(0,0,0,0.06)",
-      overflow: "hidden",
-      transition: "box-shadow 0.2s, transform 0.2s",
-    }}
+    <div
+      onClick={() => navigate(`/employees/${employee.id}`)}
+      style={{
+        background: C.card,
+        borderRadius: 14,
+        border: `1.5px solid ${active ? "#A7F3D0" : onBreak ? "#FDE68A" : idle ? "#FDE68A" : C.border}`,
+        boxShadow: active
+          ? "0 0 0 3px rgba(18,182,106,0.12), 0 2px 8px rgba(0,0,0,0.06)"
+          : "0 1px 4px rgba(0,0,0,0.06)",
+        overflow: "hidden",
+        cursor: "pointer",
+        transition: "box-shadow 0.2s, transform 0.2s",
+      }}
       onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"; }}
       onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = active ? "0 0 0 3px rgba(18,182,106,0.12),0 2px 8px rgba(0,0,0,0.06)" : (onBreak || idle) ? "0 0 0 3px rgba(247,144,9,0.12),0 2px 8px rgba(0,0,0,0.06)" : "0 1px 4px rgba(0,0,0,0.06)"; }}
     >
@@ -659,6 +684,162 @@ function EmployeeCard({ employee, session, totalMinsToday = 0, lastScreenshot })
   );
 }
 
+
+// ── Screenshot lightbox ───────────────────────────────────────────────────────
+
+function ScreenshotModal({ ss, onClose }) {
+  if (!ss) return null;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, cursor: "pointer" }}>
+      <div onClick={e => e.stopPropagation()} style={{ textAlign: "center" }}>
+        <img
+          src={`${ss.file_path}?token=${encodeURIComponent(localStorage.getItem("tm_token") || "")}`}
+          alt="Screenshot"
+          style={{ maxWidth: "90vw", maxHeight: "82vh", borderRadius: 12, display: "block" }}
+        />
+        <div style={{ color: "#e2e8f0", marginTop: 12, fontSize: 14 }}>
+          <span style={{ fontWeight: 600 }}>{ss.employee_name}</span>
+          {" · "}
+          {ss.captured_at ? format(new Date(ss.captured_at), "MMM d, yyyy h:mm a") : ""}
+          {ss.activity_level != null && <span style={{ marginLeft: 12, opacity: 0.7 }}>{ss.activity_level}% active</span>}
+          <span style={{ opacity: 0.4, marginLeft: 16 }}>Click anywhere to close</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Full screenshot strip (with lightbox) ─────────────────────────────────────
+
+function FullScreenshots({ date, isAdmin }) {
+  const [screenshots, setScreenshots] = useState([]);
+  const [selected, setSelected]       = useState(null);
+  const [loading, setLoading]         = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const data = isAdmin ? await api.getScreenshots(date) : await api.getMyScreenshots(date);
+      setScreenshots((data || []).slice(0, 20));
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, [date, isAdmin]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  if (loading || screenshots.length === 0) return null;
+
+  return (
+    <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>📸 Recent Screenshots</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Auto-refreshes every 60s · click to enlarge</div>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 12 }}>
+        {screenshots.map(ss => (
+          <div key={ss.id} onClick={() => setSelected(ss)}
+            style={{ borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}`, cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.07)", transition: "transform 0.15s, box-shadow 0.15s" }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.12)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.07)"; }}>
+            {ss.file_path
+              ? <img src={`${ss.file_path}?token=${encodeURIComponent(localStorage.getItem("tm_token") || "")}`} alt="ss" style={{ width: "100%", height: 100, objectFit: "cover", display: "block", background: C.light }} />
+              : <div style={{ width: "100%", height: 100, background: C.light, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>🖥</div>}
+            <div style={{ padding: "8px 10px" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ss.employee_name || "—"}</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{ss.captured_at ? format(new Date(ss.captured_at), "h:mm a") : "—"}</div>
+              {ss.activity_level != null && (
+                <div style={{ marginTop: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10,
+                                 background: ss.activity_level > 50 ? "#dcfce7" : "#fef9c3",
+                                 color: ss.activity_level > 50 ? "#16a34a" : "#92400e" }}>
+                    {ss.activity_level}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <ScreenshotModal ss={selected} onClose={() => setSelected(null)} />
+    </div>
+  );
+}
+
+// ── App usage categorized chart ───────────────────────────────────────────────
+
+function AppUsageChart({ apps }) {
+  if (!apps || apps.length === 0) return (
+    <div style={{ color: C.muted, fontSize: 14 }}>No app data yet.</div>
+  );
+  const data = apps.slice(0, 8).map(a => ({
+    name: (a.app_name || "").slice(0, 16),
+    secs: a.total_seconds || a.duration_seconds || 0,
+    cat:  categorize(a.app_name || ""),
+  }));
+  return (
+    <>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} layout="vertical" margin={{ left: 0, right: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+          <XAxis type="number" tickFormatter={v => fmtDur(v)} tick={{ fontSize: 11 }} />
+          <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
+          <Tooltip formatter={v => fmtDur(v)} />
+          <Bar dataKey="secs" radius={[0, 4, 4, 0]}>
+            {data.map((a, i) => <Cell key={i} fill={CAT_COLOR[a.cat]} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+      <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11 }}>
+        {[["productive", "#16a34a", "Productive"], ["neutral", "#3b82f6", "Neutral"], ["unproductive", "#dc2626", "Unproductive"]].map(([k, c, l]) => (
+          <span key={k} style={{ display: "flex", alignItems: "center", gap: 4, color: C.muted }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: c, display: "inline-block" }} />{l}
+          </span>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ── Live activity feed ────────────────────────────────────────────────────────
+
+function ActivityFeed({ activity, employees = [], isAdmin }) {
+  if (!activity || activity.length === 0) return (
+    <div style={{ color: C.muted, fontSize: 14 }}>No activity recorded yet.</div>
+  );
+  const empById = Object.fromEntries(employees.map(e => [String(e.id), e]));
+  return (
+    <div style={{ maxHeight: 260, overflowY: "auto" }}>
+      {activity.slice(0, 25).map(log => {
+        const cat = categorize(log.app_name || "");
+        const emp = empById[String(log.employee_id)];
+        return (
+          <div key={log.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "9px 0", borderBottom: `1px solid ${C.light}` }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", marginTop: 5, flexShrink: 0, background: CAT_COLOR[cat] }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>
+                {isAdmin && emp && <>{emp.name} — </>}
+                <span style={{ color: CAT_COLOR[cat] }}>{log.app_name}</span>
+                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8, background: CAT_BG[cat], color: CAT_COLOR[cat] }}>{cat}</span>
+              </div>
+              {log.window_title && (
+                <div style={{ fontSize: 11, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.window_title}</div>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>
+              {log.start_time ? format(new Date(log.start_time), "h:mm a") : ""}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Employee Personal Dashboard ───────────────────────────────────────────────
 
 function EmployeeDashboard({ user }) {
@@ -667,16 +848,18 @@ function EmployeeDashboard({ user }) {
   const [screenshots, setScreenshots] = useState([]);
   const [chartData,   setChartData]   = useState([]);
   const [topApps,     setTopApps]     = useState([]);
+  const [activity,    setActivity]    = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const autoRef = useRef(null);
 
   const load = useCallback(async () => {
-    const [sess, stats, ss, apps] = await Promise.all([
+    const [sess, stats, ss, apps, actLogs] = await Promise.all([
       api.getMySessions(today).catch(() => []),
       api.getMySessionStats(7).catch(() => []),
       api.getMyScreenshots(today).catch(() => []),
       api.getMyActivitySummary(today).catch(() => []),
+      api.getMyActivity(today).catch(() => []),
     ]);
 
     setSessions(sess);
@@ -700,6 +883,7 @@ function EmployeeDashboard({ user }) {
     setTopApps([...appList].sort((a, b) =>
       (b.total_seconds || b.duration_seconds || 0) - (a.total_seconds || a.duration_seconds || 0)
     ));
+    setActivity([...(actLogs || [])].slice(-50).reverse());
     setLastRefresh(new Date());
     setLoading(false);
   }, [today]);
@@ -798,6 +982,23 @@ function EmployeeDashboard({ user }) {
           <TopAppsWidget apps={topApps} />
         </div>
       )}
+
+      {/* App usage analysis + Activity feed */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16, marginBottom: 16 }}>
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>App Usage Today</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Categorised by productivity</div>
+          <AppUsageChart apps={topApps} />
+        </div>
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Activity Feed</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Latest events</div>
+          <ActivityFeed activity={activity} employees={[]} isAdmin={false} />
+        </div>
+      </div>
+
+      {/* Recent screenshots */}
+      <FullScreenshots date={today} isAdmin={false} />
     </div>
   );
 }
@@ -815,18 +1016,20 @@ function AdminDashboard() {
   const [idleLogs,      setIdleLogs]      = useState([]);
   const [sessionBreaks, setSessionBreaks] = useState([]);
   const [activityGaps,  setActivityGaps]  = useState([]);
+  const [activity,      setActivity]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const autoRef = useRef(null);
 
   const load = useCallback(async () => {
-    const [sess, stats, ss, emps, apps, tlData] = await Promise.all([
+    const [sess, stats, ss, emps, apps, tlData, actLogs] = await Promise.all([
       api.getSessions(today).catch(() => []),
       api.getSessionStats(7).catch(() => []),
       api.getScreenshots(today).catch(() => []),
       api.getEmployees().catch(() => []),
       api.getActivitySummary(today).catch(() => []),
       api.getTimeline(today, today).catch(() => ({ idleLogs: [] })),
+      api.getActivity(today).catch(() => []),
     ]);
 
     setSessions(sess);
@@ -835,6 +1038,7 @@ function AdminDashboard() {
     setIdleLogs(tlData?.idleLogs || []);
     setSessionBreaks(tlData?.sessionBreaks || []);
     setActivityGaps(tlData?.activityGaps || []);
+    setActivity([...(actLogs || [])].slice(-50).reverse());
 
     const statsByDate = Object.fromEntries((stats || []).map(r => [r.date.slice(0, 10), r]));
     const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -1050,12 +1254,26 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* Top apps + second row */}
+      {/* Top apps */}
       {topApps.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <TopAppsWidget apps={topApps} />
         </div>
       )}
+
+      {/* App usage analysis + Activity feed */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 16, marginBottom: 16 }}>
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>App Usage Today</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Categorised by productivity</div>
+          <AppUsageChart apps={topApps} />
+        </div>
+        <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>Activity Feed</div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Latest events</div>
+          <ActivityFeed activity={activity} employees={employees} isAdmin={true} />
+        </div>
+      </div>
 
       {/* Live Status Board */}
       <div style={{ background: C.card, borderRadius: 12, padding: 24, border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
@@ -1092,6 +1310,9 @@ function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Recent screenshots */}
+      <FullScreenshots date={today} isAdmin={true} />
     </div>
   );
 }
