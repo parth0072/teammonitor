@@ -18,69 +18,160 @@ function durPct(mins) { return Math.min(100, (mins||0)/1440*100); }
 
 const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899","#06b6d4","#84cc16"];
 
+// ── Timeline: build priority-merged segments ────────────────────────────────
+
+function buildTimelineSegments(sessions, idleLogs, sessionBreaks, dayResetHour) {
+  const now = new Date();
+  function toMin(dt) {
+    const d = new Date(dt);
+    return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  }
+
+  // Determine visible range
+  const allMins = [
+    ...sessions.flatMap(s => [s.punch_in && toMin(new Date(s.punch_in)), s.punch_out && toMin(new Date(s.punch_out))]),
+    sessions.some(s => !s.punch_out) ? toMin(now) : null,
+  ].filter(Boolean);
+  const firstMin   = allMins.length ? Math.min(...allMins) : dayResetHour * 60;
+  const lastMin    = allMins.length ? Math.max(...allMins) : dayResetHour * 60 + 480;
+  const rangeStart = Math.max(0, firstMin - 45);
+  const rangeEnd   = Math.min(1440, Math.max(lastMin + 45, rangeStart + 480));
+  const rangeLen   = rangeEnd - rangeStart;
+
+  // Per-slot priority map: 0=gap, 1=worked, 2=idle, 3=break
+  const SLOTS = Math.ceil(rangeLen) + 2;
+  const map   = new Uint8Array(SLOTS);
+
+  function fill(startDt, endDt, priority) {
+    const s = Math.max(0, Math.round(toMin(new Date(startDt)) - rangeStart));
+    const e = Math.min(SLOTS - 1, Math.round(toMin(new Date(endDt))   - rangeStart));
+    for (let i = s; i <= e; i++) { if (priority > map[i]) map[i] = priority; }
+  }
+  sessions.forEach(s => {
+    if (!s.punch_in) return;
+    fill(s.punch_in, s.punch_out || now, 1);
+  });
+  idleLogs.forEach(il => {
+    if (!il.idle_start) return;
+    const endDt = il.idle_end
+      ? new Date(il.idle_end)
+      : new Date(new Date(il.idle_start).getTime() + (il.duration_seconds || 0) * 1000);
+    fill(il.idle_start, endDt, 2);
+  });
+  sessionBreaks.forEach(b => {
+    if (!b.start_time) return;
+    fill(b.start_time, b.end_time || now, 3);
+  });
+
+  // Merge consecutive same-type slots → spans
+  const spans = [];
+  let cur = null;
+  for (let i = 0; i < SLOTS; i++) {
+    const type   = ["gap","worked","idle","break"][map[i]];
+    const absMin = rangeStart + i;
+    if (!cur || cur.type !== type) {
+      if (cur && cur.type !== "gap") spans.push(cur);
+      cur = { type, startMin: absMin, endMin: absMin };
+    } else {
+      cur.endMin = absMin;
+    }
+  }
+  if (cur && cur.type !== "gap") spans.push(cur);
+
+  // Dynamic tick spacing
+  const tickStep  = rangeLen <= 240 ? 30 : rangeLen <= 480 ? 60 : 120;
+  const ticks     = [];
+  const firstTick = Math.ceil(rangeStart / tickStep) * tickStep;
+  for (let t = firstTick; t <= rangeEnd; t += tickStep) {
+    const h = Math.floor(t / 60) % 24, m = Math.round(t % 60);
+    ticks.push({ pct: (t - rangeStart) / rangeLen * 100, label: `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}` });
+  }
+
+  return { spans, ticks, rangeStart, rangeLen, nowMin: toMin(now), hasActiveSession: sessions.some(s => !s.punch_out) };
+}
+
 // ── Timeline Gantt Bar ────────────────────────────────────────────────────────
 
 function TimelineBar({ sessions, idleLogs, sessionBreaks, dayResetHour }) {
-  const ticks = Array.from({ length:7 }, (_,i) => ({
-    pct: (i/6)*100,
-    label: `${String((dayResetHour + i*4) % 24).padStart(2,"0")}:00`,
-  }));
+  if (!sessions || sessions.length === 0) return null;
+
+  const { spans, ticks, rangeStart, rangeLen, nowMin, hasActiveSession } =
+    buildTimelineSegments(sessions, idleLogs, sessionBreaks, dayResetHour);
+
+  const toPct = m => Math.min(100, Math.max(0, (m - rangeStart) / rangeLen * 100));
+  const toStr = m => {
+    const h = Math.floor(m / 60) % 24, mn = Math.floor(m % 60);
+    return `${String(h).padStart(2,"0")}:${String(mn).padStart(2,"0")}`;
+  };
+
+  const TYPE_COLOR = { worked: "#22c55e", idle: "#fb923c", break: "#fbbf24" };
+  const TYPE_TEXT  = { worked: "#fff",    idle: "#fff",    break: "#78350f"  };
+  const TYPE_LABEL = { worked: "Active",  idle: "Idle",    break: "Break"    };
+  const nowPct = toPct(nowMin);
 
   return (
-    <div style={{ position:"relative", paddingBottom:20, marginTop:6 }}>
-      <div style={{ position:"relative", height:48, background:"#f1f5f9", borderRadius:8, overflow:"hidden" }}>
-        {/* Grid lines */}
-        {ticks.slice(1,-1).map(t => (
-          <div key={t.pct} style={{ position:"absolute", left:`${t.pct}%`, top:0, bottom:0, borderLeft:"1px solid #e2e8f0", zIndex:1 }} />
+    <div style={{ position: "relative", paddingBottom: 24, marginTop: 12 }}>
+      {/* Legend row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
+        {[["worked","#22c55e","Active / Worked"],["break","#fbbf24","Break"],["idle","#fb923c","Idle"]].map(([k,c,l]) => (
+          <div key={k} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:"#64748b" }}>
+            <div style={{ width:12, height:8, borderRadius:3, background:c }} />{l}
+          </div>
         ))}
-        {/* Session blocks */}
-        {sessions.map((s,i) => {
-          if (!s.punch_in) return null;
-          const left  = toPct(s.punch_in, dayResetHour);
-          const width = durPct(s.total_minutes);
-          const isActive = !s.punch_out;
-          const label = s.total_minutes >= 30 ? fmtHM(s.total_minutes) : null;
+        {hasActiveSession && (
+          <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:"#6366f1", fontWeight:600 }}>
+            <div style={{ width:2, height:12, background:"#6366f1", borderRadius:1 }} />Now
+          </div>
+        )}
+      </div>
+
+      {/* Track */}
+      <div style={{ position: "relative", height: 44, background: "#f1f5f9", borderRadius: 10, overflow: "visible" }}>
+        {/* Grid lines */}
+        {ticks.map((t, i) => (
+          <div key={i} style={{ position:"absolute", left:`${t.pct}%`, top:0, bottom:0, borderLeft:"1px dashed #e2e8f0", zIndex:1 }} />
+        ))}
+
+        {/* Segments */}
+        {spans.map((sp, i) => {
+          const left  = toPct(sp.startMin);
+          const width = Math.max(0.5, (sp.endMin - sp.startMin) / rangeLen * 100);
+          const mins  = Math.round(sp.endMin - sp.startMin);
           return (
             <div key={i}
-              title={`${fmtTime(s.punch_in)} → ${s.punch_out ? fmtTime(s.punch_out) : "ongoing"} · ${fmtHM(s.total_minutes)}${s.task_name ? " · "+s.task_name : ""}`}
+              title={`${TYPE_LABEL[sp.type]}  ${toStr(sp.startMin)} – ${toStr(sp.endMin)}  (${mins}m)`}
               style={{
                 position:"absolute", top:4, bottom:4,
-                left:`${left}%`, width:`${Math.max(0.5,width)}%`,
-                background: isActive ? "linear-gradient(135deg,#f59e0b,#fbbf24)" : "linear-gradient(135deg,#16a34a,#22c55e)",
-                borderRadius:5, zIndex:2,
-                display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden",
+                left:`${left}%`, width:`${width}%`,
+                background: TYPE_COLOR[sp.type],
+                borderRadius: 6, zIndex: 2,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                overflow:"hidden", cursor:"default",
+                boxShadow: sp.type === "worked" ? "inset 0 1px 0 rgba(255,255,255,0.25)" : "none",
               }}>
-              {label && <span style={{ fontSize:10, fontWeight:700, color:"#fff", textShadow:"0 1px 2px rgba(0,0,0,0.3)", padding:"0 4px", whiteSpace:"nowrap" }}>{label}</span>}
+              {width > 5 && mins >= 3 && (
+                <span style={{ fontSize:10, fontWeight:700, color: TYPE_TEXT[sp.type], whiteSpace:"nowrap", padding:"0 4px", textShadow: sp.type !== "break" ? "0 1px 2px rgba(0,0,0,0.2)" : "none" }}>
+                  {mins}m
+                </span>
+              )}
             </div>
           );
         })}
-        {/* Idle overlays */}
-        {idleLogs.map((il,i) => il.idle_start && (
-          <div key={i}
-            title={`Idle: ${fmtTime(il.idle_start)} → ${fmtTime(il.idle_end)} (${Math.round((il.duration_seconds||0)/60)}m)`}
-            style={{
-              position:"absolute", top:0, bottom:0,
-              left:`${toPct(il.idle_start, dayResetHour)}%`,
-              width:`${Math.max(0.2, durPct((il.duration_seconds||0)/60))}%`,
-              background:"rgba(239,68,68,0.4)", zIndex:3,
-            }} />
-        ))}
-        {/* Break markers */}
-        {sessionBreaks.map((b,i) => b.start_time && (
-          <div key={i}
-            title={`Break: ${fmtTime(b.start_time)} → ${fmtTime(b.end_time)} (${b.duration_minutes}m)`}
-            style={{
-              position:"absolute", top:0, bottom:0,
-              left:`${toPct(b.start_time, dayResetHour)}%`,
-              width:`${Math.max(0.3, durPct(b.duration_minutes))}%`,
-              background:"rgba(245,158,11,0.5)", zIndex:3,
-            }} />
-        ))}
+
+        {/* NOW marker */}
+        {hasActiveSession && nowPct >= 0 && nowPct <= 100 && (
+          <div style={{ position:"absolute", top:-8, bottom:-8, left:`${nowPct}%`, width:2, background:"#6366f1", borderRadius:2, zIndex:10, transform:"translateX(-50%)" }}>
+            <div style={{ position:"absolute", bottom:"calc(100% + 4px)", left:"50%", transform:"translateX(-50%)", background:"#6366f1", color:"#fff", fontSize:9, fontWeight:700, padding:"2px 6px", borderRadius:4, whiteSpace:"nowrap", letterSpacing:0.3 }}>
+              NOW
+            </div>
+          </div>
+        )}
       </div>
-      {/* Hour labels */}
-      <div style={{ position:"relative", height:16 }}>
-        {ticks.map(t => (
-          <div key={t.pct} style={{ position:"absolute", left:`${t.pct}%`, transform:"translateX(-50%)", fontSize:9, color:"#94a3b8", marginTop:3, whiteSpace:"nowrap" }}>
+
+      {/* Time axis */}
+      <div style={{ position:"relative", height:16, marginTop:5 }}>
+        {ticks.map((t, i) => (
+          <div key={i} style={{ position:"absolute", left:`${t.pct}%`, transform:"translateX(-50%)", fontSize:9, color:"#94a3b8", whiteSpace:"nowrap" }}>
             {t.label}
           </div>
         ))}
@@ -476,7 +567,7 @@ export default function Timelines() {
   const isAdmin        = user?.role === "admin";
   const [employees,    setEmployees]    = useState([]);
   const [employeeId,   setEmployeeId]   = useState("all");
-  const [startDate,    setStartDate]    = useState(format(subDays(new Date(), 6), "yyyy-MM-dd"));
+  const [startDate,    setStartDate]    = useState(format(new Date(), "yyyy-MM-dd"));
   const [endDate,      setEndDate]      = useState(format(new Date(), "yyyy-MM-dd"));
   const [dayResetHour, setDayResetHour] = useState(0);
   const [sessions,     setSessions]     = useState([]);
@@ -530,6 +621,36 @@ export default function Timelines() {
 
       {/* Filter bar */}
       <div style={{ display:"flex", alignItems:"flex-end", gap:14, marginBottom:28, flexWrap:"wrap", background:"#fff", padding:"16px 20px", borderRadius:12, border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.04)" }}>
+
+        {/* Quick-select presets */}
+        <div>
+          <div style={{ fontSize:11, fontWeight:600, color:"#94a3b8", marginBottom:5, textTransform:"uppercase", letterSpacing:.5 }}>Quick Select</div>
+          <div style={{ display:"flex", gap:6 }}>
+            {(() => {
+              const today     = format(new Date(), "yyyy-MM-dd");
+              const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+              const last7     = format(subDays(new Date(), 6), "yyyy-MM-dd");
+              const presets   = [
+                { label:"Today",     start: today,     end: today     },
+                { label:"Yesterday", start: yesterday, end: yesterday },
+                { label:"7 Days",    start: last7,     end: today     },
+              ];
+              return presets.map(p => {
+                const active = startDate === p.start && endDate === p.end;
+                return (
+                  <button key={p.label}
+                    onClick={() => { setStartDate(p.start); setEndDate(p.end); }}
+                    style={{ border: active ? "2px solid #6366f1" : "1px solid #e2e8f0", borderRadius:7, padding:"6px 14px", fontSize:12, fontWeight:600, cursor:"pointer", background: active ? "#eef2ff" : "#f8fafc", color: active ? "#4f46e5" : "#64748b", transition:"all 0.15s" }}>
+                    {p.label}
+                  </button>
+                );
+              });
+            })()}
+          </div>
+        </div>
+
+        <div style={{ width:1, height:40, background:"#f1f5f9", flexShrink:0 }} />
+
         {isAdmin && (
           <div>
             <div style={{ fontSize:11, fontWeight:600, color:"#94a3b8", marginBottom:5, textTransform:"uppercase", letterSpacing:.5 }}>Employee</div>
