@@ -62,20 +62,24 @@ function computeBreaks(sessions) {
 
 // ── rule-based fallback ───────────────────────────────────────────────────────
 
-function calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks = [] }) {
+function calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks = [], idleTotalMins = 0 }) {
   // Base: productive % scaled to 1–10
   const base = Math.round(productivePercent / 10);
   // Bonus: longer avg sessions = more sustained focus
   const avgSessionMins = sessions.length > 0 ? Math.round(totalTrackedMinutes / sessions.length) : 0;
   const sessionBonus = avgSessionMins >= 90 ? 1 : avgSessionMins >= 45 ? 0 : -1;
-  // Penalty: too many breaks = fragmented day (>6 breaks penalised, >9 penalised more)
-  const breakCount = breaks.length;
-  const breakPenalty = breakCount > 9 ? 2 : breakCount > 6 ? 1 : 0;
-  return Math.min(10, Math.max(1, base + sessionBonus - breakPenalty));
+  // Penalty: break ratio (% of tracked time in breaks) — not raw count, so short days aren't penalised
+  const totalBreakMins = breaks.reduce((s, b) => s + (b.minutes || 0), 0);
+  const breakPercent = totalTrackedMinutes > 0 ? Math.round(totalBreakMins / totalTrackedMinutes * 100) : 0;
+  const breakPenalty = breakPercent > 40 ? 2 : breakPercent > 25 ? 1 : 0;
+  // Penalty: idle ratio (% of tracked time spent idle at keyboard)
+  const idlePercent = totalTrackedMinutes > 0 ? Math.round(idleTotalMins / totalTrackedMinutes * 100) : 0;
+  const idlePenalty = idlePercent > 30 ? 2 : idlePercent > 15 ? 1 : 0;
+  return Math.min(10, Math.max(1, base + sessionBonus - breakPenalty - idlePenalty));
 }
 
-function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets, productivePercent, breaks = [] }) {
-  const focusScore = calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks });
+function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets, productivePercent, breaks = [], idleTotalMins = 0 }) {
+  const focusScore = calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks, idleTotalMins });
   const topApp     = topApps[0];
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
@@ -103,7 +107,8 @@ function buildRuleSummary({ totalTrackedMinutes, sessions, topApps, hourBuckets,
 
 async function buildAiSummary(data) {
   const { totalTrackedMinutes, totalActiveSeconds, sessions, topApps, hourBuckets, productivePercent, breaks = [], historyRows = [], idleLogs = [] } = data;
-  const focusScore = calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks });
+  const idleTotalMins = Math.round(idleLogs.reduce((s, l) => s + (l.duration_seconds || 0), 0) / 60);
+  const focusScore = calcFocusScore({ productivePercent, totalTrackedMinutes, sessions, breaks, idleTotalMins });
   const peakHour   = hourBuckets.reduce((best, v, i) => v > hourBuckets[best] ? i : best, 0);
 
   if (!process.env.GROQ_API_KEY) return buildRuleSummary(data);
@@ -132,7 +137,7 @@ async function buildAiSummary(data) {
   // ── Idle / away-from-keyboard analysis ───────────────────────────────────────
   const idleCount      = idleLogs.length;
   const idleTotalSecs  = idleLogs.reduce((s, i) => s + (i.duration_seconds || 0), 0);
-  const idleTotalMins  = Math.round(idleTotalSecs / 60);
+  // idleTotalMins already computed above for focusScore
   const avgIdleMins    = idleCount ? Math.round(idleTotalMins / idleCount) : 0;
   const shortIdles_    = idleLogs.filter(i => i.duration_seconds < 120).length;  // < 2 min
   const longIdles_     = idleLogs.filter(i => i.duration_seconds > 600).length;  // > 10 min
@@ -214,6 +219,8 @@ Flag specifically if:
 - Idle time >30% of tracked time → significant away time, actual focus may be lower than it appears
 - Many short idles (<2 min each) → repeatedly getting up and coming back, fragmented attention
 
+CRITICAL RULE: Do NOT penalize for low total hours worked. An employee who worked 1 hour with excellent focus deserves a high score. Judge ONLY by ratios: idle % of tracked time, break % of tracked time, session length relative to time tracked, and productive app ratio. A short workday with high-quality focus = high focus score.
+
 Focus score guide (1–10):
 - 9–10: long uninterrupted sessions, low idle %, high productivity, good break rhythm
 - 7–8: solid work with minor distractions or slightly fragmented sessions
@@ -236,7 +243,10 @@ Respond with JSON:
     const p = JSON.parse(text);
     console.log('[reports] AI summary OK');
     const str = v => (typeof v === 'string' ? v : '');
-    const aiScore = Number.isInteger(p.focusScore) ? Math.min(10, Math.max(1, p.focusScore)) : focusScore;
+    // Clamp AI score to ±3 of rule-based score — prevents wild hallucinated values
+    const aiScore = Number.isInteger(p.focusScore)
+      ? Math.min(10, Math.max(1, Math.min(focusScore + 3, Math.max(focusScore - 3, p.focusScore))))
+      : focusScore;
     return { focusScore: aiScore, summary: str(p.summary), insights: str(p.insights), topAppText: str(p.topAppText), peakText: str(p.peakText), pattern: '' };
   } catch (err) {
     console.error('[reports] AI summary fallback:', err.message);
@@ -582,10 +592,23 @@ router.get('/team', auth, adminOnly, async (req, res) => {
       const m  = memoryMap[emp.id];
       const productive_percent = s.total_minutes > 0
         ? Math.min(100, Math.round(a.active_seconds / (s.total_minutes * 60) * 100)) : 0;
-      // Use AI-generated score from memory if available; fall back to formula
-      const focus_score = m?.focus_score != null
-        ? m.focus_score
-        : calcFocusScore({ productivePercent: productive_percent, totalTrackedMinutes: s.total_minutes, sessions: Array(s.session_count).fill({ total_minutes: s.total_minutes / (s.session_count || 1) }) });
+      // Always compute fresh rule-based score using idle + break ratios
+      const idleTotalMins = Math.round(Number(il.idle_seconds || 0) / 60);
+      const sessCount = Number(s.session_count) || 1;
+      const trackedMins = Number(s.total_minutes) || 0;
+      const ruleScore = calcFocusScore({
+        productivePercent: productive_percent,
+        totalTrackedMinutes: trackedMins,
+        sessions: Array(sessCount).fill({ total_minutes: trackedMins / sessCount }),
+        idleTotalMins,
+      });
+      // For today: always use fresh rule-based score — never trust stale AI cache
+      // For past dates: use cached AI score only if it's within ±3 of rule-based
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const cachedScore = m?.focus_score != null ? Number(m.focus_score) : null;
+      const focus_score = (date !== todayStr && cachedScore !== null && Math.abs(cachedScore - ruleScore) <= 3)
+        ? cachedScore
+        : ruleScore;
       return {
         employee_id:         emp.id,
         name:                emp.name,
