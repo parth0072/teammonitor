@@ -740,6 +740,9 @@ class TrackingManager: ObservableObject {
             screenshotCount    = 0
             isTracking         = true
             isOnBreak          = false
+            // Re-enable idle reminders — "Don't Remind Me Again" should only silence
+            // notifications for the current idle period, not permanently across sessions.
+            if idleReminderDisabled { enableIdleReminder() }
             showIdleAlert      = false
             lowActivityMinutes = 0
             showSlowWorkAlert  = false
