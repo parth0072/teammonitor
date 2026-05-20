@@ -100,6 +100,7 @@ export const api = {
   getMySessionStats:   (days) => request('GET', `/sessions/stats/mine?days=${days}`),
   getTaskHours:     (empId, date) => request('GET', `/sessions/task-hours?employeeId=${empId}&date=${date}`),
   getTeamOverview:  (date)        => request('GET', `/sessions/team-overview?date=${date}`),
+  getTaskTotals:    ()       => request('GET', '/sessions/task-totals'),
   getTaskSessions:  (params) => {
     const q = new URLSearchParams(params).toString();
     return request('GET', `/sessions/task-sessions?${q}`);

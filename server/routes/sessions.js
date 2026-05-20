@@ -439,6 +439,52 @@ router.get('/task-hours', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/sessions/task-totals  – all-time hours per task + per employee (no date filter)
+router.get('/task-totals', auth, adminOnly, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT
+         COALESCE(t.name, s.jira_issue_key, 'No Task') AS task_name,
+         s.task_id,
+         s.jira_issue_key,
+         s.employee_id,
+         e.name        AS employee_name,
+         jc.site_url   AS jira_site_url,
+         SUM(COALESCE(s.total_minutes, 0)) AS minutes
+       FROM sessions s
+       JOIN employees e ON e.id = s.employee_id
+       LEFT JOIN tasks t ON t.id = s.task_id
+       LEFT JOIN jira_credentials jc ON jc.employee_id = s.employee_id
+       WHERE e.is_active = 1
+       GROUP BY s.task_id, s.jira_issue_key, s.employee_id, e.name, t.name, jc.site_url
+       ORDER BY SUM(s.total_minutes) DESC`
+    );
+
+    // Group by task
+    const taskMap = {};
+    for (const r of rows) {
+      const key = r.task_id != null ? `task:${r.task_id}` : r.jira_issue_key ? `jira:${r.jira_issue_key}` : 'notask';
+      if (!taskMap[key]) {
+        taskMap[key] = {
+          task_name:      r.task_name,
+          task_id:        r.task_id,
+          jira_issue_key: r.jira_issue_key,
+          jira_site_url:  r.jira_site_url || null,
+          total_minutes:  0,
+          employees:      [],
+        };
+      }
+      if (!taskMap[key].jira_site_url && r.jira_site_url) taskMap[key].jira_site_url = r.jira_site_url;
+      taskMap[key].total_minutes += Number(r.minutes) || 0;
+      taskMap[key].employees.push({ employee_id: r.employee_id, name: r.employee_name, minutes: Number(r.minutes) || 0 });
+    }
+
+    const result = Object.values(taskMap)
+      .sort((a, b) => b.total_minutes - a.total_minutes);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/sessions/task-sessions?taskId=N|&jiraKey=X|&noTask=1[&date=YYYY-MM-DD]
 // Returns every session for a task. Date is optional — omit to get full history.
 router.get('/task-sessions', auth, adminOnly, async (req, res) => {

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { format, subDays, parseISO } from "date-fns";
 import { fmtTime, fmtHM } from "../tz";
@@ -47,10 +46,6 @@ function buildTaskMap(members) {
 
 // ── Task Detail Modal ─────────────────────────────────────────────────────────
 
-function fmt(dt) {
-  return fmtTime(dt);
-}
-
 function TaskDetailModal({ task, onClose }) {
   const [sessions, setSessions] = useState(null);
   const [loading,  setLoading]  = useState(true);
@@ -62,13 +57,11 @@ function TaskDetailModal({ task, onClose }) {
       : task.jiraKey
         ? { jiraKey: task.jiraKey }
         : { noTask: "1" };
-    // No date — fetch full history for this task
     api.getTaskSessions(params)
       .then(d => { setSessions(d.sessions); setLoading(false); })
       .catch(() => setLoading(false));
   }, [task]);
 
-  // Close on Escape
   useEffect(() => {
     const h = e => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
@@ -78,18 +71,27 @@ function TaskDetailModal({ task, onClose }) {
   const empNames = sessions ? [...new Set(sessions.map(s => s.employee_name))] : [];
   const empColor = Object.fromEntries(empNames.map((n, i) => [n, COLORS[i % COLORS.length]]));
 
-  // Timeline: earliest start → latest end
-  const earliest = sessions?.length ? new Date(Math.min(...sessions.map(s => new Date(s.punch_in)))) : null;
-  const latest   = sessions?.length ? new Date(Math.max(...sessions.map(s => s.punch_out ? new Date(s.punch_out) : new Date()))) : null;
-  const spanMs   = earliest && latest ? latest - earliest : 0;
+  // Per-employee totals across all time
+  const empTotals = sessions ? Object.values(
+    sessions.reduce((acc, s) => {
+      const n = s.employee_name;
+      if (!acc[n]) acc[n] = { name: n, minutes: 0, sessions: 0 };
+      acc[n].minutes   += s.total_minutes || 0;
+      acc[n].sessions  += 1;
+      return acc;
+    }, {})
+  ).sort((a, b) => b.minutes - a.minutes) : [];
+
+  const totalMinutes = sessions ? sessions.reduce((s, r) => s + (r.total_minutes || 0), 0) : 0;
+  const maxEmpMins   = empTotals.length ? empTotals[0].minutes : 1;
 
   return (
     <div onClick={onClose}
       style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:1000,
                display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:680,
-                 maxHeight:"85vh", display:"flex", flexDirection:"column",
+        style={{ background:"#fff", borderRadius:16, width:"100%", maxWidth:700,
+                 maxHeight:"88vh", display:"flex", flexDirection:"column",
                  boxShadow:"0 24px 60px rgba(0,0,0,0.25)" }}>
 
         {/* Header */}
@@ -120,11 +122,6 @@ function TaskDetailModal({ task, onClose }) {
                 </a>
               )}
             </div>
-            {task.taskDescription && (
-              <div style={{ fontSize:12, color:"#64748b", marginTop:6, lineHeight:1.5 }}>
-                {task.taskDescription}
-              </div>
-            )}
           </div>
           <button onClick={onClose}
             style={{ background:"#f1f5f9", border:"none", borderRadius:8, width:32, height:32,
@@ -141,116 +138,125 @@ function TaskDetailModal({ task, onClose }) {
               {/* Summary KPIs */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20 }}>
                 {[
-                  { label:"Total Time",    value: fmtHM(sessions.reduce((s,r) => s + r.total_minutes, 0)), icon:"⏱" },
-                  { label:"Contributors", value: empNames.length,                                            icon:"👥" },
-                  { label:"Sessions",     value: sessions.length,                                            icon:"📋" },
+                  { label:"Total Time (all time)", value: fmtHM(totalMinutes), icon:"⏱", color:"#3b82f6" },
+                  { label:"Contributors",           value: empNames.length,     icon:"👥", color:"#8b5cf6" },
+                  { label:"Sessions",               value: sessions.length,     icon:"📋", color:"#10b981" },
                 ].map(k => (
-                  <div key={k.label} style={{ background:"#f8fafc", borderRadius:10, padding:"12px 14px",
+                  <div key={k.label} style={{ background:"#f8fafc", borderRadius:10, padding:"14px",
                                               border:"1px solid #e2e8f0", textAlign:"center" }}>
                     <div style={{ fontSize:20 }}>{k.icon}</div>
-                    <div style={{ fontSize:18, fontWeight:800, color:"#1e293b", marginTop:4 }}>{k.value}</div>
-                    <div style={{ fontSize:11, color:"#64748b" }}>{k.label}</div>
+                    <div style={{ fontSize:20, fontWeight:800, color:k.color, marginTop:4 }}>{k.value}</div>
+                    <div style={{ fontSize:11, color:"#64748b", marginTop:2 }}>{k.label}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Visual timeline bar */}
-              {spanMs > 0 && (
+              {/* Per-contributor breakdown */}
+              {empTotals.length > 0 && (
                 <div style={{ marginBottom:20 }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase",
-                                letterSpacing:"0.06em", marginBottom:10 }}>Timeline</div>
-                  <div style={{ position:"relative" }}>
-                    {/* Track */}
-                    <div style={{ height:8, background:"#f1f5f9", borderRadius:4, marginBottom:6, position:"relative" }}>
-                      {sessions.map((s, i) => {
-                        const start = ((new Date(s.punch_in) - earliest) / spanMs) * 100;
-                        const end   = (((s.punch_out ? new Date(s.punch_out) : new Date()) - earliest) / spanMs) * 100;
-                        return (
-                          <div key={i} title={`${s.employee_name}: ${fmt(s.punch_in)} – ${fmt(s.punch_out)}`}
-                            style={{ position:"absolute", top:0, bottom:0,
-                                     left:`${start}%`, width:`${Math.max(end - start, 1)}%`,
-                                     background:empColor[s.employee_name], borderRadius:4, opacity:0.85 }} />
-                        );
-                      })}
-                    </div>
-                    {/* Time labels */}
-                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#94a3b8" }}>
-                      <span>{fmt(earliest)}</span>
-                      <span>{fmt(latest)}</span>
-                    </div>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#475569", textTransform:"uppercase",
+                                letterSpacing:"0.06em", marginBottom:12 }}>Who worked on this</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {empTotals.map((emp, i) => {
+                      const pct   = totalMinutes > 0 ? Math.round((emp.minutes / totalMinutes) * 100) : 0;
+                      const barW  = (emp.minutes / maxEmpMins) * 100;
+                      const color = empColor[emp.name];
+                      return (
+                        <div key={emp.name} style={{ display:"flex", alignItems:"center", gap:12,
+                                                     background:"#f8fafc", borderRadius:10, padding:"12px 14px",
+                                                     border:"1px solid #e2e8f0" }}>
+                          <div style={{ width:34, height:34, borderRadius:"50%", background:color,
+                                        color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                                        fontSize:13, fontWeight:700, flexShrink:0 }}>
+                            {emp.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                              <span style={{ fontSize:13, fontWeight:600, color:"#1e293b" }}>{emp.name}</span>
+                              <span style={{ fontSize:13, fontWeight:800, color:"#1e293b" }}>{fmtHM(emp.minutes)}</span>
+                            </div>
+                            <div style={{ height:6, background:"#e2e8f0", borderRadius:3, overflow:"hidden" }}>
+                              <div style={{ height:"100%", width:`${barW}%`, background:color, borderRadius:3 }} />
+                            </div>
+                          </div>
+                          <div style={{ fontSize:11, color:"#94a3b8", flexShrink:0, width:34, textAlign:"right" }}>
+                            {pct}%
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Session rows grouped by date */}
-              <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase",
-                            letterSpacing:"0.06em", marginBottom:10 }}>All Sessions</div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#475569", textTransform:"uppercase",
+                            letterSpacing:"0.06em", marginBottom:12 }}>Session History</div>
 
               {sessions.length === 0 && (
                 <div style={{ textAlign:"center", color:"#94a3b8", padding:40 }}>No sessions found for this task</div>
               )}
 
               {(() => {
-                // Group by date
                 const byDate = {};
                 for (const s of sessions) {
                   const d = s.date || s.punch_in?.slice(0, 10) || "Unknown";
                   if (!byDate[d]) byDate[d] = [];
                   byDate[d].push(s);
                 }
-                return Object.entries(byDate).map(([d, rows]) => {
-                  const dayTotal = rows.reduce((acc, r) => acc + r.total_minutes, 0);
-                  let dayLabel;
-                  try {
-                    const today = format(new Date(), "yyyy-MM-dd");
-                    const yest  = format(subDays(new Date(), 1), "yyyy-MM-dd");
-                    dayLabel = d === today ? "Today" : d === yest ? "Yesterday"
-                      : format(parseISO(d), "EEE, MMM d yyyy");
-                  } catch { dayLabel = d; }
+                return Object.entries(byDate)
+                  .sort(([a], [b]) => b.localeCompare(a))
+                  .map(([d, rows]) => {
+                    const dayTotal = rows.reduce((acc, r) => acc + r.total_minutes, 0);
+                    let dayLabel;
+                    try {
+                      const today = format(new Date(), "yyyy-MM-dd");
+                      const yest  = format(subDays(new Date(), 1), "yyyy-MM-dd");
+                      dayLabel = d === today ? "Today" : d === yest ? "Yesterday"
+                        : format(parseISO(d), "EEE, MMM d yyyy");
+                    } catch { dayLabel = d; }
 
-                  return (
-                    <div key={d} style={{ marginBottom:16 }}>
-                      {/* Date header */}
-                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                                    marginBottom:8 }}>
-                        <div style={{ fontSize:12, fontWeight:700, color:"#475569" }}>{dayLabel}</div>
-                        <div style={{ fontSize:12, fontWeight:700, color:"#1e293b" }}>{fmtHM(dayTotal)} total</div>
+                    return (
+                      <div key={d} style={{ marginBottom:14 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                          <div style={{ fontSize:12, fontWeight:700, color:"#475569" }}>{dayLabel}</div>
+                          <div style={{ fontSize:12, fontWeight:700, color:"#1e293b" }}>{fmtHM(dayTotal)}</div>
+                        </div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                          {rows.map((s, i) => (
+                            <div key={i} style={{ display:"flex", alignItems:"center", gap:10,
+                                                  background:"#f8fafc", borderRadius:8, padding:"9px 12px",
+                                                  border:"1px solid #e2e8f0" }}>
+                              <div style={{ width:28, height:28, borderRadius:"50%", background:empColor[s.employee_name],
+                                            color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
+                                            fontSize:11, fontWeight:700, flexShrink:0 }}>
+                                {s.employee_name.charAt(0).toUpperCase()}
+                              </div>
+                              <div style={{ width:90, fontSize:12, fontWeight:600, color:"#1e293b",
+                                            overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
+                                {s.employee_name}
+                              </div>
+                              <div style={{ flex:1, fontSize:12, color:"#374151" }}>
+                                <span style={{ fontWeight:600 }}>{fmtTime(s.punch_in)}</span>
+                                <span style={{ color:"#94a3b8", margin:"0 5px" }}>→</span>
+                                {s.punch_out
+                                  ? <span style={{ fontWeight:600 }}>{fmtTime(s.punch_out)}</span>
+                                  : <span style={{ color:"#10b981", fontWeight:700 }}>Active now</span>}
+                              </div>
+                              <div style={{ fontSize:13, fontWeight:800, color:"#1e293b", flexShrink:0 }}>
+                                {fmtHM(s.total_minutes)}
+                              </div>
+                              <div style={{ fontSize:10, fontWeight:700, flexShrink:0, padding:"2px 7px", borderRadius:20,
+                                            background: s.status === "active" ? "#d1fae5" : "#f1f5f9",
+                                            color:      s.status === "active" ? "#059669" : "#64748b" }}>
+                                {s.status === "active" ? "● Active" : "Done"}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-                        {rows.map((s, i) => (
-                          <div key={i} style={{ display:"flex", alignItems:"center", gap:12,
-                                                background:"#f8fafc", borderRadius:10, padding:"11px 14px",
-                                                border:"1px solid #e2e8f0" }}>
-                            <div style={{ width:32, height:32, borderRadius:"50%", background:empColor[s.employee_name],
-                                          color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
-                                          fontSize:12, fontWeight:700, flexShrink:0 }}>
-                              {s.employee_name.charAt(0).toUpperCase()}
-                            </div>
-                            <div style={{ width:100, fontSize:13, fontWeight:600, color:"#1e293b",
-                                          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
-                              {s.employee_name}
-                            </div>
-                            <div style={{ flex:1, fontSize:13, color:"#374151" }}>
-                              <span style={{ fontWeight:600 }}>{fmt(s.punch_in)}</span>
-                              <span style={{ color:"#94a3b8", margin:"0 6px" }}>→</span>
-                              {s.punch_out
-                                ? <span style={{ fontWeight:600 }}>{fmt(s.punch_out)}</span>
-                                : <span style={{ color:"#10b981", fontWeight:700 }}>Active now</span>}
-                            </div>
-                            <div style={{ fontSize:14, fontWeight:800, color:"#1e293b", flexShrink:0 }}>
-                              {fmtHM(s.total_minutes)}
-                            </div>
-                            <div style={{ fontSize:10, fontWeight:700, flexShrink:0, padding:"2px 8px", borderRadius:20,
-                                          background: s.status === "active" ? "#d1fae5" : "#f1f5f9",
-                                          color:      s.status === "active" ? "#059669" : "#64748b" }}>
-                              {s.status === "active" ? "● Active" : "Done"}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                });
+                    );
+                  });
               })()}
             </>
           )}
@@ -419,10 +425,33 @@ function EmployeeCard({ member, rank }) {
 
 // ── By Task view ──────────────────────────────────────────────────────────────
 
-function TaskView({ members, onSelectTask }) {
-  const navigate = useNavigate();
-  const tasks = buildTaskMap(members);
-  const maxMin = Math.max(...tasks.map(t => t.totalMinutes), 1);
+function TaskView({ members, onSelectTask, taskTotals = [] }) {
+  const todayTasks = buildTaskMap(members); // date-filtered, for "today" hours
+
+  // Build a simple lookup: task key → all-time total_minutes
+  // Server already returns grouped objects: { task_id, jira_issue_key, task_name, total_minutes, ... }
+  const totalsMap = {};
+  taskTotals.forEach(t => {
+    const key = t.task_id != null
+      ? `id:${t.task_id}`
+      : t.jira_issue_key
+        ? `jira:${t.jira_issue_key}`
+        : `name:${t.task_name}`;
+    totalsMap[key] = Number(t.total_minutes) || 0;
+  });
+
+  function getAllTimeMins(task) {
+    const key = task.taskId != null
+      ? `id:${task.taskId}`
+      : task.jiraKey
+        ? `jira:${task.jiraKey}`
+        : `name:${task.taskName}`;
+    return totalsMap[key] ?? task.totalMinutes;
+  }
+
+  // Sort cards by all-time total (fall back to today's total)
+  const tasks = [...todayTasks].sort((a, b) => getAllTimeMins(b) - getAllTimeMins(a));
+  const maxMin = Math.max(...tasks.map(t => getAllTimeMins(t)), 1);
 
   if (!tasks.length || tasks.every(t => t.taskName === "No Task")) {
     return (
@@ -437,27 +466,16 @@ function TaskView({ members, onSelectTask }) {
   const empNames = [...new Set(members.map(m => m.name))];
   const empColor = Object.fromEntries(empNames.map((n, i) => [n, COLORS[i % COLORS.length]]));
 
-  function handleCardClick(task) {
-    if (task.jiraKey && task.jiraSiteUrl) {
-      window.open(`${task.jiraSiteUrl}/browse/${task.jiraKey}`, "_blank", "noopener");
-    } else if (task.taskId) {
-      navigate("/projects");
-    } else {
-      // "No Task" or unknown — open detail modal
-      onSelectTask(task);
-    }
-  }
-
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       {tasks.filter(t => t.taskName !== "No Task" || tasks.length === 1).map((task, ti) => {
-        const hasExternalLink = !!(task.jiraKey && task.jiraSiteUrl);
-        const hasInternalLink = !!(task.taskId && !task.jiraKey);
-        const linkLabel = hasExternalLink ? "↗ Open in Jira" : hasInternalLink ? "↗ View in Projects" : null;
+        const allTimeMins = getAllTimeMins(task);
+        const todayMins   = task.totalMinutes;
+        const showToday   = todayMins > 0 && allTimeMins !== todayMins;
 
         return (
           <div key={ti}
-            onClick={() => handleCardClick(task)}
+            onClick={() => onSelectTask(task)}
             style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:12, overflow:"hidden",
                      cursor:"pointer", transition:"box-shadow 0.15s, border-color 0.15s" }}
             onMouseEnter={e => { e.currentTarget.style.borderColor="#3b82f6"; e.currentTarget.style.boxShadow="0 4px 16px rgba(59,130,246,0.12)"; }}
@@ -486,29 +504,28 @@ function TaskView({ members, onSelectTask }) {
                       {task.jiraKey}
                     </span>
                   )}
-                  {linkLabel && (
-                    <span style={{ fontSize:11, color:"#3b82f6", fontWeight:600 }}>{linkLabel}</span>
-                  )}
+                  <span style={{ fontSize:11, color:"#3b82f6", fontWeight:600 }}>📋 View details</span>
                 </div>
               </div>
 
-              {/* Stats + Details button */}
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6, flexShrink:0 }}>
-                <div style={{ fontSize:20, fontWeight:800, color:"#1e293b" }}>{fmtHM(task.totalMinutes)}</div>
+              {/* All-time total + today badge */}
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
+                <div style={{ fontSize:20, fontWeight:800, color:"#1e293b" }}>{fmtHM(allTimeMins)}</div>
+                <div style={{ fontSize:10, color:"#94a3b8", fontWeight:500 }}>all time</div>
+                {showToday && (
+                  <div style={{ fontSize:11, fontWeight:700, color:"#3b82f6", background:"#eff6ff",
+                                padding:"2px 8px", borderRadius:20, border:"1px solid #bfdbfe" }}>
+                    Today: {fmtHM(todayMins)}
+                  </div>
+                )}
                 <div style={{ fontSize:11, color:"#64748b" }}>{task.employees.length} contributor{task.employees.length !== 1 ? "s" : ""}</div>
-                {/* Details button always opens the modal */}
-                <button
-                  onClick={e => { e.stopPropagation(); onSelectTask(task); }}
-                  style={{ fontSize:11, fontWeight:600, color:"#475569", background:"#f1f5f9",
-                           border:"1px solid #e2e8f0", borderRadius:6, padding:"3px 10px",
-                           cursor:"pointer", marginTop:2 }}>
-                  📋 Details
-                </button>
               </div>
             </div>
 
-            {/* Overall time bar */}
+            {/* Today's breakdown bar + per-employee rows */}
             <div style={{ padding:"14px 20px 0" }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"#94a3b8", textTransform:"uppercase",
+                            letterSpacing:"0.05em", marginBottom:8 }}>Today's contribution</div>
               <div style={{ display:"flex", height:10, borderRadius:5, overflow:"hidden", marginBottom:14, gap:1 }}>
                 {task.employees.map((e, i) => (
                   <div key={i} title={`${e.name}: ${fmtHM(e.minutes)}`}
@@ -516,33 +533,28 @@ function TaskView({ members, onSelectTask }) {
                 ))}
               </div>
 
-              {/* Per-employee breakdown */}
+              {/* Per-employee rows for today */}
               {task.employees.map((emp, i) => {
-                const pct = task.totalMinutes > 0 ? Math.round((emp.minutes / task.totalMinutes) * 100) : 0;
+                const pct  = task.totalMinutes > 0 ? Math.round((emp.minutes / task.totalMinutes) * 100) : 0;
                 const barW = (emp.minutes / maxMin) * 100;
                 return (
                   <div key={i} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
-                    {/* Avatar */}
                     <div style={{ width:26, height:26, borderRadius:"50%", background:empColor[emp.name],
                                   color:"#fff", display:"flex", alignItems:"center", justifyContent:"center",
                                   fontSize:10, fontWeight:700, flexShrink:0 }}>
                       {emp.name.charAt(0).toUpperCase()}
                     </div>
-                    {/* Name */}
                     <div style={{ width:100, fontSize:13, fontWeight:600, color:"#374151",
                                   overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flexShrink:0 }}>
                       {emp.name}
                     </div>
-                    {/* Bar */}
                     <div style={{ flex:1, height:16, background:"#f1f5f9", borderRadius:4, overflow:"hidden" }}>
                       <div style={{ height:"100%", width:`${barW}%`, background:empColor[emp.name],
                                     borderRadius:4, opacity:0.85 }} />
                     </div>
-                    {/* Time */}
                     <div style={{ width:52, fontSize:13, fontWeight:700, color:"#1e293b", textAlign:"right", flexShrink:0 }}>
                       {fmtHM(emp.minutes)}
                     </div>
-                    {/* Pct */}
                     <div style={{ width:36, fontSize:11, color:"#94a3b8", textAlign:"right", flexShrink:0 }}>
                       {pct}%
                     </div>
@@ -566,12 +578,20 @@ export default function TeamOverview() {
   const [loading,      setLoading]      = useState(true);
   const [tab,          setTab]          = useState("tasks"); // "tasks" | "employees"
   const [selectedTask, setSelectedTask] = useState(null);
+  const [taskTotals,   setTaskTotals]   = useState([]);
   const autoRef = useRef(null);
 
   const load = useCallback(async (d) => {
     setLoading(true);
     try { setData(await api.getTeamOverview(d)); } catch (e) { console.error(e); }
     setLoading(false);
+  }, []);
+
+  // All-time task totals — fetched once on mount, not date-dependent
+  useEffect(() => {
+    api.getTaskTotals()
+      .then(rows => setTaskTotals(rows || []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => { load(date); }, [date, load]);
@@ -637,7 +657,7 @@ export default function TeamOverview() {
               <div style={{ marginTop:12, fontSize:16, fontWeight:600, color:"#64748b" }}>No tracked time for this date</div>
             </div>
           ) : tab === "tasks" ? (
-            <TaskView members={active} onSelectTask={setSelectedTask} />
+            <TaskView members={active} onSelectTask={setSelectedTask} taskTotals={taskTotals} />
           ) : (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:16 }}>
               {[...members].sort((a, b) => b.total_minutes - a.total_minutes).map((m, i) => (
