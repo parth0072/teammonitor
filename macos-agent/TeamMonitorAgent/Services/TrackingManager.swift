@@ -257,6 +257,16 @@ class TrackingManager: ObservableObject {
             }
             let mins = self.trackedMinutes
             TMLog("[LidClose] Mac going to sleep — session: \(sid), \(mins)m tracked, isOnBreak: \(self.isOnBreak), isIdle: \(self.isIdle), isTracking: \(self.isTracking)")
+            // Stop the session timer so Power Nap wakes don't send heartbeats during sleep.
+            // Without this, Power Nap fires the RunLoop timer every 5 min and keeps
+            // last_heartbeat_at fresh, preventing the server's gap detection from
+            // inserting a break for the sleep period.
+            // Laptops that deep-sleep are unaffected — their RunLoop pauses anyway.
+            if self.isTracking && !self.isOnBreak {
+                self.sessionTimer?.invalidate()
+                self.sessionTimer = nil
+                TMLog("[LidClose] Session timer stopped — will restart on wake")
+            }
             let delivered = self.pendingDeliveredCommandIds
             self.pendingDeliveredCommandIds = []
             Task {
@@ -288,6 +298,13 @@ class TrackingManager: ObservableObject {
             if let sid = self.currentSessionId {
                 let mins = self.trackedMinutes
                 TMLog("[LidOpen] Clearing idle flag on server — session: \(sid), \(mins)m tracked")
+                // Restart the session timer (was stopped on sleep to prevent Power Nap heartbeats).
+                // The wake heartbeat below triggers server-side gap detection which inserts the
+                // break for the sleep period automatically.
+                if self.isTracking && !self.isOnBreak {
+                    self.startMinuteTimer(sessionId: sid)
+                    TMLog("[LidOpen] Session timer restarted — session: \(sid)")
+                }
                 Task {
                     try? await self.api.heartbeat(
                         sessionId: sid, totalMinutes: mins,
