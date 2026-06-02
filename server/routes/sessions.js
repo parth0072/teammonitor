@@ -249,7 +249,20 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
       trackingLocked = !!(emp?.tracking_locked);
     } catch (_) { /* tracking_locked column may not exist yet */ }
 
-    res.json({ ok: true, trackingLocked, commands });
+    // Sum all session minutes for today so the mac agent can correct todayMinutes drift.
+    // Queried AFTER the total_minutes UPDATE above so the current session is already included.
+    let todayMinutes = 0;
+    try {
+      const today = now.toISOString().slice(0, 10);
+      const [[row]] = await db.query(
+        `SELECT COALESCE(SUM(total_minutes), 0) AS total
+         FROM sessions WHERE employee_id = ? AND date = ?`,
+        [req.user.id, today]
+      );
+      todayMinutes = Number(row?.total) || 0;
+    } catch (_) {}
+
+    res.json({ ok: true, trackingLocked, commands, today_minutes: todayMinutes });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -111,7 +111,11 @@ struct HeartbeatResponse: Decodable {
     let ok:             Bool
     let trackingLocked: Bool
     let commands:       [AdminCommand]
-    enum CodingKeys: String, CodingKey { case ok, trackingLocked, commands }
+    let todayMinutes:   Int?
+    enum CodingKeys: String, CodingKey {
+        case ok, trackingLocked, commands
+        case todayMinutes = "today_minutes"
+    }
 }
 
 // MARK: - Project / Task Models

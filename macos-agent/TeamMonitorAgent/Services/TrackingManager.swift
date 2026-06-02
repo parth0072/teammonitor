@@ -568,7 +568,17 @@ class TrackingManager: ObservableObject {
             trackingLocked = r.trackingLocked
         }
 
-        // 2. One-shot commands — each delivered once, marked in pendingDeliveredCommandIds
+        // 2. Sync todayMinutes from server every heartbeat (every 5 min).
+        //    Corrects drift in both directions — e.g. when a failed offline punchOut
+        //    caused the same session to be reused and todayMinutes was double-counted.
+        if let serverMins = r.todayMinutes, serverMins != todayMinutes {
+            TMLog("[Heartbeat] Correcting todayMinutes: local=\(todayMinutes)m → server=\(serverMins)m")
+            todayMinutes = serverMins
+            MenuBarState.shared.todayMinutes = serverMins
+            saveTodayMinutes()
+        }
+
+        // 3. One-shot commands — each delivered once, marked in pendingDeliveredCommandIds
         guard !r.commands.isEmpty else { return }
         TMLog("[AdminCommand] \(r.commands.count) command(s) received: \(r.commands.map { "\($0.type)(id:\($0.id))" }.joined(separator: ", "))")
         var newDelivered: [Int] = []
