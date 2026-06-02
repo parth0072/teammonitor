@@ -94,6 +94,7 @@ class TrackingManager: ObservableObject {
 
     // Admin remote control
     @Published var trackingLocked: Bool = false
+    @Published var isSyncing:      Bool = false   // true while manual sync is in flight
 
     // Work status options loaded from org settings
     @Published var workStatusOptions: [String] = ["WFO", "WFH", "Remote"]
@@ -557,6 +558,51 @@ class TrackingManager: ObservableObject {
         showNotTrackingAlert = true
     }
 
+    // MARK: - Manual Sync
+
+    /// Manual sync — pull today_minutes and current session total_minutes from server.
+    /// Corrects both the display (todayMinutes) and the heartbeat baseline (trackedMinutes).
+    /// Safe to call at any time; no-op while already syncing.
+    func syncFromServer() {
+        guard !isSyncing else { return }
+        isSyncing = true
+        TMLog("[Sync] Manual sync started")
+        Task {
+            defer { Task { @MainActor in self.isSyncing = false } }
+
+            // 1. Pull today's total from the server and update the display.
+            if let serverMins = await self.api.getTodayMinutes() {
+                await MainActor.run {
+                    if serverMins != self.todayMinutes {
+                        TMLog("[Sync] Correcting todayMinutes: local=\(self.todayMinutes)m → server=\(serverMins)m")
+                    } else {
+                        TMLog("[Sync] todayMinutes in sync at \(serverMins)m ✓")
+                    }
+                    self.todayMinutes = serverMins
+                    MenuBarState.shared.todayMinutes = serverMins
+                    self.saveTodayMinutes()
+                }
+            }
+
+            // 2. If tracking, also reseed trackedMinutes from the server session value
+            //    so future heartbeats carry the right baseline (fixes GREATEST catch-up lag).
+            if let sid = await MainActor.run(body: { self.currentSessionId }), self.isTracking {
+                let today = dayFormatter.string(from: Date())
+                if let sessions = try? await self.api.getMySessions(date: today),
+                   let match = sessions.first(where: { $0.id == sid }),
+                   match.totalMinutes > self.trackedMinutes {
+                    let serverSessionMins = match.totalMinutes
+                    await MainActor.run {
+                        TMLog("[Sync] Reseeding trackedMinutes: local=\(self.trackedMinutes)m → server=\(serverSessionMins)m")
+                        self.trackedMinutes = serverSessionMins
+                    }
+                }
+            }
+
+            TMLog("[Sync] Manual sync complete")
+        }
+    }
+
     // MARK: - Admin Remote Commands
 
     /// Called after every heartbeat response — applies server-sent commands.
@@ -826,6 +872,28 @@ class TrackingManager: ObservableObject {
                             MenuBarState.shared.todayMinutes = serverMins
                             self.saveTodayMinutes()
                         }
+                    }
+                }
+            }
+
+            // Seed trackedMinutes from the server's session value when resuming an
+            // existing session after app restart. punchIn resets trackedMinutes=0, but
+            // the server may already have e.g. 80m stored via GREATEST. If we leave
+            // trackedMinutes at 0, the next 80 heartbeats all send values below 80m so
+            // GREATEST never grows — today_minutes stays stuck at 80m and the heartbeat
+            // sync loop incorrectly strips the real work accumulated since restart.
+            // Seeding from the server value means heartbeats immediately send the right
+            // baseline and GREATEST starts incrementing again on the next minute.
+            let syncSessionId = sessionId
+            let syncDate      = dayFormatter.string(from: Date())
+            Task {
+                if let sessions = try? await self.api.getMySessions(date: syncDate),
+                   let match = sessions.first(where: { $0.id == syncSessionId }),
+                   match.totalMinutes > self.trackedMinutes {
+                    let serverSessionMins = match.totalMinutes
+                    await MainActor.run {
+                        TMLog("[PunchIn] Seeding trackedMinutes from server session: \(self.trackedMinutes)m → \(serverSessionMins)m")
+                        self.trackedMinutes = serverSessionMins
                     }
                 }
             }

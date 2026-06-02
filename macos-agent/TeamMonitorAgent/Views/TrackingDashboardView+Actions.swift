@@ -40,6 +40,24 @@ extension TrackingDashboardView {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(DS.textMuted)
                         .padding(.bottom, 2)
+                    // Manual sync button — tap to pull latest totals from server
+                    Button {
+                        manager.syncFromServer()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(manager.isSyncing ? DS.indigo : DS.textMuted)
+                            .rotationEffect(.degrees(manager.isSyncing ? 360 : 0))
+                            .animation(
+                                manager.isSyncing
+                                    ? .linear(duration: 0.7).repeatForever(autoreverses: false)
+                                    : .default,
+                                value: manager.isSyncing
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 2)
+                    .help("Sync timer with server")
                 }
                 Spacer()
                 statusPill
