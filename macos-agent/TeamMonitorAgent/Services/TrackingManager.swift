@@ -793,6 +793,23 @@ class TrackingManager: ObservableObject {
                                                  screenPermission: perm, isIdle: false,
                                                  deliveredCommandIds: delivered) }
             TMLog("[PunchIn] Immediate heartbeat sent — session: \(sessionId)")
+
+            // Sync todayMinutes unconditionally from server on every punch-in.
+            // If a previous punchOut failed offline and the same session was reused,
+            // todayMinutes can be inflated (double-counts the first phase). The server
+            // total is always correct — allow it to correct both upward and downward drift.
+            Task {
+                if let serverMins = await self.api.getTodayMinutes() {
+                    await MainActor.run {
+                        if serverMins != self.todayMinutes {
+                            TMLog("[PunchIn] Correcting todayMinutes: local=\(self.todayMinutes)m → server=\(serverMins)m")
+                            self.todayMinutes = serverMins
+                            MenuBarState.shared.todayMinutes = serverMins
+                            self.saveTodayMinutes()
+                        }
+                    }
+                }
+            }
         } catch {
             TMLog("[PunchIn] ❌ Failed — \(error.localizedDescription)")
             statusMessage = "Error: \(error.localizedDescription)"
