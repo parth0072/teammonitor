@@ -569,13 +569,22 @@ class TrackingManager: ObservableObject {
         }
 
         // 2. Sync todayMinutes from server every heartbeat (every 5 min).
-        //    Corrects drift in both directions — e.g. when a failed offline punchOut
-        //    caused the same session to be reused and todayMinutes was double-counted.
-        if let serverMins = r.todayMinutes, serverMins != todayMinutes {
-            TMLog("[Heartbeat] Correcting todayMinutes: local=\(todayMinutes)m → server=\(serverMins)m")
-            todayMinutes = serverMins
-            MenuBarState.shared.todayMinutes = serverMins
-            saveTodayMinutes()
+        //    The server value is 0–5 min behind local in normal operation (local ticks
+        //    every minute, server only knows the last heartbeat value). So:
+        //    • Correct upward always   — server knows about sessions the local missed.
+        //    • Correct downward only when gap > kHeartbeatEvery min — real drift (e.g.
+        //      double-counted from a failed offline punchOut), not just normal lag.
+        if let serverMins = r.todayMinutes {
+            let diff = todayMinutes - serverMins
+            // Correct upward always (server knows more).
+            // Correct downward only when gap > heartbeat interval AND server > 0
+            // (guards against a silent server-side query failure returning 0).
+            if serverMins > todayMinutes || (diff > kHeartbeatEvery && serverMins > 0) {
+                TMLog("[Heartbeat] Correcting todayMinutes: local=\(todayMinutes)m → server=\(serverMins)m")
+                todayMinutes = serverMins
+                MenuBarState.shared.todayMinutes = serverMins
+                saveTodayMinutes()
+            }
         }
 
         // 3. One-shot commands — each delivered once, marked in pendingDeliveredCommandIds
