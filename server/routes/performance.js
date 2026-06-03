@@ -2,7 +2,8 @@
 const express  = require('express');
 const router   = express.Router();
 const db       = require('../db');
-const { auth, adminOnly } = require('../middleware/auth');
+const auth               = require('../middleware/auth');
+const { adminOnly }      = require('../middleware/auth');
 
 // ── GET /performance — list logs ──────────────────────────────────────────────
 // Admin: all employees; Employee: own only
