@@ -35,6 +35,7 @@ router.use('/api/bug-reports',  require('./routes/bug-reports'));
 router.use('/api/reports',      require('./routes/reports'));
 router.use('/api/settings',     require('./routes/settings'));
 router.use('/api/admin',        require('./routes/admin_commands'));
+router.use('/api/performance',  require('./routes/performance'));
 
 // ── Cron endpoint — called by cPanel cron, no auth needed ────────────────────
 // POST /api/cron/daily-report

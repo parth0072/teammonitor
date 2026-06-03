@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from "re
 import {
   LayoutDashboard, TrendingUp, FolderOpen, Trophy, BarChart3,
   Umbrella, Users, ScanLine, CalendarCheck2, AlignLeft, Bug,
-  Settings2, Monitor, LogOut,
+  Settings2, Monitor, LogOut, ClipboardList,
 } from "lucide-react";
 import "./responsive.css";
 import { hasToken, clearToken, saveUser, getCachedUser, api } from "./api";
@@ -23,6 +23,7 @@ import Productivity from "./pages/Productivity";
 import OrgSettings from "./pages/OrgSettings";
 import TeamOverview from "./pages/TeamOverview";
 import Issues from "./pages/Issues";
+import PerformanceLogs from "./pages/PerformanceLogs";
 
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -50,6 +51,7 @@ const ADMIN_NAV = [
   { path: "/attendance",   label: "Attendance",     Icon: CalendarCheck2  },
   { path: "/timelines",    label: "Timelines",      Icon: AlignLeft       },
   { path: "/issues",       label: "Issues",         Icon: Bug             },
+  { path: "/performance",  label: "Performance",    Icon: ClipboardList   },
   { path: "/settings",     label: "Settings",       Icon: Settings2       },
 ];
 
@@ -208,6 +210,7 @@ export default function App() {
           <Route path="/leaves"       element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
           <Route path="/productivity" element={<ProtectedRoute><Productivity /></ProtectedRoute>} />
           <Route path="/issues"       element={<AdminRoute><Issues /></AdminRoute>} />
+          <Route path="/performance"  element={<AdminRoute><PerformanceLogs /></AdminRoute>} />
           <Route path="/settings"     element={<AdminRoute><OrgSettings /></AdminRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

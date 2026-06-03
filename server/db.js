@@ -189,6 +189,19 @@ if (USE_MYSQL) {
         delivered_at DATETIME     DEFAULT NULL
       )`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS tracking_locked TINYINT DEFAULT 0`).catch(() => {});
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS performance_logs (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id  INT          NOT NULL,
+        logged_by    INT          NOT NULL,
+        rating       VARCHAR(10)  NOT NULL,
+        category     VARCHAR(50)  NOT NULL,
+        title        VARCHAR(200) NOT NULL,
+        description  TEXT         DEFAULT NULL,
+        event_date   DATE         NOT NULL,
+        event_time   VARCHAR(8)   DEFAULT NULL,
+        created_at   DATETIME     DEFAULT NOW()
+      )`).catch(() => {});
 
     // One-time cleanup: remove false idle_logs created by overly-aggressive heartbeat gap
     // detection (threshold was idle_stop_minutes instead of idle_stop_minutes+6, causing
@@ -354,6 +367,18 @@ if (USE_MYSQL) {
       created_by   INTEGER NOT NULL,
       created_at   TEXT DEFAULT (datetime('now')),
       delivered_at TEXT DEFAULT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS performance_logs (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id  INTEGER NOT NULL,
+      logged_by    INTEGER NOT NULL,
+      rating       TEXT    NOT NULL,
+      category     TEXT    NOT NULL,
+      title        TEXT    NOT NULL,
+      description  TEXT    DEFAULT NULL,
+      event_date   TEXT    NOT NULL,
+      event_time   TEXT    DEFAULT NULL,
+      created_at   TEXT    DEFAULT (datetime('now'))
     )`,
   ];
   for (const m of migrations) {

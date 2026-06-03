@@ -203,6 +203,20 @@ export const api = {
   // Bug / issue reports (from macOS agent)
   getBugReports:          ()           => request('GET',  '/bug-reports'),
   updateBugReportStatus:  (id, status, note) => request('PUT', `/bug-reports/${id}/status`, { status, note }),
+
+  // Performance logs
+  getPerformanceLogs:    (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.employeeId) q.set('employeeId', params.employeeId);
+    if (params.rating)     q.set('rating',     params.rating);
+    if (params.startDate)  q.set('startDate',  params.startDate);
+    if (params.endDate)    q.set('endDate',    params.endDate);
+    const qs = q.toString();
+    return request('GET', `/performance${qs ? '?' + qs : ''}`);
+  },
+  createPerformanceLog:  (data)        => request('POST',   '/performance',     data),
+  updatePerformanceLog:  (id, data)    => request('PUT',    `/performance/${id}`, data),
+  deletePerformanceLog:  (id)          => request('DELETE', `/performance/${id}`),
 };
 
 export function saveToken(token)  { localStorage.setItem('tm_token', token); setCookieToken(token); }
