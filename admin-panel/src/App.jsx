@@ -63,6 +63,7 @@ const EMPLOYEE_NAV = [
   { path: "/screenshots",  label: "My Screenshots", Icon: ScanLine        },
   { path: "/attendance",   label: "My Attendance",  Icon: CalendarCheck2  },
   { path: "/timelines",    label: "My Timeline",    Icon: AlignLeft       },
+  { path: "/performance",  label: "My Performance", Icon: ClipboardList   },
 ];
 
 function useIsMobile() {
@@ -210,7 +211,7 @@ export default function App() {
           <Route path="/leaves"       element={<ProtectedRoute><Leaves /></ProtectedRoute>} />
           <Route path="/productivity" element={<ProtectedRoute><Productivity /></ProtectedRoute>} />
           <Route path="/issues"       element={<AdminRoute><Issues /></AdminRoute>} />
-          <Route path="/performance"  element={<AdminRoute><PerformanceLogs /></AdminRoute>} />
+          <Route path="/performance"  element={<ProtectedRoute><PerformanceLogs /></ProtectedRoute>} />
           <Route path="/settings"     element={<AdminRoute><OrgSettings /></AdminRoute>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
