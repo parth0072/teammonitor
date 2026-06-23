@@ -117,6 +117,11 @@ router.put('/:id/punch-out', auth, async (req, res) => {
       "UPDATE sessions SET punch_out=?, total_minutes=?, status='completed' WHERE id=?",
       [now, mins, req.params.id]
     );
+    // Close any open break rows so the timeline never shows orphaned yellow bars
+    await db.query(
+      `UPDATE session_breaks SET break_end=? WHERE session_id=? AND break_end IS NULL`,
+      [now, req.params.id]
+    );
     res.json({ totalMinutes: mins });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -163,6 +168,16 @@ router.put('/:id/heartbeat', auth, async (req, res) => {
           [req.params.id, req.user.id, new Date(currentBreakStart), sessionDate]
         );
       } catch (_) { /* non-fatal */ }
+    }
+
+    // ── Close stale open break when employee is no longer on break ───────────
+    // If currentBreakStart is absent the employee is active. Close any open
+    // break row so the timeline never stays yellow after a resume.
+    if (!currentBreakStart) {
+      await db.query(
+        `UPDATE session_breaks SET break_end=? WHERE session_id=? AND break_end IS NULL`,
+        [now, req.params.id]
+      ).catch(() => {});
     }
 
     // ── Heartbeat gap → auto break (away/sleep) ──────────────────────────────

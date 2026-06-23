@@ -729,6 +729,7 @@ class TrackingManager: ObservableObject {
     func disableIdleReminder() {
         idleReminderDisabled = true
         UserDefaults.standard.set(true, forKey: "tm_idle_reminder_disabled")
+        showStartReminder = false
         cancelNotTrackingReminder()
     }
 

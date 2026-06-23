@@ -209,6 +209,17 @@ if (USE_MYSQL) {
     // false entries created on 2026-05-11 before the threshold was corrected.
     await pool.query(`DELETE FROM idle_logs WHERE id IN (46,47,48,49,50,51,52,53,54,55,56,57,58,59)`).catch(() => {});
 
+    // Close any orphaned open session_break rows from past days (break_end IS NULL but
+    // the session is completed or the date is before today). These cause the timeline to
+    // show the employee as "on break" for the rest of the day even when they were active.
+    await pool.query(`
+      UPDATE session_breaks sb
+      JOIN sessions s ON s.id = sb.session_id
+      SET sb.break_end = COALESCE(s.punch_out, sb.break_start + INTERVAL 1 MINUTE)
+      WHERE sb.break_end IS NULL
+        AND (s.status = 'completed' OR sb.date < CURDATE())
+    `).catch(() => {});
+
     console.log('✓  MySQL connected:', process.env.DB_NAME);
   }
 
