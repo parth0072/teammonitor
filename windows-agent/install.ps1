@@ -1,4 +1,6 @@
 $installDir = "$env:LOCALAPPDATA\TeamMonitorAgent"
+$electronExe = "$installDir\windows-agent\node_modules\electron\dist\electron.exe"
+$appDir = "$installDir\windows-agent"
 
 # Install Node.js if missing
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
@@ -17,9 +19,16 @@ if (Test-Path "$installDir\.git") {
 }
 
 # Install dependencies
-Set-Location "$installDir\windows-agent"
+Set-Location $appDir
 npm install
 
-# Launch
+# Register in Windows startup (runs silently on login)
+$startupCmd = "powershell -WindowStyle Hidden -Command `"Start-Process '$electronExe' -ArgumentList '.' -WorkingDirectory '$appDir'`""
+Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "TeamMonitorAgent" -Value $startupCmd
+Write-Host "Registered in Windows startup." -ForegroundColor Green
+
+# Launch now (detached from terminal, no console window)
 Write-Host "Starting TeamMonitor..." -ForegroundColor Green
-Start-Process -FilePath "node_modules\.bin\electron.cmd" -ArgumentList "." -WorkingDirectory "$installDir\windows-agent"
+Start-Process -FilePath $electronExe -ArgumentList "." -WorkingDirectory $appDir
+
+Write-Host "Done! TeamMonitor will auto-start on every login." -ForegroundColor Green
