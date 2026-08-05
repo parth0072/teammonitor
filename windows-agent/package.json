@@ -2,6 +2,11 @@
   "name": "teammonitor-agent",
   "version": "1.0.0",
   "description": "TeamMonitor Agent for Windows",
+  "author": "AlphaByte Innovations",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/parth0072/teammonitor.git"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -29,6 +34,13 @@
     },
     "files": ["**/*", "!node_modules/.cache"],
     "extraResources": [],
-    "asar": true
+    "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "parth0072",
+        "repo": "teammonitor"
+      }
+    ]
   }
 }
