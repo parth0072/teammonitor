@@ -1,0 +1,1620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TeamMonitor</title>
+<style>
+/* ── Reset & Base ──────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Design System ─────────────────────────────────────────────────────────── */
+:root {
+  --sidebar-bg:      #13161c;
+  --sidebar-surface: #1c2130;
+  --sidebar-border:  #2a3142;
+  --sidebar-text:    #8b949e;
+  --sidebar-sel:     #f1f5f9;
+  --bg:              #f8fafc;
+  --surface:         #ffffff;
+  --border:          #e2e8f0;
+  --text:            #0f172a;
+  --text2:           #475569;
+  --muted:           #94a3b8;
+  --indigo:          #6366f1;
+  --indigo-dk:       #4f52e0;
+  --indigo-lt:       #eef2ff;
+  --emerald:         #10b981;
+  --emerald-lt:      #d1fae5;
+  --amber:           #f59e0b;
+  --amber-lt:        #fef3c7;
+  --red:             #ef4444;
+  --jira:            #0052CC;
+  --jira-lt:         #eff6ff;
+}
+
+/* ── LOGIN ──────────────────────────────────────────────────────────────────── */
+#login-screen {
+  display: flex; align-items: center; justify-content: center;
+  height: 100vh; background: #13161c;
+}
+.login-box { width: 320px; display: flex; flex-direction: column; gap: 12px; }
+.login-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.login-logo-icon {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--indigo), var(--indigo-dk));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 900; color: #fff;
+  box-shadow: 0 4px 16px rgba(99,102,241,0.5);
+}
+.login-logo-text { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+.login-sub { font-size: 12px; color: #4b5563; margin-bottom: 4px; }
+.inp {
+  width: 100%;
+  background: #1e2330; border: 1.5px solid #2a3142; border-radius: 10px;
+  padding: 11px 14px; color: #e2e8f0; font-size: 13px; outline: none;
+}
+.inp:focus { border-color: var(--indigo); }
+.inp::placeholder { color: #374151; }
+.login-btn {
+  width: 100%; background: var(--indigo); border: none; border-radius: 10px;
+  padding: 12px; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.login-btn:hover { background: var(--indigo-dk); }
+.login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-err { font-size: 12px; color: #f87171; text-align: center; min-height: 16px; }
+
+/* ── APP SHELL ──────────────────────────────────────────────────────────────── */
+#app { display: none; height: 100vh; flex-direction: row; }
+
+/* ── SIDEBAR ────────────────────────────────────────────────────────────────── */
+.sidebar {
+  width: 188px; min-width: 188px;
+  background: var(--sidebar-bg);
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--sidebar-border);
+  height: 100vh; overflow: hidden;
+}
+
+/* Logo */
+.sb-logo {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 14px 14px;
+}
+.sb-logo-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--indigo), var(--indigo-dk));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 900; color: #fff; flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(99,102,241,0.5);
+}
+.sb-logo-text { font-size: 14px; font-weight: 600; color: var(--sidebar-sel); }
+
+/* User card */
+.sb-user {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0 10px 14px;
+  padding: 9px 10px;
+  background: var(--sidebar-surface); border-radius: 9px;
+}
+.sb-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(99,102,241,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: var(--indigo);
+  flex-shrink: 0; position: relative;
+}
+.sb-live-dot {
+  position: absolute; bottom: -1px; right: -1px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--emerald); border: 2px solid var(--sidebar-bg);
+  display: none;
+  box-shadow: 0 0 6px rgba(16,185,129,0.6);
+}
+.sb-user-info { flex: 1; min-width: 0; }
+.sb-name  { font-size: 12px; font-weight: 600; color: var(--sidebar-sel); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-email { font-size: 10px; color: var(--sidebar-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Nav items */
+.sb-nav { padding: 0 8px; }
+.sb-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; color: var(--sidebar-text);
+  transition: all 0.12s; margin-bottom: 2px; position: relative;
+}
+.sb-item:hover { color: var(--sidebar-sel); background: rgba(255,255,255,0.06); }
+.sb-item.active { color: var(--sidebar-sel); background: rgba(255,255,255,0.08); }
+.sb-item.active::after {
+  content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 16px; background: var(--indigo); border-radius: 2px;
+}
+.sb-item.active .sb-icon { color: var(--indigo); }
+.sb-icon { width: 17px; text-align: center; font-size: 13px; flex-shrink: 0; }
+.sb-item.danger { color: rgba(239,68,68,0.75); }
+.sb-item.danger:hover { color: var(--red); background: rgba(239,68,68,0.08); }
+
+/* Divider */
+.sb-div {
+  height: 1px; background: var(--sidebar-border);
+  margin: 8px 14px;
+}
+
+/* Status picker */
+.sb-status-label {
+  font-size: 10px; font-weight: 600; color: var(--sidebar-text);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 0 18px 4px;
+}
+.sb-status-sel {
+  display: block; width: calc(100% - 16px); margin: 0 8px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--sidebar-border);
+  border-radius: 8px; padding: 7px 10px;
+  color: var(--sidebar-text); font-size: 12px; outline: none; cursor: pointer;
+  font-family: inherit;
+  -webkit-appearance: none;
+}
+.sb-status-sel:focus { border-color: var(--indigo); }
+
+/* ── MAIN CONTENT ──────────────────────────────────────────────────────────── */
+.main {
+  flex: 1; display: flex; flex-direction: column;
+  background: var(--bg); height: 100vh; overflow: hidden; min-width: 0;
+}
+
+/* ── BANNERS ────────────────────────────────────────────────────────────────── */
+.banner {
+  display: none; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  font-size: 12px; flex-shrink: 0;
+  border-bottom: 1px solid;
+}
+.banner.show { display: flex; }
+.banner-icon { font-size: 14px; flex-shrink: 0; }
+.banner-body { flex: 1; min-width: 0; }
+.banner-title { font-weight: 600; line-height: 1.3; }
+.banner-sub   { font-size: 11px; margin-top: 1px; opacity: 0.85; }
+.banner-btn {
+  padding: 4px 10px; border-radius: 6px; border: none;
+  font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+/* Reminder (purple) */
+#b-reminder { background: #ede9fe; border-color: #ddd6fe; color: #4c1d95; }
+#b-reminder .banner-title { color: #4c1d95; }
+#b-reminder .banner-sub   { color: #6d28d9; }
+/* Offline */
+#b-offline  { background: #fef3c7; border-color: #fde68a; color: #92400e; }
+/* Idle paused */
+#b-idle     { background: #fef3c7; border-color: #fde68a; color: #92400e; }
+/* Idle warning */
+#b-idle-warn { background: #fef3c7; border-color: #fde68a; color: #92400e; }
+/* Error */
+#b-error    { background: rgba(239,68,68,0.06); border-color: rgba(239,68,68,0.2); color: var(--red); }
+/* Resume prompt */
+#b-resume   { background: var(--indigo-lt); border-color: rgba(99,102,241,0.2); color: #312e81; }
+
+/* ── TIMER HERO ─────────────────────────────────────────────────────────────── */
+.hero {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 14px 20px 14px; flex-shrink: 0;
+}
+.hero-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.hero-date { font-size: 11px; font-weight: 500; color: var(--muted); }
+.hero-ss {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--indigo-lt); border-radius: 20px; padding: 3px 8px;
+  font-size: 11px; font-weight: 600; color: var(--indigo);
+}
+.hero-mid {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.hero-timer-wrap { display: flex; align-items: baseline; gap: 5px; }
+.hero-time {
+  font-size: 38px; font-weight: 700;
+  color: var(--text); letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+}
+.hero-today-lbl { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 2px; }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 600;
+}
+.pill-dot { width: 6px; height: 6px; border-radius: 50%; }
+.pill-tracking { background: var(--emerald-lt); color: #047857; }
+.pill-tracking .pill-dot { background: var(--emerald); }
+.pill-break  { background: var(--amber-lt);   color: #92400e; }
+.pill-break .pill-dot  { background: var(--amber); }
+.pill-idle   { background: var(--amber-lt);   color: #92400e; }
+.pill-idle .pill-dot   { background: var(--amber); }
+.pill-off    { background: var(--bg);         color: var(--muted); }
+.pill-off .pill-dot    { background: var(--muted); }
+.hero-task-chip {
+  display: none;
+  align-items: center; gap: 6px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 12px; font-weight: 500; color: var(--text2);
+  max-width: 380px; overflow: hidden;
+  cursor: pointer;
+}
+.hero-task-chip:hover { border-color: var(--indigo); }
+.chip-color { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-jira  {
+  background: var(--jira); color: #fff; border-radius: 3px;
+  padding: 1px 5px; font-size: 10px; font-weight: 800; flex-shrink: 0;
+}
+.hero-hint { font-size: 11px; color: var(--muted); padding-top: 6px; }
+
+/* ── STATS BAR ──────────────────────────────────────────────────────────────── */
+.stats-bar {
+  display: flex; background: var(--bg);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.stat {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 10px 4px;
+  border-right: 1px solid var(--border);
+}
+.stat:last-child { border-right: none; }
+.stat-val {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 14px; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.stat-lbl {
+  font-size: 10px; font-weight: 500; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;
+}
+
+/* ── PUNCH BUTTONS ──────────────────────────────────────────────────────────── */
+.punch-section {
+  display: flex; gap: 10px; padding: 12px 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.punch-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  border: none; border-radius: 10px; padding: 13px 16px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: transform 0.12s, opacity 0.12s;
+}
+.punch-btn:hover { opacity: 0.88; }
+.punch-btn:active { transform: scale(0.97); }
+.punch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.pb-start  {
+  font-size: 15px; padding: 14px 16px;
+  background: linear-gradient(90deg, var(--indigo), var(--indigo-dk));
+  color: #fff;
+  box-shadow: 0 5px 20px rgba(99,102,241,0.35);
+}
+.pb-break  { background: rgba(245,158,11,0.1); color: #92400e; border: 1.5px solid rgba(245,158,11,0.4); }
+.pb-out    { background: var(--red); color: #fff; }
+.pb-resume { background: var(--emerald); color: #fff; }
+
+/* ── TAB CONTENT ────────────────────────────────────────────────────────────── */
+.tab-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.tab-panel.active { display: flex; }
+
+/* Tasks toolbar */
+.tasks-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.search-wrap { flex: 1; position: relative; }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; }
+.search-inp {
+  width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px 7px 28px; font-size: 13px; color: var(--text); outline: none; font-family: inherit;
+}
+.search-inp:focus { border-color: var(--indigo); background: var(--surface); }
+.search-inp::placeholder { color: var(--muted); }
+.tb-btn {
+  width: 32px; height: 32px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--muted); font-size: 13px; flex-shrink: 0;
+}
+.tb-btn:hover { background: var(--border); }
+.tb-new {
+  height: 32px; background: linear-gradient(90deg, var(--indigo), var(--indigo-dk));
+  border: none; border-radius: 8px; padding: 0 12px;
+  color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.tb-new:hover { opacity: 0.9; }
+
+/* Scroll area */
+.tasks-scroll { flex: 1; overflow-y: auto; }
+.tasks-scroll::-webkit-scrollbar { width: 4px; }
+.tasks-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Section headers */
+.sec-hdr {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 600; color: var(--text2);
+  flex-shrink: 0;
+}
+.sec-hdr-icon { font-size: 10px; color: var(--muted); }
+.sec-jira-icon {
+  width: 18px; height: 18px; border-radius: 4px; background: var(--jira);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 900; color: #fff; flex-shrink: 0;
+}
+.sec-hdr-refresh { margin-left: auto; cursor: pointer; color: var(--muted); font-size: 12px; padding: 2px; }
+.sec-hdr-refresh:hover { color: var(--text2); }
+
+/* Jira section header (blue tinted) */
+.jira-sec-hdr {
+  background: #eff6ff; border-bottom: 1px solid #bfdbfe; border-top: 1px solid #bfdbfe;
+}
+.jira-sec-hdr .sec-hdr-refresh { color: var(--muted); }
+
+/* MY TASKS sub-header */
+.my-tasks-hdr {
+  padding: 7px 14px; background: var(--bg); border-bottom: 1px solid var(--border);
+  font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px;
+}
+
+/* Divider between recently-used and rest */
+.sec-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ── TASK ROW ────────────────────────────────────────────────────────────────── */
+.task-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 16px;
+  background: var(--surface); border-bottom: 1px solid var(--bg);
+  cursor: default;
+  transition: background 0.1s;
+}
+.task-row:hover { background: var(--bg); }
+.task-row.tr-active { background: linear-gradient(90deg, #eef2ff 0%, #f8fafc 100%); }
+.tr-bar { width: 3px; height: 40px; border-radius: 2px; flex-shrink: 0; }
+.tr-info { flex: 1; min-width: 0; }
+.tr-name {
+  font-size: 13px; font-weight: 500; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4;
+}
+.tr-active .tr-name { color: var(--indigo); }
+.tr-meta { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+.tr-status-icon { font-size: 9px; }
+.tr-proj { font-size: 11px; color: var(--muted); }
+.tr-dot { font-size: 11px; color: var(--border); }
+.tr-status { font-size: 11px; font-weight: 500; }
+.tr-actions { display: flex; align-items: center; gap: 6px; }
+.tr-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 7px; border: none;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  font-family: inherit; white-space: nowrap;
+}
+.tr-start { background: var(--indigo-lt); color: var(--indigo); }
+.tr-start:hover { background: var(--indigo); color: #fff; }
+.tr-pause { background: var(--emerald); color: #fff; }
+.tr-pause:hover { background: #059669; }
+
+/* ── JIRA ROW ────────────────────────────────────────────────────────────────── */
+.jira-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface); border-bottom: 1px solid var(--bg);
+  transition: background 0.1s;
+}
+.jira-row:hover { background: var(--bg); }
+.jira-row.jr-active { background: #eff6ff; }
+.jr-bar { width: 3px; height: 36px; border-radius: 2px; background: var(--jira); flex-shrink: 0; }
+.jr-info { flex: 1; min-width: 0; }
+.jr-summary { font-size: 13px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jr-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.jr-key { font-size: 11px; font-weight: 700; color: var(--jira); }
+.jr-dot { color: var(--border); }
+.jr-proj { font-size: 11px; color: var(--muted); }
+.jr-right { display: flex; align-items: center; gap: 6px; }
+.jr-priority { font-size: 11px; }
+.jr-status {
+  font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 8px;
+}
+.jr-open-btn {
+  background: none; border: none; cursor: pointer; color: var(--muted); font-size: 12px; padding: 2px;
+}
+.jr-open-btn:hover { color: var(--text2); }
+
+/* ── EMPTY STATE ──────────────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 48px 24px;
+  color: var(--muted); font-size: 12px; text-align: center;
+}
+.empty-icon { font-size: 48px; opacity: 0.5; }
+.empty-title { font-size: 14px; font-weight: 600; color: var(--text2); }
+.empty-sub   { font-size: 12px; color: var(--muted); }
+.empty-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border-radius: 7px; border: none;
+  background: var(--indigo-lt); color: var(--indigo);
+  font-size: 12px; font-weight: 500; cursor: pointer; margin-top: 4px;
+}
+.empty-btn:hover { background: var(--indigo); color: #fff; }
+
+/* ── ACTIVITY TAB ──────────────────────────────────────────────────────────────── */
+.activity-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  font-size: 12px; font-weight: 600; color: var(--text2);
+}
+.activity-scroll { flex: 1; overflow-y: auto; }
+.app-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px 10px 20px; border-bottom: 1px solid var(--bg); background: var(--surface);
+}
+.app-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.app-dot.live { background: var(--emerald); box-shadow: 0 0 6px rgba(16,185,129,0.5); }
+.app-name { flex: 1; font-size: 13px; font-weight: 500; color: var(--text); }
+.app-bar-wrap { width: 80px; height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+.app-bar { height: 100%; background: var(--indigo); border-radius: 2px; }
+.app-mins { font-size: 12px; font-weight: 600; color: var(--text2); width: 36px; text-align: right; }
+
+/* ── TOAST ───────────────────────────────────────────────────────────────────── */
+#toast-container {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 100; pointer-events: none;
+}
+.toast {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 12px;
+  background: rgba(248,250,252,0.95); backdrop-filter: blur(10px);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  font-size: 13px; font-weight: 500; color: var(--text);
+  max-width: 360px; min-width: 240px; pointer-events: all;
+  animation: slideUp 0.25s ease;
+}
+.toast-close { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 12px; }
+@keyframes slideUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: none; } }
+
+/* ── MODALS ──────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 50;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  max-width: 90vw; max-height: 90vh;
+  display: flex; flex-direction: column;
+}
+.modal-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.modal-title { font-size: 15px; font-weight: 600; }
+.modal-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 16px; }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); flex-shrink: 0; }
+
+/* Task Picker */
+#task-picker { width: 480px; }
+.picker-scroll { max-height: 420px; overflow-y: auto; }
+.picker-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; cursor: pointer; border-bottom: 1px solid var(--bg);
+  transition: background 0.1s;
+}
+.picker-item:hover { background: var(--bg); }
+.picker-jira-key { font-size: 10px; font-weight: 700; color: var(--jira); background: var(--jira-lt); border-radius: 4px; padding: 1px 5px; }
+
+/* Settings Modal */
+#settings-modal { width: 460px; }
+.settings-sec { margin-bottom: 20px; }
+.settings-sec-title {
+  font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 8px;
+}
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; background: var(--surface); border-radius: 8px;
+  border: 1px solid var(--border); gap: 12px;
+}
+.settings-row + .settings-row { margin-top: 4px; border-radius: 8px; }
+.settings-row-label { font-size: 13px; font-weight: 500; }
+.settings-row-sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.settings-btn {
+  padding: 4px 10px; border-radius: 5px; border: none; cursor: pointer;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.sb-gray   { background: #f3f4f6; color: var(--text2); }
+.sb-blue   { background: #3b82f6; color: #fff; }
+.sb-yellow { background: #fde68a; color: #92400e; }
+.toggle-wrap { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+.toggle-inp  { opacity: 0; width: 0; height: 0; position: absolute; }
+.toggle-slider {
+  position: absolute; inset: 0; border-radius: 10px; background: #d1d5db;
+  cursor: pointer; transition: background 0.2s;
+}
+.toggle-slider::before {
+  content: ''; position: absolute; width: 14px; height: 14px;
+  border-radius: 50%; background: #fff; top: 3px; left: 3px;
+  transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-inp:checked + .toggle-slider { background: var(--indigo); }
+.toggle-inp:checked + .toggle-slider::before { transform: translateX(16px); }
+
+/* Reports Modal */
+#reports-modal { width: 520px; }
+
+/* Field inputs */
+.field-label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+.field-inp {
+  width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 9px 12px; font-size: 13px; color: var(--text); outline: none; font-family: inherit;
+}
+.field-inp:focus { border-color: var(--indigo); background: var(--surface); }
+.field-row { display: flex; gap: 12px; }
+.field-row > div { flex: 1; }
+
+/* Report bars */
+.report-day { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--bg); }
+.report-day-name { width: 40px; font-size: 12px; font-weight: 600; color: var(--text2); }
+.report-bar-bg { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.report-bar-fill { height: 100%; border-radius: 3px; background: var(--indigo); }
+.report-day-val { width: 48px; text-align: right; font-size: 12px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">TM</div>
+      <div class="login-logo-text">TeamMonitor</div>
+    </div>
+    <div class="login-sub">Sign in to start tracking</div>
+    <input class="inp" type="email"    id="email"    placeholder="Email address">
+    <input class="inp" type="password" id="password" placeholder="Password">
+    <button class="login-btn" id="login-btn">Sign In</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-icon">TM</div>
+      <div class="sb-logo-text">TeamMonitor</div>
+    </div>
+
+    <div class="sb-user">
+      <div class="sb-avatar" id="sb-avatar">
+        P<div class="sb-live-dot" id="sb-live-dot"></div>
+      </div>
+      <div class="sb-user-info">
+        <div class="sb-name"  id="sb-name">—</div>
+        <div class="sb-email" id="sb-email">—</div>
+      </div>
+    </div>
+
+    <div class="sb-nav" id="sb-nav">
+      <div class="sb-item active" data-tab="tasks">
+        <span class="sb-icon">☰</span> Tasks
+      </div>
+      <div class="sb-item" data-tab="activity">
+        <span class="sb-icon">〜</span> Activity
+      </div>
+    </div>
+
+    <div class="sb-div"></div>
+
+    <div class="sb-nav">
+      <div class="sb-item" id="sb-manual">
+        <span class="sb-icon">✏</span> Manual Entry
+      </div>
+      <div class="sb-item" id="sb-reports-btn">
+        <span class="sb-icon">📊</span> Reports
+      </div>
+      <div class="sb-item" id="sb-refresh">
+        <span class="sb-icon">↻</span> Refresh
+      </div>
+    </div>
+
+    <div style="flex:1;"></div>
+
+    <div style="padding-bottom:4px;">
+      <div class="sb-status-label">Status</div>
+      <select class="sb-status-sel" id="work-status">
+        <option>WFO</option>
+        <option>WFH</option>
+        <option>Remote</option>
+        <option>Hybrid</option>
+      </select>
+    </div>
+
+    <div class="sb-div"></div>
+
+    <div class="sb-nav" style="padding-bottom:14px;">
+      <div class="sb-item" id="sb-settings">
+        <span class="sb-icon">⚙</span> Settings
+      </div>
+      <div class="sb-item" id="sb-bug">
+        <span class="sb-icon">🐛</span> Report Issue
+      </div>
+      <div class="sb-item danger" id="sb-logout">
+        <span class="sb-icon">⇥</span> Sign Out
+      </div>
+    </div>
+  </div><!-- /sidebar -->
+
+  <!-- Main content -->
+  <div class="main">
+
+    <!-- Banners -->
+    <div class="banner" id="b-error">
+      <span class="banner-icon">⚠</span>
+      <div class="banner-body"><div class="banner-title" id="b-error-text"></div></div>
+    </div>
+
+    <div class="banner" id="b-reminder">
+      <span class="banner-icon" id="b-rem-icon">⏱</span>
+      <div class="banner-body">
+        <div class="banner-title" id="b-rem-title">Timer is not running</div>
+        <div class="banner-sub"   id="b-rem-sub">Don't forget to log your time!</div>
+      </div>
+      <button class="banner-btn" id="b-rem-action" style="background:#7c3aed;color:#fff;">Start Now</button>
+      <button class="banner-btn" id="b-rem-mute"   style="background:none;color:rgba(109,40,217,0.6);border:none;font-size:10px;text-decoration:underline;cursor:pointer;">Don't remind me</button>
+      <button class="banner-btn" id="b-rem-close"  style="background:none;border:none;color:rgba(109,40,217,0.5);font-size:16px;cursor:pointer;">✕</button>
+    </div>
+
+    <div class="banner" id="b-offline">
+      <span class="banner-icon">📡</span>
+      <div class="banner-body"><div class="banner-title">No internet — screenshots and sync paused</div></div>
+    </div>
+
+    <div class="banner" id="b-idle-warn">
+      <span class="banner-icon">⏰</span>
+      <div class="banner-body">
+        <div class="banner-title">No activity — pausing in <span id="idle-warn-secs">—</span>s</div>
+        <div class="banner-sub">Move your mouse or press a key to stay active</div>
+      </div>
+      <button class="banner-btn" style="background:#d97706;color:#fff;" id="b-im-here">I'm here</button>
+    </div>
+
+    <div class="banner" id="b-idle">
+      <span class="banner-icon">⏸</span>
+      <div class="banner-body">
+        <div class="banner-title">Timer paused — you're idle</div>
+        <div class="banner-sub">Move your mouse or press a key to resume</div>
+      </div>
+    </div>
+
+    <div class="banner" id="b-resume">
+      <span class="banner-icon">🔄</span>
+      <div class="banner-body">
+        <div class="banner-title">Ready to resume?</div>
+        <div class="banner-sub" id="b-resume-task"></div>
+      </div>
+      <button class="banner-btn" style="background:none;border:none;color:var(--muted);cursor:pointer;" id="b-resume-dismiss">Dismiss</button>
+      <button class="banner-btn" style="background:var(--indigo);color:#fff;" id="b-resume-confirm">Resume</button>
+    </div>
+
+    <!-- Timer Hero -->
+    <div class="hero">
+      <div class="hero-top">
+        <div class="hero-date" id="hero-date"></div>
+        <div class="hero-ss" id="hero-ss" style="display:none;">
+          📷 <span id="ss-count">0</span>
+        </div>
+      </div>
+      <div class="hero-mid">
+        <div class="hero-timer-wrap">
+          <div class="hero-time" id="hero-time">0m</div>
+          <div class="hero-today-lbl">today</div>
+        </div>
+        <div class="status-pill pill-off" id="status-pill">
+          <span class="pill-dot"></span>
+          <span id="status-pill-text">Not Started</span>
+        </div>
+      </div>
+      <!-- Task chip -->
+      <div class="hero-task-chip" id="task-chip" onclick="openTaskPicker()">
+        <span class="chip-color" id="chip-color"></span>
+        <span class="chip-label" id="chip-label"></span>
+        <span style="color:var(--muted);font-size:10px;">›</span>
+      </div>
+      <!-- Jira chip -->
+      <div class="hero-task-chip" id="jira-chip" onclick="openTaskPicker()">
+        <span class="chip-jira">J</span>
+        <span class="chip-label" id="jira-chip-label"></span>
+        <span style="color:var(--muted);font-size:10px;">›</span>
+      </div>
+      <div class="hero-hint" id="hero-hint">Ready to start — tap Start Tracking below</div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-val" id="stat-resume">—</div>
+        <div class="stat-lbl">Since Resume</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-today">—</div>
+        <div class="stat-lbl">Today Total</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-ss">0</div>
+        <div class="stat-lbl">Screenshots</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-status" style="color:var(--muted);">Off</div>
+        <div class="stat-lbl">Status</div>
+      </div>
+    </div>
+
+    <!-- Punch Section -->
+    <div class="punch-section" id="punch-section"></div>
+
+    <!-- Tab Area -->
+    <div class="tab-area">
+
+      <!-- Tasks Tab -->
+      <div class="tab-panel active" id="tab-tasks">
+        <div class="tasks-toolbar">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input class="search-inp" id="search-inp" placeholder="Search tasks…">
+          </div>
+          <div class="tb-btn" id="tb-refresh" title="Refresh">↻</div>
+          <button class="tb-new" id="tb-new-task">+ New Task</button>
+        </div>
+        <div class="tasks-scroll" id="tasks-scroll">
+          <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Loading tasks…</div></div>
+        </div>
+      </div>
+
+      <!-- Activity Tab -->
+      <div class="tab-panel" id="tab-activity">
+        <div class="activity-hdr">
+          <span>Recent App Activity</span>
+          <span id="activity-hint" style="font-size:11px;font-weight:400;color:var(--muted);">Punch in to start</span>
+        </div>
+        <div class="activity-scroll" id="activity-scroll">
+          <div class="empty-state"><div class="empty-icon">🖥</div><div class="empty-title">Punch in to start monitoring</div></div>
+        </div>
+      </div>
+
+    </div><!-- /tab-area -->
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- Toast -->
+<div id="toast-container"></div>
+
+<!-- Task Picker Modal -->
+<div class="modal-overlay" id="task-picker-overlay">
+  <div class="modal" id="task-picker" style="width:480px;">
+    <div class="modal-hdr">
+      <div class="modal-title">Select Task</div>
+      <button class="modal-close" onclick="closeTaskPicker()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <div class="tasks-toolbar" style="border-bottom:1px solid var(--border);">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="search-inp" id="picker-search" placeholder="Search tasks or Jira issues…">
+        </div>
+      </div>
+      <div class="picker-scroll" id="picker-scroll"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-overlay">
+  <div class="modal" id="settings-modal" style="width:460px;">
+    <div class="modal-hdr">
+      <div class="modal-title">Settings</div>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body" style="background:#f9fafb;">
+      <div class="settings-sec">
+        <div class="settings-sec-title">Reminders</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Timer-not-running alerts</div>
+            <div class="settings-row-sub" id="set-rem-sub">Notifies you when the timer is stopped</div>
+          </div>
+          <label class="toggle-wrap">
+            <input type="checkbox" class="toggle-inp" id="set-reminder-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="settings-sec">
+        <div class="settings-sec-title">Notifications</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Test notification</div>
+            <div class="settings-row-sub">Sends a test notification right now</div>
+          </div>
+          <button class="settings-btn sb-blue" id="set-test-notif">Send Test</button>
+        </div>
+      </div>
+      <div class="settings-sec">
+        <div class="settings-sec-title">Screen Recording</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Screenshot permission</div>
+            <div class="settings-row-sub" id="set-perm-sub">Checking…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div id="settings-msg" style="font-size:12px;text-align:center;color:var(--emerald);min-height:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Reports Modal -->
+<div class="modal-overlay" id="reports-overlay">
+  <div class="modal" id="reports-modal" style="width:520px;">
+    <div class="modal-hdr">
+      <div class="modal-title">Reports — This Week</div>
+      <button class="modal-close" onclick="closeModal('reports-overlay')">✕</button>
+    </div>
+    <div class="modal-body" id="reports-body">
+      <div style="text-align:center;padding:20px;color:var(--muted);">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Entry Modal -->
+<div class="modal-overlay" id="manual-overlay">
+  <div class="modal" id="manual-modal" style="width:400px;">
+    <div class="modal-hdr">
+      <div class="modal-title">Manual Time Entry</div>
+      <button class="modal-close" onclick="closeModal('manual-overlay')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div><label class="field-label">Date</label><input class="field-inp" type="date" id="me-date"></div>
+        <div class="field-row">
+          <div><label class="field-label">Start</label><input class="field-inp" type="time" id="me-start"></div>
+          <div><label class="field-label">End</label>  <input class="field-inp" type="time" id="me-end"></div>
+        </div>
+        <div>
+          <label class="field-label">Task</label>
+          <select class="field-inp" id="me-task"><option value="">— Select task —</option></select>
+        </div>
+        <div><label class="field-label">Note (optional)</label><textarea class="field-inp" id="me-note" rows="3" placeholder="What did you work on?" style="resize:vertical;"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;flex-direction:column;gap:8px;">
+      <button class="punch-btn pb-start" id="me-submit" style="font-size:13px;">Submit Entry</button>
+      <div id="me-result" style="font-size:12px;text-align:center;min-height:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let S = {};
+let allTasks     = [];
+let jiraIssues   = [];
+let jiraConnected = false;
+let activityLog  = []; // { appName, mins }
+let recentTaskIds  = JSON.parse(localStorage.getItem('tm_recent_tasks') || '[]');
+let recentJiraKeys = JSON.parse(localStorage.getItem('tm_recent_jira')  || '[]');
+let selectedTab  = 'tasks';
+let sessionStart = null;
+let clockTick    = null;
+let idleReminderDisabled = localStorage.getItem('tm_idle_rem_disabled') === '1';
+let toastTimer   = null;
+let lastCurrentApp = '';
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+window.tm.getState().then(applyState);
+window.tm.onState(applyState);
+setHeroDate();
+setInterval(setHeroDate, 60000);
+
+// ── Sidebar nav ────────────────────────────────────────────────────────────
+document.querySelectorAll('#sb-nav .sb-item[data-tab]').forEach(el => {
+  el.addEventListener('click', () => switchTab(el.dataset.tab));
+});
+
+document.getElementById('sb-manual').addEventListener('click', openManualEntry);
+document.getElementById('sb-reports-btn').addEventListener('click', openReports);
+document.getElementById('sb-refresh').addEventListener('click', () => { loadTasks(); loadJira(); });
+document.getElementById('sb-settings').addEventListener('click', openSettings);
+document.getElementById('sb-bug').addEventListener('click', () =>
+  window.tm.openExternal('mailto:support@alphabyte.ca?subject=TeamMonitor%20Windows%20Agent%20Issue'));
+document.getElementById('sb-logout').addEventListener('click', doLogout);
+
+// ── Login ──────────────────────────────────────────────────────────────────
+document.getElementById('login-btn').addEventListener('click', doLogin);
+document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const email = document.getElementById('email').value.trim();
+  const pw    = document.getElementById('password').value;
+  const errEl = document.getElementById('login-err');
+  const btn   = document.getElementById('login-btn');
+  if (!email || !pw) { errEl.textContent = 'Email and password required.'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…'; errEl.textContent = '';
+  const r = await window.tm.login(email, pw);
+  if (r.ok) { showApp(r.employee); }
+  else { errEl.textContent = r.error || 'Login failed'; btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+
+async function doLogout() {
+  if (S.isTracking) { await window.tm.punchOut(); }
+  await window.tm.logout();
+  showLogin();
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  selectedTab = tab;
+  document.querySelectorAll('#sb-nav .sb-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(el =>
+    el.classList.toggle('active', el.id === 'tab-' + tab));
+  if (tab === 'activity') renderActivity();
+}
+
+// ── State handler ──────────────────────────────────────────────────────────
+function applyState(s) {
+  S = s;
+  if (!s || (!s.token && !s.employee)) { showLogin(); return; }
+  showApp(s.employee);
+
+  const tracking = s.isTracking;
+  const onBreak  = s.isOnBreak;
+  const isIdle   = s.isIdle || false;
+
+  // Live dot
+  const dot = document.getElementById('sb-live-dot');
+  dot.style.display = (tracking && !onBreak) ? 'block' : 'none';
+
+  // Hero time
+  document.getElementById('hero-time').textContent = fmtTimer(s.todayMinutes || 0);
+
+  // Status pill
+  const pill = document.getElementById('status-pill');
+  const pillText = document.getElementById('status-pill-text');
+  pill.className = 'status-pill ' + (
+    onBreak  ? 'pill-break' :
+    isIdle   ? 'pill-idle'  :
+    tracking ? 'pill-tracking' : 'pill-off'
+  );
+  pillText.textContent = onBreak ? 'On Break' : isIdle ? 'Idle' : tracking ? 'Tracking' : 'Not Started';
+
+  // Task chip
+  const taskChip = document.getElementById('task-chip');
+  const jiraChip = document.getElementById('jira-chip');
+  const heroHint = document.getElementById('hero-hint');
+  taskChip.style.display = 'none'; jiraChip.style.display = 'none'; heroHint.style.display = 'none';
+  if (tracking || onBreak) {
+    if (s.currentJiraKey) {
+      jiraChip.style.display = 'inline-flex';
+      document.getElementById('jira-chip-label').textContent = (s.currentJiraKey || '') + (s.currentJiraTitle ? ' · ' + s.currentJiraTitle : '');
+    } else if (s.currentTaskName) {
+      taskChip.style.display = 'inline-flex';
+      document.getElementById('chip-color').style.background = s.currentTaskColor || '#6366f1';
+      document.getElementById('chip-label').textContent = s.currentTaskName;
+    }
+  } else if ((s.todayMinutes || 0) === 0) {
+    heroHint.style.display = 'block';
+  }
+
+  // Stats bar
+  document.getElementById('stat-today').textContent  = fmtTimer(s.todayMinutes || 0);
+  const statusEl = document.getElementById('stat-status');
+  statusEl.textContent = onBreak ? 'Break' : isIdle ? 'Idle' : tracking ? 'Live' : 'Off';
+  statusEl.style.color = (tracking && !onBreak && !isIdle) ? 'var(--emerald)' : (onBreak || isIdle) ? 'var(--amber)' : 'var(--muted)';
+
+  // Session clock
+  if (tracking && !onBreak && s.punchInTime) {
+    sessionStart = new Date(s.punchInTime);
+    if (!clockTick) { tickClock(); clockTick = setInterval(tickClock, 30000); }
+  } else {
+    if (clockTick) { clearInterval(clockTick); clockTick = null; }
+    document.getElementById('stat-resume').textContent = onBreak ? 'Break' : '—';
+  }
+
+  // Banners
+  setShow('b-idle',      tracking && isIdle);
+  setShow('b-idle-warn', false); // driven by separate event
+  setShow('b-resume',    false); // driven by separate state
+
+  // Reminder banner — show if not tracking, not idle-reminder-disabled
+  const showReminder = !tracking && !idleReminderDisabled;
+  setShow('b-reminder', showReminder);
+  if (showReminder) {
+    if (onBreak) {
+      document.getElementById('b-rem-icon').textContent  = '⏸';
+      document.getElementById('b-rem-title').textContent = 'Still on break';
+      document.getElementById('b-rem-sub').textContent   = 'Ready to resume?';
+      document.getElementById('b-rem-action').textContent = 'Resume';
+      document.getElementById('b-rem-action').style.background = 'var(--amber)';
+      document.getElementById('b-rem-mute').style.display = 'none';
+    } else {
+      document.getElementById('b-rem-icon').textContent  = '⏱';
+      document.getElementById('b-rem-title').textContent = 'Timer is not running';
+      document.getElementById('b-rem-sub').textContent   = "Don't forget to log your time!";
+      document.getElementById('b-rem-action').textContent = 'Start Now';
+      document.getElementById('b-rem-action').style.background = '#7c3aed';
+      document.getElementById('b-rem-mute').style.display = '';
+    }
+  }
+
+  // Punch buttons
+  renderPunchSection(tracking, onBreak);
+
+  // Update task list active state
+  renderTasks();
+}
+
+// Banners wired
+document.getElementById('b-rem-action').addEventListener('click', () => {
+  setShow('b-reminder', false);
+  if (S.isOnBreak) { window.tm.resumeFromBreak(); }
+  else { openTaskPicker(); }
+});
+document.getElementById('b-rem-mute').addEventListener('click', () => {
+  idleReminderDisabled = true;
+  localStorage.setItem('tm_idle_rem_disabled', '1');
+  setShow('b-reminder', false);
+});
+document.getElementById('b-rem-close').addEventListener('click', () => setShow('b-reminder', false));
+document.getElementById('b-im-here').addEventListener('click', () => setShow('b-idle-warn', false));
+
+// ── Punch buttons ──────────────────────────────────────────────────────────
+function renderPunchSection(tracking, onBreak) {
+  const sec = document.getElementById('punch-section');
+  if (onBreak) {
+    sec.innerHTML = `<button class="punch-btn pb-resume" id="pb-resume">▶ Resume Tracking</button>
+                     <button class="punch-btn pb-out"    id="pb-out">■ Punch Out</button>`;
+    document.getElementById('pb-resume').onclick = () => window.tm.resumeFromBreak();
+    document.getElementById('pb-out').onclick    = () => window.tm.punchOut();
+  } else if (tracking) {
+    sec.innerHTML = `<button class="punch-btn pb-break" id="pb-break">⏸ Break</button>
+                     <button class="punch-btn pb-out"   id="pb-out">■ Punch Out</button>`;
+    document.getElementById('pb-break').onclick = () => window.tm.startBreak();
+    document.getElementById('pb-out').onclick   = () => window.tm.punchOut();
+  } else {
+    sec.innerHTML = `<button class="punch-btn pb-start" id="pb-start">▶ Start Tracking</button>`;
+    document.getElementById('pb-start').onclick = () => openTaskPicker();
+  }
+}
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function tickClock() {
+  if (!sessionStart) return;
+  const mins = Math.round((Date.now() - sessionStart.getTime()) / 60000);
+  document.getElementById('stat-resume').textContent = fmtTimer(mins);
+}
+
+// ── Tasks ──────────────────────────────────────────────────────────────────
+async function loadTasks() {
+  document.getElementById('tasks-scroll').innerHTML =
+    `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Loading tasks…</div></div>`;
+  try {
+    allTasks = await window.tm.getTasks();
+    renderTasks();
+  } catch (e) {
+    document.getElementById('tasks-scroll').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Could not load tasks</div><div class="empty-sub">${esc(e.message)}</div><button class="empty-btn" onclick="loadTasks()">↻ Retry</button></div>`;
+  }
+}
+
+function renderTasks() {
+  const q      = (document.getElementById('search-inp')?.value || '').toLowerCase();
+  const scroll = document.getElementById('tasks-scroll');
+  if (!scroll) return;
+
+  // Build recently used sets
+  const recentJiraFull = jiraIssues.filter(i => recentJiraKeys.includes(i.key))
+    .sort((a,b) => recentJiraKeys.indexOf(a.key) - recentJiraKeys.indexOf(b.key));
+  const recentTasksFull = allTasks.filter(t => recentTaskIds.includes(t.id))
+    .sort((a,b) => recentTaskIds.indexOf(a.id) - recentTaskIds.indexOf(b.id));
+
+  const recentJira  = recentJiraFull.slice(0, 3);
+  const taskSlots   = Math.max(0, 3 - recentJira.length);
+  const recentTasks = recentTasksFull.slice(0, taskSlots);
+  const rJiraSet    = new Set(recentJira.map(i => i.key));
+  const rTaskSet    = new Set(recentTasks.map(t => t.id));
+
+  // Status sort order
+  const statusOrd = s => s === 'in_progress' ? 0 : s === 'todo' ? 1 : 2;
+
+  // Filtered lists (excluding recently used)
+  const filtJira = jiraIssues.filter(i => !rJiraSet.has(i.key) && matchQ(q, i.summary, i.key, i.projectName));
+  const filtTasks = allTasks.filter(t => !rTaskSet.has(t.id) && matchQ(q, t.name, t.project_name))
+    .sort((a,b) => statusOrd(a.status) - statusOrd(b.status));
+
+  let html = '';
+  const hasRecent = recentJira.length > 0 || recentTasks.length > 0;
+
+  // ── Recently Used ──
+  if (hasRecent) {
+    html += `<div class="sec-hdr"><span class="sec-hdr-icon">🕐</span>Recently Used</div>`;
+    recentJira.forEach(i  => { html += jiraRowHTML(i); });
+    recentTasks.forEach(t => { html += taskRowHTML(t); });
+    html += `<div class="sec-divider"></div>`;
+  }
+
+  // ── Jira Issues ──
+  if (jiraConnected) {
+    html += `<div class="sec-hdr jira-sec-hdr">
+      <div class="sec-jira-icon">J</div>
+      <span style="color:var(--jira);font-weight:600;">Jira — My Issues</span>
+      <span class="sec-hdr-refresh" onclick="loadJira(true)">↻</span>
+    </div>`;
+    if (filtJira.length === 0) {
+      html += `<div class="empty-state" style="padding:16px 20px;"><div class="empty-sub">${q ? 'No issues match search' : 'No open Jira issues assigned to you'}</div></div>`;
+    } else {
+      filtJira.forEach(i => { html += jiraRowHTML(i); });
+    }
+  }
+
+  // ── My Tasks ──
+  if (allTasks.length > 0 && jiraConnected) {
+    html += `<div class="my-tasks-hdr">MY TASKS</div>`;
+  }
+  if (filtTasks.length > 0) {
+    filtTasks.forEach(t => { html += taskRowHTML(t); });
+  } else if (!allTasks.length && !jiraConnected) {
+    html += `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No tasks assigned to you</div><div class="empty-sub">Ask your admin to assign you tasks</div><button class="empty-btn" onclick="loadTasks()">↻ Refresh</button></div>`;
+  }
+
+  scroll.innerHTML = html;
+
+  // Wire task buttons
+  scroll.querySelectorAll('[data-start-task]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id   = parseInt(btn.dataset.startTask);
+      const name = btn.dataset.name;
+      const color = btn.dataset.color || '#6366f1';
+      pickTask(id, name, color);
+    });
+  });
+  scroll.querySelectorAll('[data-start-jira]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const key     = btn.dataset.startJira;
+      const summary = btn.dataset.summary;
+      pickJira(key, summary);
+    });
+  });
+  scroll.querySelectorAll('[data-stop]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); window.tm.punchOut(); });
+  });
+  scroll.querySelectorAll('[data-open-url]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); window.tm.openExternal(btn.dataset.openUrl); });
+  });
+}
+
+function taskRowHTML(t) {
+  const isActive = S.isTracking && S.currentTaskId === t.id;
+  const color    = t.project_color || '#6366f1';
+  const statusOrd = t.status || 'todo';
+  const statusLabel = statusOrd === 'in_progress' ? 'In Progress' : statusOrd === 'done' ? 'Done' : 'To Do';
+  const statusColor = statusOrd === 'in_progress' ? 'var(--indigo)' : statusOrd === 'done' ? 'var(--emerald)' : 'var(--muted)';
+  const statusIcon  = statusOrd === 'in_progress' ? '●' : statusOrd === 'done' ? '✓' : '○';
+  const btnHtml = isActive
+    ? `<button class="tr-btn tr-pause" data-stop>⏸ Pause</button>`
+    : statusOrd !== 'done'
+      ? `<button class="tr-btn tr-start" data-start-task="${t.id}" data-name="${esc(t.name)}" data-color="${esc(color)}">▶ Start</button>`
+      : '';
+  return `<div class="task-row ${isActive ? 'tr-active' : ''}">
+    <div class="tr-bar" style="background:linear-gradient(${color},${color}88)"></div>
+    <div class="tr-info">
+      <div class="tr-name">${esc(t.name)}</div>
+      <div class="tr-meta">
+        <span class="tr-status-icon" style="color:${statusColor}">${statusIcon}</span>
+        <span class="tr-proj">${esc(t.project_name || '')}</span>
+        <span class="tr-dot">·</span>
+        <span class="tr-status" style="color:${statusColor}">${statusLabel}</span>
+      </div>
+    </div>
+    <div class="tr-actions">${btnHtml}</div>
+  </div>`;
+}
+
+function jiraRowHTML(i) {
+  const isActive = S.isTracking && S.currentJiraKey === i.key;
+  const statusColor = i.statusCategory === 'indeterminate' ? '#3b82f6' : i.statusCategory === 'done' ? '#10b981' : '#64748b';
+  const statusBg    = i.statusCategory === 'indeterminate' ? '#eff6ff' : i.statusCategory === 'done' ? '#dcfce7' : '#f1f5f9';
+  const prio = { Highest:'🔴', High:'🟠', Medium:'🟡', Low:'🔵' }[i.priority] || '⚪';
+  const btnHtml = isActive
+    ? `<button class="tr-btn tr-pause" data-stop>⏸ Pause</button>`
+    : `<button class="tr-btn" style="background:var(--jira);color:#fff;" data-start-jira="${esc(i.key)}" data-summary="${esc(i.summary)}">▶</button>`;
+  const openBtn = i.url ? `<button class="jr-open-btn" data-open-url="${esc(i.url)}" title="Open in Jira">↗</button>` : '';
+  return `<div class="jira-row ${isActive ? 'jr-active' : ''}">
+    <div class="jr-bar"></div>
+    <div class="jr-info">
+      <div class="jr-summary">${esc(i.summary)}</div>
+      <div class="jr-meta">
+        <span class="jr-key">${esc(i.key)}</span>
+        <span class="jr-dot">·</span>
+        <span class="jr-proj">${esc(i.projectName || '')}</span>
+      </div>
+    </div>
+    <div class="jr-right">
+      <span class="jr-priority">${prio}</span>
+      <span class="jr-status" style="color:${statusColor};background:${statusBg};">${esc(i.status || '')}</span>
+      ${btnHtml}${openBtn}
+    </div>
+  </div>`;
+}
+
+document.getElementById('search-inp').addEventListener('input', renderTasks);
+document.getElementById('tb-refresh').addEventListener('click', () => { loadTasks(); loadJira(); });
+document.getElementById('tb-new-task').addEventListener('click', () =>
+  window.tm.openExternal('https://alphabyte.ca/teammonitor/'));
+
+// ── Task / Jira picker ─────────────────────────────────────────────────────
+function openTaskPicker() {
+  if (!S.employee) return;
+  document.getElementById('task-picker-overlay').classList.add('open');
+  renderPicker('');
+  setTimeout(() => document.getElementById('picker-search').focus(), 50);
+}
+function closeTaskPicker() {
+  document.getElementById('task-picker-overlay').classList.remove('open');
+}
+document.getElementById('picker-search').addEventListener('input', e => renderPicker(e.target.value.toLowerCase()));
+document.getElementById('task-picker-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('task-picker-overlay')) closeTaskPicker();
+});
+
+function renderPicker(q) {
+  const scroll = document.getElementById('picker-scroll');
+  let html = '';
+
+  // Recently used
+  const rJira  = jiraIssues.filter(i => recentJiraKeys.includes(i.key))
+    .sort((a,b) => recentJiraKeys.indexOf(a.key) - recentJiraKeys.indexOf(b.key)).slice(0,3);
+  const rTasks = allTasks.filter(t => recentTaskIds.includes(t.id))
+    .sort((a,b) => recentTaskIds.indexOf(a.id) - recentTaskIds.indexOf(b.id)).slice(0, Math.max(0, 3 - rJira.length));
+
+  if ((rJira.length || rTasks.length) && !q) {
+    html += `<div class="sec-hdr"><span class="sec-hdr-icon">🕐</span>Recently Used</div>`;
+    rJira.forEach(i  => html += pickerJiraHTML(i));
+    rTasks.forEach(t => html += pickerTaskHTML(t));
+    html += `<div class="sec-divider"></div>`;
+  }
+
+  if (jiraConnected) {
+    const fJira = jiraIssues.filter(i => !recentJiraKeys.slice(0,3).includes(i.key) && matchQ(q, i.summary, i.key, i.projectName));
+    if (fJira.length || !q) {
+      html += `<div class="sec-hdr jira-sec-hdr"><div class="sec-jira-icon">J</div><span style="color:var(--jira);font-weight:600;">Jira — My Issues</span></div>`;
+      fJira.forEach(i => html += pickerJiraHTML(i));
+    }
+  }
+
+  const fTasks = allTasks.filter(t => !recentTaskIds.slice(0,3).includes(t.id) && matchQ(q, t.name, t.project_name));
+  if (fTasks.length || !q) {
+    if (jiraConnected) html += `<div class="my-tasks-hdr">MY TASKS</div>`;
+    fTasks.forEach(t => html += pickerTaskHTML(t));
+  }
+
+  if (!html) {
+    html = `<div class="empty-state"><div class="empty-sub">No tasks match search</div></div>`;
+  }
+  scroll.innerHTML = html;
+  scroll.querySelectorAll('[data-pick-task]').forEach(el => {
+    el.addEventListener('click', () => pickTask(parseInt(el.dataset.pickTask), el.dataset.name, el.dataset.color));
+  });
+  scroll.querySelectorAll('[data-pick-jira]').forEach(el => {
+    el.addEventListener('click', () => pickJira(el.dataset.pickJira, el.dataset.summary));
+  });
+}
+
+function pickerTaskHTML(t) {
+  const color = t.project_color || '#6366f1';
+  const statusLabel = t.status === 'in_progress' ? 'In Progress' : t.status === 'done' ? 'Done' : 'To Do';
+  return `<div class="picker-item" data-pick-task="${t.id}" data-name="${esc(t.name)}" data-color="${esc(color)}">
+    <div style="width:3px;height:32px;border-radius:2px;background:${color};flex-shrink:0;"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.name)}</div>
+      <div style="font-size:11px;color:var(--muted);">${esc(t.project_name||'')} · ${statusLabel}</div>
+    </div>
+  </div>`;
+}
+
+function pickerJiraHTML(i) {
+  return `<div class="picker-item" data-pick-jira="${esc(i.key)}" data-summary="${esc(i.summary)}">
+    <div style="width:3px;height:32px;border-radius:2px;background:var(--jira);flex-shrink:0;"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(i.summary)}</div>
+      <div style="font-size:11px;"><span style="color:var(--jira);font-weight:700;">${esc(i.key)}</span> · <span style="color:var(--muted);">${esc(i.projectName||'')}</span></div>
+    </div>
+  </div>`;
+}
+
+async function pickTask(id, name, color) {
+  closeTaskPicker();
+  addRecentTask(id);
+  const r = await window.tm.punchIn(id, null, name, color, null);
+  if (!r.ok) showToast(r.error || 'Punch-in failed', true);
+  renderTasks();
+}
+
+async function pickJira(key, summary) {
+  closeTaskPicker();
+  addRecentJira(key);
+  const r = await window.tm.punchIn(null, key, null, null, summary);
+  if (!r.ok) showToast(r.error || 'Punch-in failed', true);
+  renderTasks();
+}
+
+function addRecentTask(id) {
+  recentTaskIds = [id, ...recentTaskIds.filter(x => x !== id)].slice(0, 10);
+  localStorage.setItem('tm_recent_tasks', JSON.stringify(recentTaskIds));
+}
+function addRecentJira(key) {
+  recentJiraKeys = [key, ...recentJiraKeys.filter(x => x !== key)].slice(0, 10);
+  localStorage.setItem('tm_recent_jira', JSON.stringify(recentJiraKeys));
+}
+
+// ── Jira ───────────────────────────────────────────────────────────────────
+let jiraLoadedAt = null;
+async function loadJira(force = false) {
+  if (!force && jiraLoadedAt && (Date.now() - jiraLoadedAt) < 300000 && jiraIssues.length) return;
+  try {
+    const token = S.token;
+    const statusR = await fetch('https://alphabyte.ca/api/jira/status', { headers: { Authorization: `Bearer ${token}` } });
+    if (!statusR.ok) { jiraConnected = false; return; }
+    const statusD = await statusR.json();
+    jiraConnected = statusD.connected || false;
+    if (!jiraConnected) { jiraIssues = []; renderTasks(); return; }
+    const issuesR = await fetch('https://alphabyte.ca/api/jira/issues', { headers: { Authorization: `Bearer ${token}` } });
+    if (issuesR.ok) { jiraIssues = await issuesR.json(); jiraLoadedAt = Date.now(); }
+  } catch (_) { jiraConnected = false; }
+  renderTasks();
+}
+
+// ── Activity tab ───────────────────────────────────────────────────────────
+window.tm.onState(s => {
+  if (s.currentApp && s.currentApp !== lastCurrentApp) {
+    lastCurrentApp = s.currentApp;
+    if (selectedTab === 'activity') renderActivity();
+  }
+});
+
+function renderActivity() {
+  const scroll = document.getElementById('activity-scroll');
+  const hint   = document.getElementById('activity-hint');
+  hint.textContent = S.isTracking ? '' : 'Punch in to start';
+
+  if (!S.isTracking && !activityLog.length) {
+    scroll.innerHTML = `<div class="empty-state"><div class="empty-icon">🖥</div><div class="empty-title">${S.isTracking ? 'Monitoring app usage…' : 'Punch in to start monitoring'}</div></div>`;
+    return;
+  }
+
+  // Build from activity log + live current app
+  const byApp = {};
+  activityLog.forEach(a => { byApp[a.appName] = (byApp[a.appName] || 0) + (a.secs || 0); });
+  const sorted = Object.entries(byApp).sort((a,b) => b[1] - a[1]);
+  const max = sorted[0]?.[1] || 1;
+
+  let html = '';
+  if (lastCurrentApp) {
+    html += `<div class="app-row">
+      <div class="app-dot live"></div>
+      <div class="app-name">${esc(lastCurrentApp)}</div>
+      <div style="font-size:11px;color:var(--emerald);font-weight:600;">Live</div>
+    </div>`;
+  }
+  sorted.forEach(([app, secs]) => {
+    if (app === lastCurrentApp) return;
+    const mins = Math.round(secs / 60); if (!mins) return;
+    const pct  = Math.round((secs / max) * 100);
+    html += `<div class="app-row">
+      <div class="app-dot"></div>
+      <div class="app-name">${esc(app)}</div>
+      <div class="app-bar-wrap"><div class="app-bar" style="width:${pct}%"></div></div>
+      <div class="app-mins">${mins}m</div>
+    </div>`;
+  });
+  if (!html) {
+    html = `<div class="empty-state"><div class="empty-sub">No activity recorded yet</div></div>`;
+  }
+  scroll.innerHTML = html;
+}
+
+// ── Reports ────────────────────────────────────────────────────────────────
+async function openReports() {
+  document.getElementById('reports-overlay').classList.add('open');
+  const body = document.getElementById('reports-body');
+  body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted);">Loading…</div>`;
+  try {
+    const r = await fetch('https://alphabyte.ca/api/sessions/my', { headers: { Authorization: `Bearer ${S.token}` } });
+    if (!r.ok) throw new Error(r.status);
+    const sessions = await r.json();
+    const days = []; for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
+    const byDay = {}; days.forEach(d => { byDay[d] = 0; });
+    sessions.forEach(s => { const d = (s.punch_in||'').slice(0,10); if (byDay[d] !== undefined) byDay[d] += s.total_minutes||0; });
+    const total  = Object.values(byDay).reduce((a,b)=>a+b,0);
+    const maxMins = Math.max(...Object.values(byDay), 1);
+    const dNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const today = new Date().toISOString().slice(0,10);
+    body.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span style="font-size:12px;color:var(--muted);">7-day total</span>
+        <span style="font-size:22px;font-weight:800;color:var(--text);">${fmtTimer(total)}</span>
+      </div>
+      ${days.map(d => {
+        const mins = byDay[d];
+        const pct  = Math.round((mins/maxMins)*100);
+        const isToday = d === today;
+        const label = dNames[new Date(d+'T12:00:00').getDay()];
+        return `<div class="report-day">
+          <div class="report-day-name" style="${isToday?'color:var(--indigo);':''}">${label}</div>
+          <div class="report-bar-bg"><div class="report-bar-fill" style="width:${pct}%;${isToday?'background:var(--emerald);':''}"></div></div>
+          <div class="report-day-val" style="${isToday?'color:var(--indigo);':''}">${mins ? fmtTimer(mins) : '—'}</div>
+        </div>`;
+      }).join('')}`;
+  } catch (e) {
+    body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--red);">Failed to load — ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Manual Entry ───────────────────────────────────────────────────────────
+function openManualEntry() {
+  document.getElementById('manual-overlay').classList.add('open');
+  const d = document.getElementById('me-date');
+  if (!d.value) d.value = new Date().toISOString().slice(0,10);
+  const sel = document.getElementById('me-task');
+  sel.innerHTML = '<option value="">— Select task —</option>' +
+    allTasks.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  document.getElementById('me-result').textContent = '';
+}
+
+document.getElementById('me-submit').addEventListener('click', async () => {
+  const date = document.getElementById('me-date').value;
+  const start = document.getElementById('me-start').value;
+  const end   = document.getElementById('me-end').value;
+  const taskId = document.getElementById('me-task').value;
+  const note   = document.getElementById('me-note').value.trim();
+  const res    = document.getElementById('me-result');
+  if (!date || !start || !end) { res.style.color='var(--red)'; res.textContent='Date, start and end time required.'; return; }
+  if (start >= end) { res.style.color='var(--red)'; res.textContent='End time must be after start.'; return; }
+  const btn = document.getElementById('me-submit');
+  btn.disabled = true; btn.textContent = 'Submitting…'; res.textContent = '';
+  try {
+    const startISO = new Date(`${date}T${start}`).toISOString();
+    const endISO   = new Date(`${date}T${end}`).toISOString();
+    const mins     = Math.round((new Date(endISO)-new Date(startISO))/60000);
+    const resp = await fetch('https://alphabyte.ca/api/manual-time', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${S.token}` },
+      body: JSON.stringify({ start: startISO, end: endISO, totalMinutes: mins, taskId: taskId||null, note }),
+    });
+    if (resp.ok) {
+      res.style.color = 'var(--emerald)'; res.textContent = `✓ ${mins} minutes logged`;
+      document.getElementById('me-start').value = '';
+      document.getElementById('me-end').value   = '';
+      document.getElementById('me-note').value  = '';
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      res.style.color = 'var(--red)'; res.textContent = err.error || `Error ${resp.status}`;
+    }
+  } catch (e) {
+    res.style.color = 'var(--red)'; res.textContent = 'Network error';
+  }
+  btn.disabled = false; btn.textContent = 'Submit Entry';
+});
+
+// ── Settings ───────────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('settings-overlay').classList.add('open');
+  const tog = document.getElementById('set-reminder-toggle');
+  tog.checked = !idleReminderDisabled;
+  const sub = document.getElementById('set-rem-sub');
+  sub.textContent = idleReminderDisabled ? 'Reminders muted — tap to re-enable' : 'Notifies you when the timer is stopped';
+  sub.style.color = idleReminderDisabled ? 'var(--amber)' : 'var(--muted)';
+  document.getElementById('set-perm-sub').textContent = 'Screenshots are captured automatically';
+}
+
+document.getElementById('set-reminder-toggle').addEventListener('change', function() {
+  idleReminderDisabled = !this.checked;
+  localStorage.setItem('tm_idle_rem_disabled', idleReminderDisabled ? '1' : '0');
+  const sub = document.getElementById('set-rem-sub');
+  sub.textContent = idleReminderDisabled ? 'Reminders muted — tap to re-enable' : 'Notifies you when the timer is stopped';
+  sub.style.color = idleReminderDisabled ? 'var(--amber)' : 'var(--muted)';
+});
+
+document.getElementById('set-test-notif').addEventListener('click', () => {
+  new Notification('TeamMonitor', { body: '🔔 This is a test notification from TeamMonitor.' });
+  const btn = document.getElementById('set-test-notif');
+  btn.textContent = 'Sent ✓'; btn.style.background = 'var(--emerald)';
+  setTimeout(() => { btn.textContent = 'Send Test'; btn.style.background = '#3b82f6'; }, 2000);
+});
+
+function closeSettings() { document.getElementById('settings-overlay').classList.remove('open'); }
+document.getElementById('settings-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('settings-overlay')) closeSettings();
+});
+
+// ── Generic modal ──────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.getElementById('reports-overlay').addEventListener('click', e => { if (e.target === document.getElementById('reports-overlay')) closeModal('reports-overlay'); });
+document.getElementById('manual-overlay').addEventListener('click',  e => { if (e.target === document.getElementById('manual-overlay'))  closeModal('manual-overlay'); });
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function showToast(msg, warning = false, duration = 5000) {
+  if (toastTimer) clearTimeout(toastTimer);
+  const container = document.getElementById('toast-container');
+  container.innerHTML = `<div class="toast">
+    <span>${warning ? '⚠️' : '✅'}</span>
+    <span style="flex:1;">${esc(msg)}</span>
+    <button class="toast-close" onclick="document.getElementById('toast-container').innerHTML=''">✕</button>
+  </div>`;
+  toastTimer = setTimeout(() => { container.innerHTML = ''; }, duration);
+}
+
+// ── Screens ────────────────────────────────────────────────────────────────
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display          = 'none';
+}
+function showApp(emp) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display          = 'flex';
+  if (emp) {
+    const initials = (emp.name || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    document.getElementById('sb-avatar').childNodes[0].textContent = initials;
+    document.getElementById('sb-name').textContent  = emp.name  || '—';
+    document.getElementById('sb-email').textContent = emp.email || '—';
+    if (!allTasks.length) { loadTasks(); loadJira(); }
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmtTimer(mins) {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
+function setHeroDate() {
+  const d = new Date();
+  document.getElementById('hero-date').textContent = d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+}
+function setShow(id, show) {
+  document.getElementById(id).classList.toggle('show', !!show);
+}
+function matchQ(q, ...fields) {
+  if (!q) return true;
+  return fields.some(f => f && f.toLowerCase().includes(q));
+}
+</script>
+</body>
+</html>

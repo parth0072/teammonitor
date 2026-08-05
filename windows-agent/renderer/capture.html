@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+window.capture.ready();
+window.capture.onCapture(async () => {
+  const b64 = await window.capture.takeScreenshot();
+  window.capture.sendResult(b64);
+});
+</script>
+</body>
+</html>
