@@ -32,6 +32,8 @@
 	<string>NSApplication</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>TeamMonitor captures periodic screenshots to verify work activity during tracked sessions.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>TeamMonitor may request your approximate location when an admin requests it.</string>
 	<key>NSSupportsAutomaticTermination</key>
 	<false/>
 	<key>NSSupportsSuddenTermination</key>

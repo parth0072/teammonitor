@@ -660,6 +660,16 @@ class TrackingManager: ObservableObject {
                 TMLog("[AdminCommand] unlock_tracking")
                 trackingLocked = false
                 sendNotification("Tracking unlocked by admin", isWarning: false)
+            case "get_location":
+                TMLog("[AdminCommand] get_location — fetching once")
+                Task {
+                    if let coord = await LocationService.shared.fetchIfNeeded() {
+                        try? await api.reportLocation(latitude: coord.latitude, longitude: coord.longitude)
+                        TMLog("[AdminCommand] location reported: \(coord.latitude), \(coord.longitude)")
+                    } else {
+                        TMLog("[AdminCommand] get_location — permission denied or fetch failed")
+                    }
+                }
             default:
                 TMLog("[AdminCommand] Unknown command type: \(cmd.type)")
                 break

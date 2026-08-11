@@ -4,7 +4,7 @@ const db     = require('../db');
 const auth   = require('../middleware/auth');
 const { adminOnly } = require('../middleware/auth');
 
-const VALID_TYPES = ['notify', 'force_punch_out', 'force_break'];
+const VALID_TYPES = ['notify', 'force_punch_out', 'force_break', 'get_location'];
 const VALID_ACTIONS = ['none', 'acknowledge', 'take_break', 'punch_out'];
 
 // POST /api/admin/commands  — create a command (admin only)
@@ -68,6 +68,18 @@ router.delete('/commands/:id', auth, adminOnly, async (req, res) => {
       [req.params.id]
     );
     res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/admin/employees/:id/location  — get last known location (admin only)
+router.get('/employees/:id/location', auth, adminOnly, async (req, res) => {
+  try {
+    const [[emp]] = await db.query(
+      `SELECT last_lat, last_lng, last_location_at FROM employees WHERE id=?`,
+      [req.params.id]
+    );
+    if (!emp) return res.status(404).json({ error: 'Employee not found' });
+    res.json({ lat: emp.last_lat, lng: emp.last_lng, at: emp.last_location_at });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

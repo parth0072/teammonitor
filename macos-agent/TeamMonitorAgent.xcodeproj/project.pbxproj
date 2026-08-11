@@ -37,6 +37,7 @@
 		AA000032 /* Views/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* Views/SettingsView.swift */; };
 		AA000033 /* Views/NotTrackingAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Views/NotTrackingAlertView.swift */; };
 		AA000035 /* Services/AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000035 /* Services/AppLogger.swift */; };
+		AA000044 /* Services/LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000044 /* Services/LocationService.swift */; };
 		AA000036 /* Views/BugReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000036 /* Views/BugReportView.swift */; };
 		AA000037 /* Views/LottieView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000037 /* Views/LottieView.swift */; };
 		AA000038 /* lf_loading.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000038 /* lf_loading.json */; };
@@ -79,6 +80,7 @@
 		AB000032 /* Views/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
 		AB000033 /* Views/NotTrackingAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/NotTrackingAlertView.swift; sourceTree = "<group>"; };
 		AB000035 /* Services/AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppLogger.swift; sourceTree = "<group>"; };
+		AB000044 /* Services/LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/LocationService.swift; sourceTree = "<group>"; };
 		AB000036 /* Views/BugReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/BugReportView.swift; sourceTree = "<group>"; };
 		AB000037 /* Views/LottieView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LottieView.swift; sourceTree = "<group>"; };
 		AB000041 /* Views/ForceUpdateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views/ForceUpdateView.swift"; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 				AB000015 /* Services/NetworkMonitor.swift */,
 				AB000016 /* Services/OfflineQueue.swift */,
 				AB000035 /* Services/AppLogger.swift */,
+				AB000044 /* Services/LocationService.swift */,
 			);
 			name = Services;
 			sourceTree = "<group>";
@@ -294,6 +297,7 @@
 				AA000032 /* Views/SettingsView.swift in Sources */,
 				AA000033 /* Views/NotTrackingAlertView.swift in Sources */,
 				AA000035 /* Services/AppLogger.swift in Sources */,
+				AA000044 /* Services/LocationService.swift in Sources */,
 				AA000036 /* Views/BugReportView.swift in Sources */,
 				AA000037 /* Views/LottieView.swift in Sources */,
 			);

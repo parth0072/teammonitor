@@ -189,6 +189,9 @@ if (USE_MYSQL) {
         delivered_at DATETIME     DEFAULT NULL
       )`);
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS tracking_locked TINYINT DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS last_lat DECIMAL(10,7) DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS last_lng DECIMAL(10,7) DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS last_location_at DATETIME DEFAULT NULL`).catch(() => {});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS performance_logs (
         id           INT AUTO_INCREMENT PRIMARY KEY,

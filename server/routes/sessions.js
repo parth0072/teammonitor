@@ -711,4 +711,18 @@ router.patch('/:id/correct-minutes', auth, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/sessions/location  — agent reports location after get_location command
+router.post('/location', auth, async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+    if (latitude == null || longitude == null)
+      return res.status(400).json({ error: 'latitude and longitude required' });
+    await db.query(
+      `UPDATE employees SET last_lat=?, last_lng=?, last_location_at=NOW() WHERE id=?`,
+      [latitude, longitude, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

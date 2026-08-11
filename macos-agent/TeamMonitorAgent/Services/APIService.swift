@@ -425,6 +425,10 @@ class APIService: ObservableObject {
         try await put("/sessions/\(sessionId)/punch-out", body: body)
     }
 
+    func reportLocation(latitude: Double, longitude: Double) async throws {
+        try await post("/sessions/location", body: ["latitude": latitude, "longitude": longitude])
+    }
+
     func breakStart(sessionId: Int) async throws {
         try await post("/sessions/\(sessionId)/break/start", body: [:])
     }

@@ -195,6 +195,7 @@ export const api = {
   sendAdminCommand:   (data)  => request('POST',   '/admin/commands', data),
   getAdminCommands:   (empId) => request('GET',    `/admin/commands${empId ? '?employeeId=' + empId : ''}`),
   cancelAdminCommand: (id)    => request('DELETE', `/admin/commands/${id}`),
+  getEmployeeLocation:(id)    => request('GET',    `/admin/employees/${id}/location`),
   setTrackingLock:    (employeeId, locked) => request('PUT', '/admin/tracking-lock', { employeeId, locked }),
   sendSlackDigest:    (date)               => request('POST',  '/admin/slack-report',          { date }),
   previewSlackDigest: (date)               => request('GET',   `/admin/slack-report/preview?date=${date}`),

@@ -128,11 +128,13 @@ export default function EmployeeDetail() {
   const [rcMsg,         setRcMsg]         = useState("");
   const [rcCommands,    setRcCommands]    = useState([]);
   const [lockSaving,    setLockSaving]    = useState(false);
+  const [locationData,  setLocationData]  = useState(null);
+  const [locRequesting, setLocRequesting] = useState(false);
 
   async function loadRcCommands() {
     try { setRcCommands(await api.getAdminCommands(id)); } catch(_) {}
   }
-  useEffect(() => { if (tab === 5) loadRcCommands(); }, [tab, id]);
+  useEffect(() => { if (tab === 5) { loadRcCommands(); refreshLocation(); } }, [tab, id]);
 
   async function sendNotification() {
     if (!rcMessage.trim()) { setRcMsg("✗ Message is required"); return; }
@@ -153,6 +155,30 @@ export default function EmployeeDetail() {
       setRcMsg(`✓ ${commandType === "force_punch_out" ? "Force punch-out" : "Force break"} queued`);
       loadRcCommands();
     } catch(err) { setRcMsg("✗ " + err.message); }
+  }
+
+  async function requestLocation() {
+    setLocRequesting(true); setRcMsg("");
+    try {
+      await api.sendAdminCommand({ employeeId: id, commandType: "get_location" });
+      setRcMsg("✓ Location request queued — result arrives on next heartbeat (~5 min)");
+      loadRcCommands();
+      // Poll for result after 30s
+      setTimeout(async () => {
+        try {
+          const loc = await api.getEmployeeLocation(id);
+          if (loc?.lat) setLocationData(loc);
+        } catch(_) {}
+        setLocRequesting(false);
+      }, 30000);
+    } catch(err) { setRcMsg("✗ " + err.message); setLocRequesting(false); }
+  }
+
+  async function refreshLocation() {
+    try {
+      const loc = await api.getEmployeeLocation(id);
+      if (loc?.lat) setLocationData(loc);
+    } catch(_) {}
   }
 
   async function toggleTrackingLock() {
@@ -619,6 +645,31 @@ export default function EmployeeDetail() {
                 style={{ background:"#f59e0b", color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600 }}>
                 Force Break
               </button>
+            </div>
+          </div>
+
+          {/* Location */}
+          <div style={{ marginBottom:28 }}>
+            <div style={{ fontSize:14, fontWeight:700, color:"#1e293b", marginBottom:8 }}>Location</div>
+            <div style={{ fontSize:13, color:"#64748b", marginBottom:12 }}>
+              Requests the employee's approximate location once. Result arrives on next heartbeat.
+            </div>
+            <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
+              <button onClick={requestLocation} disabled={locRequesting}
+                style={{ background:"#6366f1", color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600, opacity:locRequesting?0.7:1 }}>
+                {locRequesting ? "Requesting…" : "Request Location"}
+              </button>
+              {locationData?.lat && (
+                <a
+                  href={`https://www.google.com/maps?q=${locationData.lat},${locationData.lng}`}
+                  target="_blank" rel="noreferrer"
+                  style={{ fontSize:13, color:"#6366f1", textDecoration:"underline" }}>
+                  📍 {Number(locationData.lat).toFixed(4)}, {Number(locationData.lng).toFixed(4)}
+                  {locationData.at && <span style={{ color:"#94a3b8", marginLeft:8 }}>
+                    {new Date(locationData.at).toLocaleString()}
+                  </span>}
+                </a>
+              )}
             </div>
           </div>
 
