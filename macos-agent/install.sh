@@ -65,7 +65,7 @@ TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 info "Downloading ${APP_NAME} ${LATEST_TAG}..."
-curl -fL --progress-bar "$DOWNLOAD_URL" -o "$TMP_DIR/${APP_NAME}.zip" \
+curl -fL --progress-bar "$DOWNLOAD_URL" -o "$TMP_DIR/${APP_NAME}.zip" 2>/dev/tty \
   || error "Download failed."
 
 # ── 4. Extract ────────────────────────────────────────────────────────────────
