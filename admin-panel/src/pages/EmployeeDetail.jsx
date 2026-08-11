@@ -130,6 +130,7 @@ export default function EmployeeDetail() {
   const [lockSaving,    setLockSaving]    = useState(false);
   const [locationData,  setLocationData]  = useState(null);
   const [locRequesting, setLocRequesting] = useState(false);
+  const [locError,      setLocError]      = useState("");
 
   async function loadRcCommands() {
     try { setRcCommands(await api.getAdminCommands(id)); } catch(_) {}
@@ -168,10 +169,12 @@ export default function EmployeeDetail() {
   }
 
   async function refreshLocation() {
+    setLocError("");
     try {
       const loc = await api.getEmployeeLocation(id);
       if (loc?.lat) setLocationData(loc);
-    } catch(_) {}
+      else setLocationData(null);
+    } catch(err) { setLocError(err.message || "Failed to load location"); }
   }
 
   async function toggleTrackingLock() {
@@ -658,21 +661,23 @@ export default function EmployeeDetail() {
               </button>
             </div>
             <div style={{ marginTop:12 }}>
-              {locationData?.lat
-                ? <>
-                    <a
-                      href={`https://www.google.com/maps?q=${locationData.lat},${locationData.lng}`}
-                      target="_blank" rel="noreferrer"
-                      style={{ fontSize:13, color:"#6366f1", textDecoration:"underline" }}>
-                      📍 {Number(locationData.lat).toFixed(4)}, {Number(locationData.lng).toFixed(4)}
-                    </a>
-                    {locationData.at && <span style={{ color:"#94a3b8", fontSize:12, marginLeft:10 }}>
-                      Last seen {fmtDateTime(locationData.at)}
-                    </span>}
-                  </>
-                : <span style={{ color:"#94a3b8", fontSize:13 }}>
-                    No location data yet — request location and wait for next heartbeat, then click Refresh.
-                  </span>
+              {locError
+                ? <span style={{ color:"#ef4444", fontSize:13 }}>✗ {locError}</span>
+                : locationData?.lat
+                  ? <>
+                      <a
+                        href={`https://www.google.com/maps?q=${locationData.lat},${locationData.lng}`}
+                        target="_blank" rel="noreferrer"
+                        style={{ fontSize:13, color:"#6366f1", textDecoration:"underline" }}>
+                        📍 {Number(locationData.lat).toFixed(4)}, {Number(locationData.lng).toFixed(4)}
+                      </a>
+                      {locationData.at && <span style={{ color:"#94a3b8", fontSize:12, marginLeft:10 }}>
+                        Last seen {fmtDateTime(locationData.at)}
+                      </span>}
+                    </>
+                  : <span style={{ color:"#94a3b8", fontSize:13 }}>
+                      No location stored yet. Click Request Location, wait for next heartbeat, then Refresh.
+                    </span>
               }
             </div>
           </div>
