@@ -36,6 +36,14 @@ if (USE_MYSQL) {
     timezone:           '+00:00',
   });
 
+  // Force every connection to use UTC so NOW() always returns UTC regardless
+  // of the cPanel/MySQL server's local timezone setting.
+  pool.on('connection', (conn) => {
+    conn.query("SET time_zone = '+00:00'", (err) => {
+      if (err) console.error('[db] Failed to set time_zone:', err.message);
+    });
+  });
+
   // Run schema + seed on startup
   async function initDB() {
     await pool.query(`

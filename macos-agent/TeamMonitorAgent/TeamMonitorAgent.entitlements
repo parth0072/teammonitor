@@ -9,5 +9,7 @@
 	<key>com.apple.security.automation.apple-events</key><true/>
 	<!-- Required for CGWindowListCreateImage (screen recording) -->
 	<!-- User must grant Screen Recording permission in System Settings → Privacy -->
+	<!-- Required for CoreLocation on macOS hardened runtime -->
+	<key>com.apple.security.personal-information.location</key><true/>
 </dict>
 </plist>
