@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { format } from "date-fns";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { fmtHM, fmtDur } from "../tz";
+import { fmtHM, fmtDur, fmtTime, fmtDateTime } from "../tz";
 
 const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#ec4899"];
 const S = {
@@ -161,17 +161,10 @@ export default function EmployeeDetail() {
     setLocRequesting(true); setRcMsg("");
     try {
       await api.sendAdminCommand({ employeeId: id, commandType: "get_location" });
-      setRcMsg("✓ Location request queued — result arrives on next heartbeat (~5 min)");
+      setRcMsg("✓ Location request queued — click Refresh after the next heartbeat (~5 min)");
       loadRcCommands();
-      // Poll for result after 30s
-      setTimeout(async () => {
-        try {
-          const loc = await api.getEmployeeLocation(id);
-          if (loc?.lat) setLocationData(loc);
-        } catch(_) {}
-        setLocRequesting(false);
-      }, 30000);
-    } catch(err) { setRcMsg("✗ " + err.message); setLocRequesting(false); }
+    } catch(err) { setRcMsg("✗ " + err.message); }
+    setLocRequesting(false);
   }
 
   async function refreshLocation() {
@@ -659,18 +652,24 @@ export default function EmployeeDetail() {
                 style={{ background:"#6366f1", color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600, opacity:locRequesting?0.7:1 }}>
                 {locRequesting ? "Requesting…" : "Request Location"}
               </button>
-              {locationData?.lat && (
+              <button onClick={refreshLocation}
+                style={{ background:"#f1f5f9", color:"#374151", border:"1px solid #e2e8f0", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600 }}>
+                Refresh
+              </button>
+            </div>
+            {locationData?.lat && (
+              <div style={{ marginTop:12 }}>
                 <a
                   href={`https://www.google.com/maps?q=${locationData.lat},${locationData.lng}`}
                   target="_blank" rel="noreferrer"
                   style={{ fontSize:13, color:"#6366f1", textDecoration:"underline" }}>
                   📍 {Number(locationData.lat).toFixed(4)}, {Number(locationData.lng).toFixed(4)}
-                  {locationData.at && <span style={{ color:"#94a3b8", marginLeft:8 }}>
-                    {new Date(locationData.at).toLocaleString()}
-                  </span>}
                 </a>
-              )}
-            </div>
+                {locationData.at && <span style={{ color:"#94a3b8", fontSize:12, marginLeft:10 }}>
+                  Last seen {fmtDateTime(locationData.at)}
+                </span>}
+              </div>
+            )}
           </div>
 
           {/* Send notification */}
@@ -717,7 +716,7 @@ export default function EmployeeDetail() {
                       {c.payload?.message && <span style={{ color:"#64748b", marginLeft:8 }}>"{c.payload.message.slice(0,40)}{c.payload.message.length>40?"…":""}"</span>}
                     </div>
                     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                      <span style={{ fontSize:11, color:"#94a3b8" }}>{c.created_at ? new Date(c.created_at).toLocaleTimeString() : ""}</span>
+                      <span style={{ fontSize:11, color:"#94a3b8" }}>{c.created_at ? fmtDateTime(c.created_at) : ""}</span>
                       <span style={{ fontSize:11, fontWeight:600, padding:"2px 8px", borderRadius:10,
                         background: c.status==="delivered"?"#dcfce7":c.status==="cancelled"?"#f1f5f9":"#fef9c3",
                         color:      c.status==="delivered"?"#16a34a":c.status==="cancelled"?"#94a3b8":"#b45309" }}>
