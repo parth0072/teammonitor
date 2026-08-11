@@ -657,19 +657,24 @@ export default function EmployeeDetail() {
                 Refresh
               </button>
             </div>
-            {locationData?.lat && (
-              <div style={{ marginTop:12 }}>
-                <a
-                  href={`https://www.google.com/maps?q=${locationData.lat},${locationData.lng}`}
-                  target="_blank" rel="noreferrer"
-                  style={{ fontSize:13, color:"#6366f1", textDecoration:"underline" }}>
-                  📍 {Number(locationData.lat).toFixed(4)}, {Number(locationData.lng).toFixed(4)}
-                </a>
-                {locationData.at && <span style={{ color:"#94a3b8", fontSize:12, marginLeft:10 }}>
-                  Last seen {fmtDateTime(locationData.at)}
-                </span>}
-              </div>
-            )}
+            <div style={{ marginTop:12 }}>
+              {locationData?.lat
+                ? <>
+                    <a
+                      href={`https://www.google.com/maps?q=${locationData.lat},${locationData.lng}`}
+                      target="_blank" rel="noreferrer"
+                      style={{ fontSize:13, color:"#6366f1", textDecoration:"underline" }}>
+                      📍 {Number(locationData.lat).toFixed(4)}, {Number(locationData.lng).toFixed(4)}
+                    </a>
+                    {locationData.at && <span style={{ color:"#94a3b8", fontSize:12, marginLeft:10 }}>
+                      Last seen {fmtDateTime(locationData.at)}
+                    </span>}
+                  </>
+                : <span style={{ color:"#94a3b8", fontSize:13 }}>
+                    No location data yet — request location and wait for next heartbeat, then click Refresh.
+                  </span>
+              }
+            </div>
           </div>
 
           {/* Send notification */}

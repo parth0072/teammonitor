@@ -15,7 +15,12 @@ export function setTimezone(tz) {
 function intlFmt(dt, opts) {
   if (!dt) return '—';
   try {
-    return new Intl.DateTimeFormat('en-US', { timeZone: getTimezone(), ...opts }).format(new Date(dt));
+    // MySQL DATETIME strings have no timezone suffix — force UTC so they aren't
+    // double-shifted by treating them as local time first
+    const normalized = typeof dt === 'string' && /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(dt) && !/[Z+]/.test(dt)
+      ? dt.replace(' ', 'T') + 'Z'
+      : dt;
+    return new Intl.DateTimeFormat('en-US', { timeZone: getTimezone(), ...opts }).format(new Date(normalized));
   } catch {
     return '—';
   }
