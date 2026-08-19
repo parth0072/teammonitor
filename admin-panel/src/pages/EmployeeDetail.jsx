@@ -256,17 +256,63 @@ export default function EmployeeDetail() {
   }
 
   // Manual entry state
-  const [manualForm, setManualForm] = useState({ date: today, startTime:"09:00", endTime:"10:00", note:"" });
-  const [manualMsg,  setManualMsg]  = useState("");
+  const [manualForm,    setManualForm]    = useState({ date: today, startTime:"09:00", endTime:"10:00", note:"" });
+  const [manualMsg,     setManualMsg]     = useState("");
+  const [manualEntries, setManualEntries] = useState([]);
+  const [editingEntry,  setEditingEntry]  = useState(null); // { id, date, startTime, endTime, note }
+  const [editMsg,       setEditMsg]       = useState("");
   const manualMins = Math.max(0, (() => { try { return Math.round((new Date(`${manualForm.date}T${manualForm.endTime}`) - new Date(`${manualForm.date}T${manualForm.startTime}`)) / 60000); } catch { return 0; } })());
+
+  async function loadManualEntries() {
+    try { setManualEntries(await api.getManualEntries(id)); } catch(_) {}
+  }
+
+  useEffect(() => { if (tab === 7) loadManualEntries(); }, [tab, id]);
 
   async function submitManual(e) {
     e.preventDefault(); setManualMsg("");
     try {
       await api.createManualEntry({ employeeId: id, ...manualForm });
       setManualMsg("✓ Entry saved successfully");
+      loadManualEntries();
       setTimeout(() => setManualMsg(""), 3000);
     } catch(err) { setManualMsg("✗ " + err.message); }
+  }
+
+  function startEdit(entry) {
+    const pi = entry.punch_in ? new Date(entry.punch_in.replace(' ','T')+'Z') : null;
+    const po = entry.punch_out ? new Date(entry.punch_out.replace(' ','T')+'Z') : null;
+    setEditingEntry({
+      id: entry.id,
+      date: entry.date?.slice(0,10) || "",
+      startTime: pi ? pi.toISOString().slice(11,16) : "09:00",
+      endTime:   po ? po.toISOString().slice(11,16) : "10:00",
+      note: entry.note || "",
+    });
+    setEditMsg("");
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault(); setEditMsg("");
+    try {
+      await api.updateManualEntry(editingEntry.id, {
+        date: editingEntry.date,
+        startTime: editingEntry.startTime,
+        endTime: editingEntry.endTime,
+        note: editingEntry.note,
+      });
+      setEditMsg("✓ Updated");
+      loadManualEntries();
+      setTimeout(() => { setEditingEntry(null); setEditMsg(""); }, 1200);
+    } catch(err) { setEditMsg("✗ " + err.message); }
+  }
+
+  async function deleteEntry(entryId) {
+    if (!window.confirm("Delete this manual entry?")) return;
+    try {
+      await api.deleteManualEntry(entryId);
+      loadManualEntries();
+    } catch(err) { alert("Delete failed: " + err.message); }
   }
 
   if (!emp) return <div style={{ color:"#64748b", padding:40 }}>Loading…</div>;
@@ -804,7 +850,8 @@ export default function EmployeeDetail() {
         </div>
       )}
 
-      {tab===7 && (
+      {tab===7 && (<>
+        {/* Add form */}
         <div style={S.card}>
           <div style={S.cardTitle}>Add Manual Time Entry</div>
           <form onSubmit={submitManual} style={{ maxWidth:400 }}>
@@ -832,7 +879,72 @@ export default function EmployeeDetail() {
             </button>
           </form>
         </div>
-      )}
+
+        {/* Existing manual entries */}
+        <div style={S.card}>
+          <div style={S.cardTitle}>Existing Manual Entries</div>
+          {manualEntries.length === 0
+            ? <div style={{ color:"#94a3b8", fontSize:13 }}>No manual entries yet.</div>
+            : <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                <thead>
+                  <tr style={{ borderBottom:"2px solid #e2e8f0" }}>
+                    {["Date","Start","End","Duration","Note",""].map(h => (
+                      <th key={h} style={{ textAlign:"left", padding:"8px 10px", fontWeight:600, color:"#374151", fontSize:12 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {manualEntries.map(entry => {
+                    const pi = entry.punch_in  ? new Date(entry.punch_in.replace(' ','T')+'Z')  : null;
+                    const po = entry.punch_out ? new Date(entry.punch_out.replace(' ','T')+'Z') : null;
+                    const startStr = pi ? pi.toISOString().slice(11,16) : "—";
+                    const endStr   = po ? po.toISOString().slice(11,16) : "—";
+                    return (
+                      <tr key={entry.id} style={{ borderBottom:"1px solid #f1f5f9" }}>
+                        <td style={{ padding:"10px 10px" }}>{entry.date?.slice(0,10)}</td>
+                        <td style={{ padding:"10px 10px" }}>{startStr}</td>
+                        <td style={{ padding:"10px 10px" }}>{endStr}</td>
+                        <td style={{ padding:"10px 10px" }}>{fmtHM(entry.total_minutes||0)}</td>
+                        <td style={{ padding:"10px 10px", color:"#64748b" }}>{entry.note || "—"}</td>
+                        <td style={{ padding:"10px 10px", whiteSpace:"nowrap" }}>
+                          <button onClick={() => startEdit(entry)} style={{ background:"#f1f5f9", border:"none", borderRadius:6, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:600, marginRight:6 }}>Edit</button>
+                          <button onClick={() => deleteEntry(entry.id)} style={{ background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:6, padding:"5px 12px", cursor:"pointer", fontSize:12, fontWeight:600 }}>Delete</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+          }
+        </div>
+
+        {/* Edit modal */}
+        {editingEntry && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ background:"#fff", borderRadius:14, padding:28, width:380, boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}>
+              <div style={{ fontSize:16, fontWeight:700, marginBottom:16 }}>Edit Manual Entry</div>
+              <form onSubmit={saveEdit}>
+                {[
+                  { label:"Date",       field:<input type="date" value={editingEntry.date} onChange={e=>setEditingEntry({...editingEntry,date:e.target.value})} style={{ border:"1px solid #e2e8f0", borderRadius:8, padding:"8px 12px", fontSize:13, width:"100%", boxSizing:"border-box" }} required /> },
+                  { label:"Start Time", field:<input type="time" value={editingEntry.startTime} onChange={e=>setEditingEntry({...editingEntry,startTime:e.target.value})} style={{ border:"1px solid #e2e8f0", borderRadius:8, padding:"8px 12px", fontSize:13, width:"100%", boxSizing:"border-box" }} required /> },
+                  { label:"End Time",   field:<input type="time" value={editingEntry.endTime} onChange={e=>setEditingEntry({...editingEntry,endTime:e.target.value})} style={{ border:"1px solid #e2e8f0", borderRadius:8, padding:"8px 12px", fontSize:13, width:"100%", boxSizing:"border-box" }} required /> },
+                  { label:"Note",       field:<input type="text" value={editingEntry.note} onChange={e=>setEditingEntry({...editingEntry,note:e.target.value})} placeholder="Task description (optional)" style={{ border:"1px solid #e2e8f0", borderRadius:8, padding:"8px 12px", fontSize:13, width:"100%", boxSizing:"border-box" }} /> },
+                ].map(row => (
+                  <div key={row.label} style={{ marginBottom:14 }}>
+                    <label style={{ display:"block", fontSize:12, fontWeight:600, color:"#374151", marginBottom:5 }}>{row.label}</label>
+                    {row.field}
+                  </div>
+                ))}
+                {editMsg && <div style={{ marginBottom:12, fontSize:13, color: editMsg.startsWith("✓") ? "#16a34a" : "#ef4444", fontWeight:500 }}>{editMsg}</div>}
+                <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+                  <button type="button" onClick={() => setEditingEntry(null)} style={{ background:"#f1f5f9", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13 }}>Cancel</button>
+                  <button type="submit" style={{ background:"#3b82f6", color:"#fff", border:"none", borderRadius:8, padding:"9px 18px", cursor:"pointer", fontSize:13, fontWeight:600 }}>Save</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </>)}
 
       {tab===8 && (
         <div>

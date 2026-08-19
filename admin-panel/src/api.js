@@ -168,8 +168,11 @@ export const api = {
   updateProductivityRule:  (id, data)     => request('PUT',    `/productivity/rules/${id}`, data),
   deleteProductivityRule:  (id)           => request('DELETE', `/productivity/rules/${id}`),
 
-  // Manual entry (admin)
-  createManualEntry: (data) => request('POST', '/sessions/manual/admin', data),
+  // Manual entries (admin)
+  createManualEntry:  (data)     => request('POST',   '/sessions/manual/admin', data),
+  getManualEntries:   (empId)    => request('GET',    `/sessions/manual/admin/${empId}`),
+  updateManualEntry:  (id, data) => request('PUT',    `/sessions/manual/admin/${id}`, data),
+  deleteManualEntry:  (id)       => request('DELETE', `/sessions/manual/admin/${id}`),
 
   // Employee sessions
   getEmployeeSessions: (empId, date) => request('GET', `/sessions?date=${date}`).then(rows => rows.filter(r => String(r.employee_id) === String(empId))),

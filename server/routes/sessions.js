@@ -315,16 +315,52 @@ router.post('/manual/admin', auth, adminOnly, async (req, res) => {
     const totalMinutes = Math.round((end - start) / 60000);
     if (totalMinutes <= 0) return res.status(400).json({ error: 'End time must be after start time' });
     const [result] = await db.query(
-      "INSERT INTO sessions (employee_id, punch_in, punch_out, total_minutes, status, date) VALUES (?,?,?,?,'completed',?)",
-      [employeeId, start, end, totalMinutes, date]
+      "INSERT INTO sessions (employee_id, punch_in, punch_out, total_minutes, status, date, is_manual, note) VALUES (?,?,?,?,'completed',?,1,?)",
+      [employeeId, start, end, totalMinutes, date, note || null]
     );
-    if (note) {
-      await db.query(
-        'INSERT INTO activity_logs (employee_id, session_id, app_name, window_title, start_time, end_time, duration_seconds, date) VALUES (?,?,?,?,?,?,?,?)',
-        [employeeId, result.insertId, 'Manual Entry', note || '', start, end, totalMinutes * 60, date]
-      );
-    }
     res.status(201).json({ sessionId: result.insertId, totalMinutes });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/sessions/manual/admin/:employeeId – list manual entries for an employee
+router.get('/manual/admin/:employeeId', auth, adminOnly, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT id, date, punch_in, punch_out, total_minutes, note FROM sessions
+       WHERE employee_id=? AND is_manual=1 ORDER BY date DESC, punch_in DESC LIMIT 100`,
+      [req.params.employeeId]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/sessions/manual/admin/:id – edit a manual entry
+router.put('/manual/admin/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const { date, startTime, endTime, note } = req.body;
+    if (!date || !startTime || !endTime) return res.status(400).json({ error: 'date, startTime, endTime required' });
+    const start = new Date(`${date}T${startTime}:00`);
+    const end   = new Date(`${date}T${endTime}:00`);
+    const totalMinutes = Math.round((end - start) / 60000);
+    if (totalMinutes <= 0) return res.status(400).json({ error: 'End time must be after start time' });
+    const [result] = await db.query(
+      `UPDATE sessions SET date=?, punch_in=?, punch_out=?, total_minutes=?, note=? WHERE id=? AND is_manual=1`,
+      [date, start, end, totalMinutes, note || null, req.params.id]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Manual entry not found' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/sessions/manual/admin/:id – delete a manual entry
+router.delete('/manual/admin/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const [result] = await db.query(
+      `DELETE FROM sessions WHERE id=? AND is_manual=1`,
+      [req.params.id]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Manual entry not found' });
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

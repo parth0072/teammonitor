@@ -200,6 +200,8 @@ if (USE_MYSQL) {
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS last_lat DECIMAL(10,7) DEFAULT NULL`).catch(() => {});
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS last_lng DECIMAL(10,7) DEFAULT NULL`).catch(() => {});
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS last_location_at DATETIME DEFAULT NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_manual TINYINT(1) DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS note VARCHAR(500) DEFAULT NULL`).catch(() => {});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS performance_logs (
         id           INT AUTO_INCREMENT PRIMARY KEY,
