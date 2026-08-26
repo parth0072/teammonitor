@@ -77,15 +77,44 @@ class TrackingManager: ObservableObject {
     @Published var showNotTrackingAlert: Bool    = false
     @Published var showTaskPicker:       Bool    = false
     @Published var showResumePrompt:     Bool    = false
-    @Published var secondsUntilNextReminder: Int = 2 * 60
+    @Published var secondsUntilNextReminder: Int = 10 * 60
 
-    // Escalating reminder: 2 min → 5 min → 10 min repeating
-    private let reminderIntervals: [TimeInterval] = [2 * 60, 5 * 60, 10 * 60]
-    private var reminderPhase: Int = 0
+    // Not-tracking reminder interval — a single configurable value (minutes). Defaults to
+    // 10 min, user-adjustable in Settings, hard-capped at 30 min so you're never left
+    // un-reminded for longer than that.
+    private let kReminderIntervalMin = "tm_reminder_interval_min"
+    let reminderIntervalMinLimit = 5
+    let reminderIntervalMaxLimit = 30
+    @Published var reminderIntervalMinutes: Int = 10
+    var reminderIntervalSeconds: TimeInterval { TimeInterval(reminderIntervalMinutes * 60) }
+    /// True while the screen is locked. Screen lock keeps the Mac awake (unlike sleep), so
+    /// the not-tracking reminder timer would otherwise keep firing at the lock screen.
+    private var isScreenLocked: Bool = false
     @Published var idleReminderDisabled: Bool = UserDefaults.standard.bool(forKey: "tm_idle_reminder_disabled")
 
-    var nextReminderMinutes: Int {
-        Int(reminderIntervals[min(reminderPhase, reminderIntervals.count - 1)] / 60)
+    var nextReminderMinutes: Int { reminderIntervalMinutes }
+
+    /// Update the reminder interval (minutes), clamp to [5, 30], persist, and reschedule
+    /// so the change takes effect immediately when the timer isn't running.
+    func setReminderInterval(minutes: Int) {
+        let clamped = min(reminderIntervalMaxLimit, max(reminderIntervalMinLimit, minutes))
+        guard clamped != reminderIntervalMinutes else { return }
+        reminderIntervalMinutes = clamped
+        UserDefaults.standard.set(clamped, forKey: kReminderIntervalMin)
+        TMLog("[Reminders] Interval set to \(clamped) min")
+        if (!isTracking || isOnBreak) && !idleReminderDisabled && !isScreenLocked {
+            scheduleNotTrackingReminder()
+        }
+    }
+
+    /// User tapped "Remind me later" — dismiss the alert and start a fresh reminder cycle
+    /// so the next nudge comes one full interval from now.
+    func snoozeReminder() {
+        showNotTrackingAlert = false
+        showStartReminder    = false
+        if (!isTracking || isOnBreak) && !idleReminderDisabled {
+            scheduleNotTrackingReminder()
+        }
     }
 
     // Slow work alert
@@ -130,6 +159,18 @@ class TrackingManager: ObservableObject {
     private var pendingDeliveredCommandIds: [Int] = []
     /// Breaks completed offline (breakEnd API failed) — synced with the next heartbeat.
     private var pendingBreaks: [(start: Date, end: Date)] = []
+
+    // MARK: - Elapsed-time accounting (wall-clock, immune to missed timer fires)
+    // `trackedMinutes` is a DERIVED cache of the two values below — never increment it directly.
+    //   accumulatedSeconds = tracked seconds from completed (folded) segments this session
+    //   segmentStart       = start of the current live segment, or nil while paused/on break
+    // currentTrackedSeconds() = accumulatedSeconds + (now − segmentStart). The minute timer
+    // recomputes trackedMinutes from this each fire, so even if fires are dropped (App Nap,
+    // main-thread stall, coalescing) no time is lost — the gap is recovered on the next fire.
+    private var accumulatedSeconds: TimeInterval = 0
+    private var segmentStart:       Date?
+    /// App Nap suppression token held while a session is actively tracking (not on break).
+    private var activityToken:      NSObjectProtocol?
 
     private let kRecentTaskIds  = "tm_recent_task_ids"
     private let kRecentJiraKeys = "tm_recent_jira_keys"
@@ -205,6 +246,14 @@ class TrackingManager: ObservableObject {
         recentTaskIds  = UserDefaults.standard.array(forKey: kRecentTaskIds)  as? [Int]    ?? []
         recentJiraKeys = UserDefaults.standard.array(forKey: kRecentJiraKeys) as? [String] ?? []
 
+        // Restore the configured reminder interval (0 = unset → keep the 10-min default),
+        // clamped to the allowed range in case an older/edited value is out of bounds.
+        let savedReminderInterval = UserDefaults.standard.integer(forKey: kReminderIntervalMin)
+        if savedReminderInterval > 0 {
+            reminderIntervalMinutes = min(reminderIntervalMaxLimit, max(reminderIntervalMinLimit, savedReminderInterval))
+        }
+        secondsUntilNextReminder = Int(reminderIntervalSeconds)
+
         restoreSessionIfNeeded()
         loadTodayMinutes()
 
@@ -256,18 +305,23 @@ class TrackingManager: ObservableObject {
                 TMLog("[LidClose] Mac going to sleep — no active session, nothing to do")
                 return
             }
-            let mins = self.trackedMinutes
-            TMLog("[LidClose] Mac going to sleep — session: \(sid), \(mins)m tracked, isOnBreak: \(self.isOnBreak), isIdle: \(self.isIdle), isTracking: \(self.isTracking)")
             // Stop the session timer so Power Nap wakes don't send heartbeats during sleep.
             // Without this, Power Nap fires the RunLoop timer every 5 min and keeps
             // last_heartbeat_at fresh, preventing the server's gap detection from
             // inserting a break for the sleep period.
             // Laptops that deep-sleep are unaffected — their RunLoop pauses anyway.
+            // Fold the live segment BEFORE stopping: captures the partial minute up to sleep
+            // AND prevents the paused segment from later counting the whole sleep span as work.
             if self.isTracking && !self.isOnBreak {
+                self.foldSegment()
+                self.recomputeTrackedMinutes()
                 self.sessionTimer?.invalidate()
                 self.sessionTimer = nil
-                TMLog("[LidClose] Session timer stopped — will restart on wake")
+                self.endBackgroundActivity()
+                TMLog("[LidClose] Session timer stopped + segment folded — will restart on wake")
             }
+            let mins = self.trackedMinutes
+            TMLog("[LidClose] Mac going to sleep — session: \(sid), \(mins)m tracked, isOnBreak: \(self.isOnBreak), isIdle: \(self.isIdle), isTracking: \(self.isTracking)")
             let delivered = self.pendingDeliveredCommandIds
             self.pendingDeliveredCommandIds = []
             Task {
@@ -300,9 +354,11 @@ class TrackingManager: ObservableObject {
                 let mins = self.trackedMinutes
                 TMLog("[LidOpen] Clearing idle flag on server — session: \(sid), \(mins)m tracked")
                 // Restart the session timer (was stopped on sleep to prevent Power Nap heartbeats).
-                // The wake heartbeat below triggers server-side gap detection which inserts the
-                // break for the sleep period automatically.
+                // Begin a FRESH segment so the sleep interval is excluded — only post-wake time
+                // counts. The wake heartbeat below triggers server-side gap detection which
+                // inserts the break for the sleep period automatically.
                 if self.isTracking && !self.isOnBreak {
+                    self.beginSegment()
                     self.startMinuteTimer(sessionId: sid)
                     TMLog("[LidOpen] Session timer restarted — session: \(sid)")
                 }
@@ -345,6 +401,32 @@ class TrackingManager: ObservableObject {
                 sem.signal()
             }
             _ = sem.wait(timeout: .now() + 5)
+        }
+
+        // ── Screen lock / unlock ──────────────────────────────────────────────
+        // While the screen is locked the user is away from the keyboard — stop the
+        // "timer not running" reminders so they don't pile up on the lock screen.
+        // Screen lock (unlike sleep) keeps the Mac awake, so the RunLoop-based reminder
+        // timer would otherwise keep firing. The app is not sandboxed, so these
+        // distributed notifications are delivered.
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.screenIsLocked"), object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.isScreenLocked = true
+            TMLog("[ScreenLock] Locked — pausing not-tracking reminders")
+            self.cancelNotTrackingReminder()
+        }
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.isScreenLocked = false
+            TMLog("[ScreenLock] Unlocked — isTracking: \(self.isTracking), isOnBreak: \(self.isOnBreak)")
+            // Resume the reminder from a fresh cycle if the user still isn't actively tracking.
+            if (!self.isTracking || self.isOnBreak) && !self.idleReminderDisabled {
+                self.scheduleNotTrackingReminder()
+            }
         }
 
         // Poll every 2 min while not tracking — if system idle time just
@@ -444,7 +526,8 @@ class TrackingManager: ObservableObject {
             stoppedTrackingAt   = nil
             punchInTime         = punchInTime ?? Date()
             lastResumeTime      = Date()
-            trackedMinutes      = trackedMinutes   // keep restored value
+            accumulatedSeconds  = Double(trackedMinutes) * 60   // restored baseline seconds
+            beginSegment()                                      // start counting from now
             isTracking          = true
             isOnBreak           = false
             showIdleAlert       = false
@@ -594,7 +677,7 @@ class TrackingManager: ObservableObject {
                     let serverSessionMins = match.totalMinutes
                     await MainActor.run {
                         TMLog("[Sync] Reseeding trackedMinutes: local=\(self.trackedMinutes)m → server=\(serverSessionMins)m")
-                        self.trackedMinutes = serverSessionMins
+                        self.seedAccumulated(toSeconds: Double(serverSessionMins) * 60)
                     }
                 }
             }
@@ -687,8 +770,9 @@ class TrackingManager: ObservableObject {
     func scheduleNotTrackingReminder() {
         cancelNotTrackingReminder()
         guard !idleReminderDisabled else { return }
+        guard !isScreenLocked else { return }   // don't nag at the lock screen
 
-        let interval = reminderIntervals[min(reminderPhase, reminderIntervals.count - 1)]
+        let interval = reminderIntervalSeconds
         reminderDeadline = Date().addingTimeInterval(interval)
         secondsUntilNextReminder = Int(interval)
         startCountdownTimer()
@@ -700,8 +784,8 @@ class TrackingManager: ObservableObject {
                     self.cancelNotTrackingReminder(); return
                 }
                 guard !self.idleReminderDisabled else { return }
-
-                self.reminderPhase += 1
+                // Screen locked → skip this nag; unlock will reschedule a fresh cycle.
+                guard !self.isScreenLocked else { return }
 
                 // Activate window via AppDelegate observer
                 NotificationCenter.default.post(name: .tmActivateWindow, object: nil)
@@ -720,7 +804,7 @@ class TrackingManager: ObservableObject {
         }
         RunLoop.main.add(t, forMode: .common)
         notTrackingTimer = t
-        TMLog("[Notifications] Idle reminder scheduled in \(Int(interval / 60)) min (phase \(reminderPhase))")
+        TMLog("[Notifications] Idle reminder scheduled in \(Int(interval / 60)) min")
     }
 
     func cancelNotTrackingReminder() {
@@ -729,7 +813,7 @@ class TrackingManager: ObservableObject {
         countdownTimer?.invalidate()
         countdownTimer = nil
         reminderDeadline = nil
-        secondsUntilNextReminder = Int(reminderIntervals[0])
+        secondsUntilNextReminder = Int(reminderIntervalSeconds)
         // Note: showStartReminder is intentionally NOT cleared here because
         // cancelNotTrackingReminder() is called during rescheduling too — we want
         // the banner to stay visible between reminder intervals. It is cleared in
@@ -746,7 +830,7 @@ class TrackingManager: ObservableObject {
     func enableIdleReminder() {
         idleReminderDisabled = false
         UserDefaults.standard.removeObject(forKey: "tm_idle_reminder_disabled")
-        if !isTracking { reminderPhase = 0; scheduleNotTrackingReminder() }
+        if !isTracking { scheduleNotTrackingReminder() }
     }
 
     private func startCountdownTimer() {
@@ -786,7 +870,7 @@ class TrackingManager: ObservableObject {
         showNotTrackingAlert     = false
         showResumePrompt         = false
         stoppedTrackingAt        = nil
-        secondsUntilNextReminder = 5 * 60
+        secondsUntilNextReminder = Int(reminderIntervalSeconds)
         guard !isTracking else {
             TMLog("[PunchIn] Already tracking — ignored (session: \(currentSessionId ?? -1))")
             return
@@ -827,7 +911,9 @@ class TrackingManager: ObservableObject {
             currentJiraIssue = jiraIssue
             punchInTime      = Date()
             lastResumeTime   = Date()
-            trackedMinutes   = 0        // per-session reset (heartbeat uses this)
+            trackedMinutes     = 0      // per-session reset (heartbeat uses this)
+            accumulatedSeconds = 0      // reset elapsed baseline for the new session
+            beginSegment()             // start the first live segment
             pendingBreaks    = []       // new session — clear any stale break records
             // todayMinutes intentionally NOT reset — accumulates all day
             screenshotCount    = 0
@@ -904,7 +990,7 @@ class TrackingManager: ObservableObject {
                     let serverSessionMins = match.totalMinutes
                     await MainActor.run {
                         TMLog("[PunchIn] Seeding trackedMinutes from server session: \(self.trackedMinutes)m → \(serverSessionMins)m")
-                        self.trackedMinutes = serverSessionMins
+                        self.seedAccumulated(toSeconds: Double(serverSessionMins) * 60)
                     }
                 }
             }
@@ -921,7 +1007,12 @@ class TrackingManager: ObservableObject {
             TMLog("[PunchOut] Called but not tracking — ignored (session: \(currentSessionId.map{"\($0)"} ?? "none"), isTracking: \(isTracking))")
             return
         }
+        // Fold the live segment and recompute so the trailing partial minute is captured
+        // (round-to-nearest) rather than truncated away.
+        foldSegment()
+        recomputeTrackedMinutes()
         let finalMinutes = trackedMinutes   // capture before clearing state
+        accumulatedSeconds = 0              // reset elapsed baseline for the next session
         TMLog("[PunchOut] Stopping session \(sessionId) — \(finalMinutes)m tracked, isOnBreak: \(isOnBreak)")
         statusMessage = "Stopping session…"
         isTracking    = false
@@ -955,7 +1046,6 @@ class TrackingManager: ObservableObject {
 
         statusMessage      = "Session ended. Have a great day!"
         stoppedTrackingAt  = Date()
-        reminderPhase      = 0
         lowActivityMinutes = 0
         showSlowWorkAlert  = false
         scheduleNotTrackingReminder()
@@ -979,14 +1069,17 @@ class TrackingManager: ObservableObject {
         }
         TMLog("[Break] Starting break — session: \(currentSessionId ?? -1), \(trackedMinutes)m tracked")
 
+        // Fold the live segment so the partial minute up to the break is counted, then stop.
+        foldSegment()
+        recomputeTrackedMinutes()
         sessionTimer?.invalidate(); sessionTimer = nil
         resumeTimer?.invalidate();  resumeTimer  = nil
+        endBackgroundActivity()
         screenshots.stop()
         idleDetector.stop()
 
         isOnBreak         = true
         stoppedTrackingAt = Date()
-        reminderPhase     = 0
         statusMessage     = "On break"
         MenuBarState.shared.isOnBreak = true
         saveSessionState()
@@ -1043,6 +1136,7 @@ class TrackingManager: ObservableObject {
             }
         }
 
+        beginSegment()   // start a fresh live segment for the resumed work
         startAllServices(sessionId: sessionId)
 
         // Immediate heartbeat — syncs trackedMinutes + the just-completed break right away.
@@ -1070,8 +1164,9 @@ class TrackingManager: ObservableObject {
 
         if !countTime {
             let deduct = min(idleAlertMinutes, trackedMinutes)
-            trackedMinutes  = trackedMinutes  - deduct
-            todayMinutes    = max(0, todayMinutes - deduct)
+            accumulatedSeconds = max(0, currentTrackedSeconds() - Double(deduct) * 60)
+            segmentStart       = nil
+            recomputeTrackedMinutes()   // carries the negative delta into todayMinutes too
         }
 
         if let idleStart = pendingIdleStart {
@@ -1085,6 +1180,7 @@ class TrackingManager: ObservableObject {
         lastResumeTime = Date()
         statusMessage  = "Tracking active"
 
+        beginSegment()
         startMinuteTimer(sessionId: sessionId)
         startResumeTimer()
         saveSessionState()
@@ -1128,10 +1224,12 @@ class TrackingManager: ObservableObject {
 
         // Restore session context — but do NOT auto-start tracking.
         // Show the resume prompt so the user explicitly confirms before the timer resumes.
-        currentSessionId = state.sessionId
-        punchInTime      = state.punchInTime
-        trackedMinutes   = state.trackedMinutes
-        lastResumeTime   = nil
+        currentSessionId   = state.sessionId
+        punchInTime        = state.punchInTime
+        trackedMinutes     = state.trackedMinutes
+        accumulatedSeconds = Double(state.trackedMinutes) * 60   // restored baseline
+        segmentStart       = nil                                 // not counting until user resumes
+        lastResumeTime     = nil
         isTracking       = false   // wait for user confirmation
         statusMessage    = "Session paused — tap Resume to continue"
         stoppedTrackingAt = Date()
@@ -1194,7 +1292,7 @@ class TrackingManager: ObservableObject {
             let serverMins = match?.totalMinutes ?? 0
             if serverMins > trackedMinutes {
                 TMLog("[SessionRestore] Server has more minutes (\(serverMins)) than local (\(trackedMinutes)) — syncing up")
-                await MainActor.run { self.trackedMinutes = serverMins }
+                await MainActor.run { self.seedAccumulated(toSeconds: Double(serverMins) * 60) }
             } else {
                 TMLog("[SessionRestore] Session \(sessionId) verified — local: \(trackedMinutes)m, server: \(serverMins)m ✓")
             }
@@ -1338,35 +1436,104 @@ class TrackingManager: ObservableObject {
         return true
     }
 
+    // MARK: - Elapsed-time helpers
+
+    /// Total tracked seconds this session = folded segments + the live segment (if running).
+    private func currentTrackedSeconds() -> TimeInterval {
+        var secs = accumulatedSeconds
+        if let start = segmentStart { secs += max(0, Date().timeIntervalSince(start)) }
+        return secs
+    }
+
+    /// Fold the live segment into accumulatedSeconds and stop it (break / idle / punch-out).
+    private func foldSegment() {
+        if let start = segmentStart {
+            accumulatedSeconds += max(0, Date().timeIntervalSince(start))
+            segmentStart = nil
+        }
+    }
+
+    /// Begin a fresh live segment (punch-in / resume / post-wake).
+    private func beginSegment() { segmentStart = Date() }
+
+    /// Recompute trackedMinutes (round to nearest) from elapsed seconds and carry the same
+    /// minute delta into todayMinutes. Returns the minute delta applied this call.
+    @discardableResult
+    private func recomputeTrackedMinutes() -> Int {
+        let newMinutes = Int((currentTrackedSeconds() / 60).rounded())
+        let delta = newMinutes - trackedMinutes
+        if delta != 0 {
+            trackedMinutes = newMinutes
+            todayMinutes   = max(0, todayMinutes + delta)
+            MenuBarState.shared.todayMinutes = todayMinutes
+        }
+        return delta
+    }
+
+    /// Raise the accumulated baseline to at least `seconds` when the server reports a higher
+    /// value than we hold locally (post-restart / cross-device ground truth). Re-anchors the
+    /// live segment so elapsed counting continues cleanly from the corrected baseline.
+    /// Does NOT touch todayMinutes — the server corrects that separately via the heartbeat sum.
+    private func seedAccumulated(toSeconds seconds: TimeInterval) {
+        accumulatedSeconds = max(currentTrackedSeconds(), seconds)
+        segmentStart = (isTracking && !isOnBreak) ? Date() : nil
+        trackedMinutes = Int((accumulatedSeconds / 60).rounded())
+    }
+
+    // MARK: - App Nap suppression
+
+    /// Prevent macOS App Nap from throttling the minute timer / heartbeats while actively
+    /// tracking. Uses `.userInitiatedAllowingIdleSystemSleep` so real system sleep still
+    /// pauses tracking (handled by the willSleep observer) — we only stop background throttling.
+    private func beginBackgroundActivity() {
+        guard activityToken == nil else { return }
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep,
+            reason:  "TeamMonitor time tracking"
+        )
+    }
+
+    private func endBackgroundActivity() {
+        if let token = activityToken {
+            ProcessInfo.processInfo.endActivity(token)
+            activityToken = nil
+        }
+    }
+
     // MARK: - Timer helpers
 
     private func startMinuteTimer(sessionId: Int) {
         sessionTimer?.invalidate()
         heartbeatTickCount = 0
+        beginBackgroundActivity()   // suppress App Nap so fires + heartbeats stay timely
+        // Safety net: ensure a live segment exists (callers normally set this first).
+        if segmentStart == nil && isTracking && !isOnBreak { beginSegment() }
         // Timer runs on RunLoop.main — no Task wrapper needed for synchronous work.
         // Only the async heartbeat spawns a Task (infrequent, every kHeartbeatEvery minutes).
         let t = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.trackedMinutes     += 1
             self.heartbeatTickCount += 1
+
+            // Recompute tracked/today minutes from wall-clock elapsed time (not tick count).
+            // If a fire was dropped (App Nap / stall / coalescing) this recovers the full gap
+            // on the next fire instead of permanently losing those minutes.
+            let minuteDelta = self.recomputeTrackedMinutes()
 
             // End session + show punch-in reminder when date changes at midnight
             if self.checkDayChange() {
                 return  // punchOut() called inside — stopAllServices() cancels this timer
             }
-            self.todayMinutes += 1
-            MenuBarState.shared.todayMinutes = self.todayMinutes
 
             self.saveSessionState()
             self.saveTodayMinutes()
 
-            // Slow work alert
+            // Slow work alert — advance only when at least one whole minute elapsed this fire.
             let alertEnabled   = APIService.shared.employee?.slowWorkAlertEnabled ?? false
             let alertThreshold = APIService.shared.employee?.slowWorkAlertMinutes ?? 10
-            if alertEnabled && self.activityPercent < 25 && !self.isIdle {
-                self.lowActivityMinutes += 1
-                if self.lowActivityMinutes == alertThreshold { self.showSlowWorkAlert = true }
-            } else {
+            if alertEnabled && minuteDelta >= 1 && self.activityPercent < 25 && !self.isIdle {
+                self.lowActivityMinutes += minuteDelta
+                if self.lowActivityMinutes >= alertThreshold { self.showSlowWorkAlert = true }
+            } else if minuteDelta >= 1 {
                 self.lowActivityMinutes = 0
                 self.showSlowWorkAlert  = false
             }
@@ -1420,6 +1587,8 @@ class TrackingManager: ObservableObject {
         resumeTimer?.invalidate();       resumeTimer       = nil
         activityWatchTimer?.invalidate(); activityWatchTimer = nil  // restarted by punchOut/takeBreak
         heartbeatTickCount = 0
+        endBackgroundActivity()
+        segmentStart       = nil
         screenshots.stop()
         appTracker.stop()
         idleDetector.stop()

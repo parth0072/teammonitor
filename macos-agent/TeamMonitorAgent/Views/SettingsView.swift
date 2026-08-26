@@ -85,27 +85,54 @@ struct SettingsView: View {
 
                     // MARK: Timer-not-running Reminders
                     settingsSection("Reminders") {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Timer-not-running alerts")
-                                    .font(.system(size: 13, weight: .medium))
-                                Text(manager.idleReminderDisabled
-                                     ? "Reminders muted — tap to re-enable"
-                                     : "Notifies you when the timer is stopped")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(manager.idleReminderDisabled
-                                                     ? Color(hex: "f59e0b")
-                                                     : Color(hex: "6b7280"))
-                            }
-                            Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { !manager.idleReminderDisabled },
-                                set: { on in
-                                    if on { manager.enableIdleReminder() }
-                                    else  { manager.disableIdleReminder() }
+                        VStack(spacing: 14) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Timer-not-running alerts")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Text(manager.idleReminderDisabled
+                                         ? "Reminders muted — tap to re-enable"
+                                         : "Notifies you when the timer is stopped")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(manager.idleReminderDisabled
+                                                         ? Color(hex: "f59e0b")
+                                                         : Color(hex: "6b7280"))
                                 }
-                            ))
-                            .labelsHidden()
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { !manager.idleReminderDisabled },
+                                    set: { on in
+                                        if on { manager.enableIdleReminder() }
+                                        else  { manager.disableIdleReminder() }
+                                    }
+                                ))
+                                .labelsHidden()
+                            }
+
+                            // Reminder interval — configurable, capped at 30 min.
+                            if !manager.idleReminderDisabled {
+                                Divider()
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Remind me every")
+                                            .font(.system(size: 13, weight: .medium))
+                                        Text("How often to nudge you (max \(manager.reminderIntervalMaxLimit) min)")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color(hex: "6b7280"))
+                                    }
+                                    Spacer()
+                                    Stepper(value: Binding(
+                                        get: { manager.reminderIntervalMinutes },
+                                        set: { manager.setReminderInterval(minutes: $0) }
+                                    ), in: manager.reminderIntervalMinLimit...manager.reminderIntervalMaxLimit, step: 5) {
+                                        Text("\(manager.reminderIntervalMinutes) min")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundColor(Color(hex: "374151"))
+                                            .frame(minWidth: 52, alignment: .trailing)
+                                    }
+                                    .fixedSize()
+                                }
+                            }
                         }
                     }
 

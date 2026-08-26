@@ -63,7 +63,7 @@ struct NotTrackingAlertView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    manager.showNotTrackingAlert = false
+                    manager.snoozeReminder()
                 } label: {
                     Text("Remind me in \(manager.nextReminderMinutes) minutes")
                         .font(.system(size: 13, weight: .medium))
