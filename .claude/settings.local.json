@@ -178,7 +178,16 @@
       "Bash(node_modules/.bin/electron .)",
       "Bash(kill -9 62674)",
       "Bash(pkill -9 -f \"windows-agent/node_modules/electron\")",
-      "Bash(rm -rf /Users/coda/Desktop/worklog/TeamMonitor/server/public/*)"
+      "Bash(rm -rf /Users/coda/Desktop/worklog/TeamMonitor/server/public/*)",
+      "Bash(mkdir -p /Users/coda/Desktop/worklog/TeamMonitor/.claude/memory)",
+      "Bash(cp /Users/coda/.claude/projects/-Users-coda-Desktop-worklog-TeamMonitor/memory/*.md /Users/coda/Desktop/worklog/TeamMonitor/.claude/memory/)",
+      "Bash(grep -v \"^-Users-coda-Desktop-worklog-TeamMonitor$\")",
+      "Bash(xcodebuild -project TeamMonitorAgent.xcodeproj -scheme TeamMonitorAgent -configuration Debug -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO)",
+      "Bash(echo \"=== System-wide hang / spindump reports \\(last 30 days\\) ===\"; find /Library/Logs/DiagnosticReports ~/Library/Logs/DiagnosticReports -type f \\\\\\( -iname \"*.spindump\" -o -iname \"*hang*\" -o -iname \"*.panic\" -o -iname \"*wakeups*\" -o -iname \"*cpu_resource*\" \\\\\\) -mtime -30 2>/dev/null | sort; echo; echo \"=== Any report mentioning TeamMonitor \\(last 30 days\\) ===\"; find /Library/Logs/DiagnosticReports ~/Library/Logs/DiagnosticReports -type f -mtime -30 2>/dev/null | xargs grep -l -i \"teammonitor\" 2>/dev/null | head; echo; echo \"=== Recent panics ===\"; ls -lt /Library/Logs/DiagnosticReports/*.panic 2>/dev/null | head)",
+      "Bash(sysctl -n hw.memsize)",
+      "Bash(awk '{printf \" %.0f GB\\\\n\", $1/1024/1024/1024}')",
+      "Bash(memory_pressure)",
+      "Bash(sysctl vm.swapusage)"
     ]
   }
 }
