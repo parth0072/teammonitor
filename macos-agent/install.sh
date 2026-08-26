@@ -36,13 +36,21 @@ echo "  macOS $OS ✓"
 
 # ── 2. Fetch latest release info ──────────────────────────────────────────────
 info "Fetching latest release..."
+# NOTE: the `|| error ...` must be OUTSIDE the command substitution. Bash runs
+# `$(...)` in a subshell, so an `exit` called from inside it (as error() does)
+# only terminates that subshell — the error text gets silently captured into
+# the variable instead of printed, and `set -e` then kills the script with no
+# message at all. Keeping `||` at the top level lets error() run normally.
 RELEASE_JSON=$(curl -fsSL \
   -H "Accept: application/vnd.github+json" \
-  "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" \
-  || error "Could not reach GitHub API. Check your internet connection.")
+  "https://api.github.com/repos/${GITHUB_REPO}/releases/latest") \
+  || error "Could not reach GitHub API. Check your internet connection."
 
-LATEST_TAG=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
-DOWNLOAD_URL=$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep 'TeamMonitorAgent.zip' | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')
+# `|| true` prevents `pipefail` from treating "grep found no match" (a normal,
+# expected outcome we check for below) as a pipeline failure that would abort
+# the script under `set -e` before the friendly error messages below can run.
+LATEST_TAG=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/' || true)
+DOWNLOAD_URL=$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep 'TeamMonitorAgent.zip' | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/' || true)
 
 [ -z "$LATEST_TAG" ] && error "Could not determine latest version."
 [ -z "$DOWNLOAD_URL" ] && error "Could not find TeamMonitorAgent.zip in the latest release."
